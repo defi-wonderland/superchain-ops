@@ -205,7 +205,10 @@ library GnosisSafeHashes {
 
     /// @notice Generates a JSON string for the EIP-712 typed data. This string that is logged must be passed as an arg
     /// to cast e.g. 'cast wallet sign --ledger --data "$(forge script EIP712 --json | jq -r '.logs[0]')"'.
-    function generateTypedDataJson(uint256 chainId, address verifyingContract, SafeTransaction memory safeTx) external pure {
+    function generateTypedDataJson(uint256 chainId, address verifyingContract, SafeTransaction memory safeTx)
+        external
+        pure
+    {
         console.log(
             string.concat(
                 "{\n",
@@ -245,6 +248,7 @@ library GnosisSafeHashes {
                 string.concat('    "nonce": ', vm.toString(safeTx.nonce), "\n"),
                 "  }\n",
                 "}\n"
-            ));
+            )
+        );
     }
 }
