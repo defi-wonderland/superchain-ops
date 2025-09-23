@@ -4,10 +4,22 @@ pragma solidity 0.8.15;
 import {VmSafe} from "forge-std/Vm.sol";
 import {stdToml} from "forge-std/StdToml.sol";
 
-import {IOptimismPortal2} from "lib/optimism/packages/contracts-bedrock/interfaces/L1/IOptimismPortal2.sol";
 import {MultisigTaskPrinter} from "../../libraries/MultisigTaskPrinter.sol";
 import {Action} from "../../libraries/MultisigTypes.sol";
 import {SimpleTaskBase} from "../tasks/types/SimpleTaskBase.sol";
+
+/// @notice Interface for the OptimismPortal2 contract on L1.
+interface IOptimismPortal2 {
+    function depositTransaction(
+        address _to,
+        uint256 _value,
+        uint64 _gasLimit,
+        bool _isCreation,
+        bytes memory _data
+    )
+        external
+        payable;
+}
 
 /// @notice Template to execute an L2 call via the L1 Optimism Portal from a nested L1 Safe.
 /// Sends an L2 transaction using OptimismPortal.depositTransaction with config-driven params.
@@ -15,12 +27,18 @@ contract L1PortalExecuteL2Call is SimpleTaskBase {
     using stdToml for string;
 
     // -------- Config inputs --------
-    address payable public portal; // L1 OptimismPortal address
-    address public l2Target; // L2 target address
-    bytes public l2Data; // Inner L2 calldata
-    uint256 public valueWei; // ETH value to forward to L2 (defaults to 0)
-    uint64 public gasLimit; // L2 gas limit (required)
-    bool public isCreation; // Whether to create a contract on L2 (defaults to false)
+    /// @notice The address of the OptimismPortal2 contract on L1.
+    address payable public portal;
+    /// @notice The address of the L2 target contract.
+    address public l2Target;
+    /// @notice The calldata to be executed on l2Target.
+    bytes public l2Data;
+    /// @notice The ETH value to forward to L2.
+    uint256 public valueWei;
+    /// @notice The L2 gas limit.
+    uint64 public gasLimit;
+    /// @notice Whether to create a contract on L2.
+    bool public isCreation;
 
     /// @notice Default Safe name. Can be overridden via `safeAddressString` in config.toml.
     function safeAddressString() public pure override returns (string memory) {
@@ -66,8 +84,7 @@ contract L1PortalExecuteL2Call is SimpleTaskBase {
         require(l2Target != address(0), "l2Target must be set");
 
         // Read hex string and parse to bytes.
-        string memory _dataHex = _toml.readString(".l2Data");
-        l2Data = vm.parseBytes(_dataHex);
+        l2Data = _toml.readBytes(".l2Data");
         require(l2Data.length > 0, "l2Data must be set");
 
         uint256 _gasLimitTmp = _toml.readUint(".gasLimit");
@@ -84,6 +101,9 @@ contract L1PortalExecuteL2Call is SimpleTaskBase {
         try vm.parseTomlBool(_toml, ".isCreation") returns (bool _b) {
             isCreation = _b;
         } catch {}
+
+        // early revert in case of attempted contract creation with a non-zero target
+        require(isCreation && l2Target == address(0) || !isCreation, "contract creation requires zero target address");
     }
 
     /// @notice Build the portal deposit action. WARNING: State changes here are reverted after capture.
@@ -94,8 +114,8 @@ contract L1PortalExecuteL2Call is SimpleTaskBase {
 
     /// @notice Validate that exactly one action to the portal with the expected calldata and value was captured.
     function _validate(VmSafe.AccountAccess[] memory, Action[] memory _actions, address) internal view override {
-        bytes memory _expected = abi.encodeWithSelector(
-            IOptimismPortal2.depositTransaction.selector, l2Target, valueWei, gasLimit, isCreation, l2Data
+        bytes memory _expected = abi.encodeCall(
+            IOptimismPortal2.depositTransaction, (l2Target, valueWei, gasLimit, isCreation, l2Data)
         );
 
         bool _found;
