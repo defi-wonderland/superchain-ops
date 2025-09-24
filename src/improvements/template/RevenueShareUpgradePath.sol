@@ -7,6 +7,7 @@ import {LibString} from "@solady/utils/LibString.sol";
 import {stdToml} from "lib/forge-std/src/StdToml.sol";
 import {SimpleTaskBase} from "src/improvements/tasks/types/SimpleTaskBase.sol";
 import {Action} from "src/libraries/MultisigTypes.sol";
+import {MultisigTaskPrinter} from "../../libraries/MultisigTaskPrinter.sol";
 
 /// @notice Interface for the OptimismPortal2 in L1. This is the main interaction point for the template.
 interface IOptimismPortal2 {
@@ -99,8 +100,8 @@ contract RevenueShareV100UpgradePath is SimpleTaskBase {
     /// @notice The address of the OptimismPortal through which we are making the deposit txns
     address public portal;
 
-    /// @notice The salt to be used for the L2 deployments
-    bytes32 public salt;
+    /// @notice The salt seed to be used for the L2 deployments
+    string public saltSeed;
 
     /// @notice Config value indicating if the chain is opting in to use FeeSplitter
     bool public optInRevenueShare;
@@ -175,8 +176,8 @@ contract RevenueShareV100UpgradePath is SimpleTaskBase {
         portal = _toml.readAddress(".portal");
         require(portal != address(0), "portal must be set in config");
 
-        salt = _toml.readBytes32(".salt");
-        require(salt != bytes32(0), "salt must be set in the config");
+        saltSeed = _toml.readString(".saltSeed");
+        require(bytes(saltSeed).length != 0, "saltSeed must be set in the config");
 
         deploymentGasLimit = uint64(_toml.readUint(".deploymentGasLimit"));
         require(deploymentGasLimit > 0, "deploymentGasLimit must be set in config");
@@ -270,24 +271,38 @@ contract RevenueShareV100UpgradePath is SimpleTaskBase {
                 l1FeeWithdrawerCreationCode,
                 abi.encode(l1WithdrawerMinWithdrawalAmount, l1WithdrawerRecipient, l1WithdrawerGasLimit)
             );
-            _l1WithdrawerCalldata = abi.encodeCall(ICreate2Deployer.deploy, (0, salt, _l1WithdrawerInitCode));
-            _l1WithdrawerCalculatedAddress = _getCreate2Address(_l1WithdrawerInitCode, CREATE2_DEPLOYER, salt);
+            _l1WithdrawerCalldata =
+                abi.encodeCall(ICreate2Deployer.deploy, (0, _getSalt(saltSeed, "L1Withdrawer"), _l1WithdrawerInitCode));
+            _l1WithdrawerCalculatedAddress =
+                _getCreate2Address(_l1WithdrawerInitCode, CREATE2_DEPLOYER, _getSalt(saltSeed, "L1Withdrawer"));
             // Expected calls for L1 Withdrawer: 1 (deploy)
-            _incrementCallsToPortal(_l1WithdrawerCalldata);
+            _incrementCallsToPortal(
+                abi.encodeCall(
+                    IOptimismPortal2.depositTransaction,
+                    (address(CREATE2_DEPLOYER), 0, deploymentGasLimit, false, _l1WithdrawerCalldata)
+                )
+            );
 
             // Calculate addresses and data to deploy SC Rev Share Calculator
             bytes memory _scRevShareCalculatorInitCode = bytes.concat(
                 scRevShareCalculatorCreationCode,
                 abi.encode(_l1WithdrawerCalculatedAddress, scRevShareCalcChainFeesRecipient)
             );
-            _scRevShareCalculatorCalldata =
-                abi.encodeCall(ICreate2Deployer.deploy, (0, salt, _scRevShareCalculatorInitCode));
+            _scRevShareCalculatorCalldata = abi.encodeCall(
+                ICreate2Deployer.deploy, (0, _getSalt(saltSeed, "SCRevShareCalculator"), _scRevShareCalculatorInitCode)
+            );
 
-            _scRevShareCalculatorCalculatedAddress =
-                _getCreate2Address(_scRevShareCalculatorInitCode, CREATE2_DEPLOYER, salt);
+            _scRevShareCalculatorCalculatedAddress = _getCreate2Address(
+                _scRevShareCalculatorInitCode, CREATE2_DEPLOYER, _getSalt(saltSeed, "SCRevShareCalculator")
+            );
 
             // Expected calls for SC Rev Share Calculator: 1 (deploy)
-            _incrementCallsToPortal(_scRevShareCalculatorCalldata);
+            _incrementCallsToPortal(
+                abi.encodeCall(
+                    IOptimismPortal2.depositTransaction,
+                    (address(CREATE2_DEPLOYER), 0, deploymentGasLimit, false, _scRevShareCalculatorCalldata)
+                )
+            );
         }
 
         // Calculate addresses and data to deploy vaults
@@ -298,13 +313,32 @@ contract RevenueShareV100UpgradePath is SimpleTaskBase {
                 operatorFeeVaultRecipient, operatorFeeVaultMinWithdrawalAmount, operatorFeeVaultWithdrawalNetwork
             )
         );
-        _operatorFeeVaultCalculatedAddress = _getCreate2Address(_operatorFeeVaultInitCode, CREATE2_DEPLOYER, salt);
+        _operatorFeeVaultCalculatedAddress =
+            _getCreate2Address(_operatorFeeVaultInitCode, CREATE2_DEPLOYER, _getSalt(saltSeed, "OperatorFeeVault"));
 
-        _operatorFeeVaultCalldata = abi.encodeCall(ICreate2Deployer.deploy, (0, salt, _operatorFeeVaultInitCode));
+        _operatorFeeVaultCalldata = abi.encodeCall(
+            ICreate2Deployer.deploy, (0, _getSalt(saltSeed, "OperatorFeeVault"), _operatorFeeVaultInitCode)
+        );
 
         // Expected calls for OperatorFeeVault: 2 (deploy + upgrade)
-        _incrementCallsToPortal(_operatorFeeVaultCalldata);
-        _incrementCallsToPortal(abi.encodeCall(IProxy.upgradeTo, (address(_operatorFeeVaultCalculatedAddress))));
+        _incrementCallsToPortal(
+            abi.encodeCall(
+                IOptimismPortal2.depositTransaction,
+                (address(CREATE2_DEPLOYER), 0, deploymentGasLimit, false, _operatorFeeVaultCalldata)
+            )
+        );
+        _incrementCallsToPortal(
+            abi.encodeCall(
+                IOptimismPortal2.depositTransaction,
+                (
+                    address(OPERATOR_FEE_VAULT),
+                    0,
+                    deploymentGasLimit,
+                    false,
+                    abi.encodeCall(IProxy.upgradeTo, (address(_operatorFeeVaultCalculatedAddress)))
+                )
+            )
+        );
 
         // Calculate addresses and data to deploy SequencerFeeVault
         bytes memory _sequencerFeeVaultInitCode = bytes.concat(
@@ -313,49 +347,120 @@ contract RevenueShareV100UpgradePath is SimpleTaskBase {
                 sequencerFeeVaultRecipient, sequencerFeeVaultMinWithdrawalAmount, sequencerFeeVaultWithdrawalNetwork
             )
         );
-        _sequencerFeeVaultCalculatedAddress = _getCreate2Address(_sequencerFeeVaultInitCode, CREATE2_DEPLOYER, salt);
-        _sequencerFeeVaultCalldata = abi.encodeCall(ICreate2Deployer.deploy, (0, salt, _sequencerFeeVaultInitCode));
+        _sequencerFeeVaultCalculatedAddress =
+            _getCreate2Address(_sequencerFeeVaultInitCode, CREATE2_DEPLOYER, _getSalt(saltSeed, "SequencerFeeVault"));
+        _sequencerFeeVaultCalldata = abi.encodeCall(
+            ICreate2Deployer.deploy, (0, _getSalt(saltSeed, "SequencerFeeVault"), _sequencerFeeVaultInitCode)
+        );
 
         // Expected calls for SequencerFeeVault: 2 (deploy + upgrade)
-        _incrementCallsToPortal(_sequencerFeeVaultCalldata);
-        _incrementCallsToPortal(abi.encodeCall(IProxy.upgradeTo, (address(_sequencerFeeVaultCalculatedAddress))));
+        _incrementCallsToPortal(
+            abi.encodeCall(
+                IOptimismPortal2.depositTransaction,
+                (address(CREATE2_DEPLOYER), 0, deploymentGasLimit, false, _sequencerFeeVaultCalldata)
+            )
+        );
+        _incrementCallsToPortal(
+            abi.encodeCall(
+                IOptimismPortal2.depositTransaction,
+                (
+                    address(SEQUENCER_FEE_VAULT),
+                    0,
+                    deploymentGasLimit,
+                    false,
+                    abi.encodeCall(IProxy.upgradeTo, (address(_sequencerFeeVaultCalculatedAddress)))
+                )
+            )
+        );
 
         // Calculate addresses and data to deploy BaseFeeVault
         bytes memory _baseFeeVaultInitCode = bytes.concat(
             baseFeeVaultCreationCode,
             abi.encode(baseFeeVaultRecipient, baseFeeVaultMinWithdrawalAmount, baseFeeVaultWithdrawalNetwork)
         );
-        _baseFeeVaultCalculatedAddress = _getCreate2Address(_baseFeeVaultInitCode, CREATE2_DEPLOYER, salt);
-        _baseFeeVaultCalldata = abi.encodeCall(ICreate2Deployer.deploy, (0, salt, _baseFeeVaultInitCode));
+        _baseFeeVaultCalculatedAddress =
+            _getCreate2Address(_baseFeeVaultInitCode, CREATE2_DEPLOYER, _getSalt(saltSeed, "BaseFeeVault"));
+        _baseFeeVaultCalldata =
+            abi.encodeCall(ICreate2Deployer.deploy, (0, _getSalt(saltSeed, "BaseFeeVault"), _baseFeeVaultInitCode));
 
         // Expected calls for BaseFeeVault: 2 (deploy + upgrade)
-        _incrementCallsToPortal(_baseFeeVaultCalldata);
-        _incrementCallsToPortal(abi.encodeCall(IProxy.upgradeTo, (address(_baseFeeVaultCalculatedAddress))));
+        _incrementCallsToPortal(
+            abi.encodeCall(
+                IOptimismPortal2.depositTransaction,
+                (address(CREATE2_DEPLOYER), 0, deploymentGasLimit, false, _baseFeeVaultCalldata)
+            )
+        );
+        _incrementCallsToPortal(
+            abi.encodeCall(
+                IOptimismPortal2.depositTransaction,
+                (
+                    address(BASE_FEE_VAULT),
+                    0,
+                    deploymentGasLimit,
+                    false,
+                    abi.encodeCall(IProxy.upgradeTo, (address(_baseFeeVaultCalculatedAddress)))
+                )
+            )
+        );
 
         // Calculate addresses and data to deploy L1FeeVault
         bytes memory _l1FeeVaultInitCode = bytes.concat(
             l1FeeVaultCreationCode,
             abi.encode(l1FeeVaultRecipient, l1FeeVaultMinWithdrawalAmount, l1FeeVaultWithdrawalNetwork)
         );
-        _l1FeeVaultCalculatedAddress = _getCreate2Address(_l1FeeVaultInitCode, CREATE2_DEPLOYER, salt);
-        _l1FeeVaultCalldata = abi.encodeCall(ICreate2Deployer.deploy, (0, salt, _l1FeeVaultInitCode));
+        _l1FeeVaultCalculatedAddress =
+            _getCreate2Address(_l1FeeVaultInitCode, CREATE2_DEPLOYER, _getSalt(saltSeed, "L1FeeVault"));
+        _l1FeeVaultCalldata =
+            abi.encodeCall(ICreate2Deployer.deploy, (0, _getSalt(saltSeed, "L1FeeVault"), _l1FeeVaultInitCode));
 
         // Expected calls for L1FeeVault: 2 (deploy + upgrade)
-        _incrementCallsToPortal(_l1FeeVaultCalldata);
-        _incrementCallsToPortal(abi.encodeCall(IProxy.upgradeTo, (address(_l1FeeVaultCalculatedAddress))));
-
-        // Calculate addresses and data to deploy Fee Splitter
-        _feeSplitterCalldata = abi.encodeCall(ICreate2Deployer.deploy, (0, salt, feeSplitterCreationCode));
-        _feeSplitterCalculatedAddress = _getCreate2Address(feeSplitterCreationCode, CREATE2_DEPLOYER, salt);
-
-        // Expected calls for FeeSplitter: 2 (deploy + upgrade)
-        _incrementCallsToPortal(_feeSplitterCalldata);
         _incrementCallsToPortal(
             abi.encodeCall(
-                IProxy.upgradeToAndCall,
+                IOptimismPortal2.depositTransaction,
+                (address(CREATE2_DEPLOYER), 0, deploymentGasLimit, false, _l1FeeVaultCalldata)
+            )
+        );
+        _incrementCallsToPortal(
+            abi.encodeCall(
+                IOptimismPortal2.depositTransaction,
                 (
-                    address(_feeSplitterCalculatedAddress),
-                    abi.encodeCall(IFeeSplitter.initialize, (_scRevShareCalculatorCalculatedAddress))
+                    address(L1_FEE_VAULT),
+                    0,
+                    deploymentGasLimit,
+                    false,
+                    abi.encodeCall(IProxy.upgradeTo, (address(_l1FeeVaultCalculatedAddress)))
+                )
+            )
+        );
+
+        // Calculate addresses and data to deploy Fee Splitter
+        _feeSplitterCalldata =
+            abi.encodeCall(ICreate2Deployer.deploy, (0, _getSalt(saltSeed, "FeeSplitter"), feeSplitterCreationCode));
+        _feeSplitterCalculatedAddress =
+            _getCreate2Address(feeSplitterCreationCode, CREATE2_DEPLOYER, _getSalt(saltSeed, "FeeSplitter"));
+
+        // Expected calls for FeeSplitter: 2 (deploy + upgrade)
+        _incrementCallsToPortal(
+            abi.encodeCall(
+                IOptimismPortal2.depositTransaction,
+                (address(CREATE2_DEPLOYER), 0, deploymentGasLimit, false, _feeSplitterCalldata)
+            )
+        );
+        _incrementCallsToPortal(
+            abi.encodeCall(
+                IOptimismPortal2.depositTransaction,
+                (
+                    address(FEE_SPLITTER),
+                    0,
+                    deploymentGasLimit,
+                    false,
+                    abi.encodeCall(
+                        IProxy.upgradeToAndCall,
+                        (
+                            address(_feeSplitterCalculatedAddress),
+                            abi.encodeCall(IFeeSplitter.initialize, (_scRevShareCalculatorCalculatedAddress))
+                        )
+                    )
                 )
             )
         );
@@ -391,13 +496,14 @@ contract RevenueShareV100UpgradePath is SimpleTaskBase {
 
     /// @notice This method performs all validations and assertions that verify the calls executed as expected.
     function _validate(VmSafe.AccountAccess[] memory, Action[] memory _actions, address) internal override {
+        MultisigTaskPrinter.printTitle("Validating calls to portal");
         // Expected portal calls: 10 (base vault operations)
         // + 2 (revenue share: L1 withdrawer + calculator) if opting in
         uint256 expectedCallsToPortal = optInRevenueShare ? 12 : 10;
         uint256 actualCallsToPortal = 0;
         for (uint256 i = 0; i < _actions.length; i++) {
             Action memory action = _actions[i];
-            if (action.target == address(portal)) {
+            if (action.target == address(portal) && action.arguments.length > 0) {
                 _verifyAndDecrementCallsToPortal(action.arguments);
                 actualCallsToPortal += 1;
             }
@@ -503,7 +609,11 @@ contract RevenueShareV100UpgradePath is SimpleTaskBase {
 
     function _verifyAndDecrementCallsToPortal(bytes memory _calldata) private {
         bytes32 calldataHash = keccak256(_calldata);
-        require(_callsToPortal[calldataHash] >= 1, "Invalid number of calls to portal");
+        require(_callsToPortal[calldataHash] > 0, "Invalid number of calls with this calldata");
         _callsToPortal[calldataHash] -= 1;
+    }
+
+    function _getSalt(string memory _prefix, string memory _suffix) private pure returns (bytes32) {
+        return keccak256(abi.encodePacked(bytes(_prefix), bytes(":"), bytes(_suffix)));
     }
 }
