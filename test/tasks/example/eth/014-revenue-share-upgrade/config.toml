@@ -9,7 +9,7 @@ saltSeed = "DeploymentSalt"  # Deployment salt
 deploymentGasLimit = 1000000
 
 # L1 Withdrawer Configuration (only used when optInRevenueShare = true)
-l1WithdrawerMinWithdrawalAmount = 1000000000000000000  # 1 ETH in wei
+l1WithdrawerMinWithdrawalAmount = 350000  
 l1WithdrawerRecipient = "0x742d35Cc6634C0532925a3b8D0C0C8b8B0c0C8b8"  # L1 recipient address
 l1WithdrawerGasLimit = 200000  # Gas limit for L1 withdrawal transactions
 
