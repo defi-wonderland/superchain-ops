@@ -4,19 +4,13 @@ pragma solidity 0.8.15;
 import {VmSafe} from "forge-std/Vm.sol";
 import {stdToml} from "forge-std/StdToml.sol";
 
-import {MultisigTaskPrinter} from "../../libraries/MultisigTaskPrinter.sol";
-import {Action} from "../../libraries/MultisigTypes.sol";
+import {MultisigTaskPrinter} from "../libraries/MultisigTaskPrinter.sol";
+import {Action} from "../libraries/MultisigTypes.sol";
 import {SimpleTaskBase} from "../tasks/types/SimpleTaskBase.sol";
 
 /// @notice Interface for the OptimismPortal2 contract on L1.
 interface IOptimismPortal2 {
-    function depositTransaction(
-        address _to,
-        uint256 _value,
-        uint64 _gasLimit,
-        bool _isCreation,
-        bytes memory _data
-    )
+    function depositTransaction(address _to, uint256 _value, uint64 _gasLimit, bool _isCreation, bytes memory _data)
         external
         payable;
 }
@@ -33,8 +27,6 @@ contract L1PortalExecuteL2Call is SimpleTaskBase {
     address public l2Target;
     /// @notice The calldata to be executed on l2Target.
     bytes public l2Data;
-    /// @notice The ETH value to forward to L2.
-    uint256 public valueWei;
     /// @notice The L2 gas limit.
     uint64 public gasLimit;
     /// @notice Whether to create a contract on L2.
@@ -92,11 +84,6 @@ contract L1PortalExecuteL2Call is SimpleTaskBase {
         gasLimit = uint64(_gasLimitTmp);
 
         // Optional fields
-        valueWei = 0;
-        try vm.parseTomlUint(_toml, ".value") returns (uint256 _v) {
-            valueWei = _v;
-        } catch {}
-
         isCreation = false;
         try vm.parseTomlBool(_toml, ".isCreation") returns (bool _b) {
             isCreation = _b;
@@ -109,19 +96,18 @@ contract L1PortalExecuteL2Call is SimpleTaskBase {
     /// @notice Build the portal deposit action. WARNING: State changes here are reverted after capture.
     function _build(address) internal override {
         // Record the L1 portal call with value for action extraction.
-        IOptimismPortal2(portal).depositTransaction{value: valueWei}(l2Target, valueWei, gasLimit, isCreation, l2Data);
+        IOptimismPortal2(portal).depositTransaction(l2Target, 0, gasLimit, isCreation, l2Data);
     }
 
     /// @notice Validate that exactly one action to the portal with the expected calldata and value was captured.
     function _validate(VmSafe.AccountAccess[] memory, Action[] memory _actions, address) internal view override {
-        bytes memory _expected = abi.encodeCall(
-            IOptimismPortal2.depositTransaction, (l2Target, valueWei, gasLimit, isCreation, l2Data)
-        );
+        bytes memory _expected =
+            abi.encodeCall(IOptimismPortal2.depositTransaction, (l2Target, 0, gasLimit, isCreation, l2Data));
 
         bool _found;
         uint256 _matches;
         for (uint256 _i = 0; _i < _actions.length; _i++) {
-            if (_actions[_i].target == portal && _actions[_i].value == valueWei) {
+            if (_actions[_i].target == portal && _actions[_i].value == 0) {
                 if (keccak256(_actions[_i].arguments) == keccak256(_expected)) {
                     _found = true;
                     _matches++;
