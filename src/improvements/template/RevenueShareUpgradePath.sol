@@ -75,6 +75,7 @@ contract RevenueShareV100UpgradePath is SimpleTaskBase {
 
     /// @notice The configuration for l1 fee withdrawer.
     uint256 public l1WithdrawerMinWithdrawalAmount;
+    // TODO(17505): This address is expected to be set to the appropriate FeesDepositor address once deployed.
     address public l1WithdrawerRecipient;
     uint96 public l1WithdrawerGasLimit;
 
