@@ -107,4 +107,9 @@ library Utils {
         }
         return childSafes;
     }
+
+    /// @notice Returns the address of a contract created with CREATE2 using the given CREATE2 deployer.
+    function getCreate2Address(bytes32 salt, bytes memory initCode, address deployer) internal pure returns (address) {
+        return vm.computeCreate2Address(salt, keccak256(initCode), deployer);
+    }
 }

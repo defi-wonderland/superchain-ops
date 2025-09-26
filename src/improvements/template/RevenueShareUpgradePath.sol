@@ -2,13 +2,13 @@
 pragma solidity 0.8.15;
 
 import {VmSafe} from "forge-std/Vm.sol";
-import {Create2} from "lib/openzeppelin-contracts/contracts/utils/Create2.sol";
 import {LibString} from "@solady/utils/LibString.sol";
 import {stdToml} from "lib/forge-std/src/StdToml.sol";
 import {SimpleTaskBase} from "src/improvements/tasks/types/SimpleTaskBase.sol";
 import {Action} from "src/libraries/MultisigTypes.sol";
 import {MultisigTaskPrinter} from "../../libraries/MultisigTaskPrinter.sol";
 import {RevShareCodeRepo} from "src/libraries/RevShareCodeRepo.sol";
+import {Utils} from "src/libraries/Utils.sol";
 
 /// @notice Interface for the OptimismPortal2 in L1. This is the main interaction point for the template.
 interface IOptimismPortal2 {
@@ -258,7 +258,7 @@ contract RevenueShareV100UpgradePath is SimpleTaskBase {
             _l1WithdrawerCalldata =
                 abi.encodeCall(ICreate2Deployer.deploy, (0, _getSalt(saltSeed, "L1Withdrawer"), _l1WithdrawerInitCode));
             _l1WithdrawerCalculatedAddress =
-                _getCreate2Address(_l1WithdrawerInitCode, CREATE2_DEPLOYER, _getSalt(saltSeed, "L1Withdrawer"));
+                Utils.getCreate2Address(_getSalt(saltSeed, "L1Withdrawer"), _l1WithdrawerInitCode, CREATE2_DEPLOYER);
             // Expected calls for L1 Withdrawer: 1 (deploy)
             _incrementCallsToPortal(
                 abi.encodeCall(
@@ -276,8 +276,8 @@ contract RevenueShareV100UpgradePath is SimpleTaskBase {
                 ICreate2Deployer.deploy, (0, _getSalt(saltSeed, "SCRevShareCalculator"), _scRevShareCalculatorInitCode)
             );
 
-            _scRevShareCalculatorCalculatedAddress = _getCreate2Address(
-                _scRevShareCalculatorInitCode, CREATE2_DEPLOYER, _getSalt(saltSeed, "SCRevShareCalculator")
+            _scRevShareCalculatorCalculatedAddress = Utils.getCreate2Address(
+                _getSalt(saltSeed, "SCRevShareCalculator"), _scRevShareCalculatorInitCode, CREATE2_DEPLOYER
             );
 
             // Expected calls for SC Rev Share Calculator: 1 (deploy)
@@ -298,7 +298,7 @@ contract RevenueShareV100UpgradePath is SimpleTaskBase {
             )
         );
         _operatorFeeVaultCalculatedAddress =
-            _getCreate2Address(_operatorFeeVaultInitCode, CREATE2_DEPLOYER, _getSalt(saltSeed, "OperatorFeeVault"));
+            Utils.getCreate2Address(_getSalt(saltSeed, "OperatorFeeVault"), _operatorFeeVaultInitCode, CREATE2_DEPLOYER);
 
         _operatorFeeVaultCalldata = abi.encodeCall(
             ICreate2Deployer.deploy, (0, _getSalt(saltSeed, "OperatorFeeVault"), _operatorFeeVaultInitCode)
@@ -331,8 +331,9 @@ contract RevenueShareV100UpgradePath is SimpleTaskBase {
                 sequencerFeeVaultRecipient, sequencerFeeVaultMinWithdrawalAmount, sequencerFeeVaultWithdrawalNetwork
             )
         );
-        _sequencerFeeVaultCalculatedAddress =
-            _getCreate2Address(_sequencerFeeVaultInitCode, CREATE2_DEPLOYER, _getSalt(saltSeed, "SequencerFeeVault"));
+        _sequencerFeeVaultCalculatedAddress = Utils.getCreate2Address(
+            _getSalt(saltSeed, "SequencerFeeVault"), _sequencerFeeVaultInitCode, CREATE2_DEPLOYER
+        );
         _sequencerFeeVaultCalldata = abi.encodeCall(
             ICreate2Deployer.deploy, (0, _getSalt(saltSeed, "SequencerFeeVault"), _sequencerFeeVaultInitCode)
         );
@@ -363,7 +364,7 @@ contract RevenueShareV100UpgradePath is SimpleTaskBase {
             abi.encode(baseFeeVaultRecipient, baseFeeVaultMinWithdrawalAmount, baseFeeVaultWithdrawalNetwork)
         );
         _baseFeeVaultCalculatedAddress =
-            _getCreate2Address(_baseFeeVaultInitCode, CREATE2_DEPLOYER, _getSalt(saltSeed, "BaseFeeVault"));
+            Utils.getCreate2Address(_getSalt(saltSeed, "BaseFeeVault"), _baseFeeVaultInitCode, CREATE2_DEPLOYER);
         _baseFeeVaultCalldata =
             abi.encodeCall(ICreate2Deployer.deploy, (0, _getSalt(saltSeed, "BaseFeeVault"), _baseFeeVaultInitCode));
 
@@ -393,7 +394,7 @@ contract RevenueShareV100UpgradePath is SimpleTaskBase {
             abi.encode(l1FeeVaultRecipient, l1FeeVaultMinWithdrawalAmount, l1FeeVaultWithdrawalNetwork)
         );
         _l1FeeVaultCalculatedAddress =
-            _getCreate2Address(_l1FeeVaultInitCode, CREATE2_DEPLOYER, _getSalt(saltSeed, "L1FeeVault"));
+            Utils.getCreate2Address(_getSalt(saltSeed, "L1FeeVault"), _l1FeeVaultInitCode, CREATE2_DEPLOYER);
         _l1FeeVaultCalldata =
             abi.encodeCall(ICreate2Deployer.deploy, (0, _getSalt(saltSeed, "L1FeeVault"), _l1FeeVaultInitCode));
 
@@ -421,8 +422,8 @@ contract RevenueShareV100UpgradePath is SimpleTaskBase {
         _feeSplitterCalldata = abi.encodeCall(
             ICreate2Deployer.deploy, (0, _getSalt(saltSeed, "FeeSplitter"), RevShareCodeRepo.feeSplitterCreationCode)
         );
-        _feeSplitterCalculatedAddress = _getCreate2Address(
-            RevShareCodeRepo.feeSplitterCreationCode, CREATE2_DEPLOYER, _getSalt(saltSeed, "FeeSplitter")
+        _feeSplitterCalculatedAddress = Utils.getCreate2Address(
+            _getSalt(saltSeed, "FeeSplitter"), RevShareCodeRepo.feeSplitterCreationCode, CREATE2_DEPLOYER
         );
 
         // Expected calls for FeeSplitter: 2 (deploy + upgrade)
@@ -573,20 +574,6 @@ contract RevenueShareV100UpgradePath is SimpleTaskBase {
                 )
             )
         );
-    }
-
-    /// @notice Calculates the Create2 address for a given init code, deployer, and salt.
-    /// @param _initCode The init code for the contract.
-    /// @param _deployer The address of the deployer.
-    /// @param _salt The salt for the contract.
-    /// @return The calculated address of the contract.
-    function _getCreate2Address(bytes memory _initCode, address _deployer, bytes32 _salt)
-        private
-        pure
-        returns (address)
-    {
-        bytes32 _hash = keccak256(abi.encodePacked(bytes1(0xff), _deployer, _salt, keccak256(_initCode)));
-        return Create2.computeAddress(_salt, _hash, _deployer);
     }
 
     function _incrementCallsToPortal(bytes memory _calldata) private {
