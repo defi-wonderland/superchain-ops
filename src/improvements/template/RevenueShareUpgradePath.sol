@@ -487,17 +487,17 @@ contract RevenueShareV100UpgradePath is SimpleTaskBase {
         MultisigTaskPrinter.printTitle("Validating calls to portal");
         // Expected portal calls: 10 (base vault operations)
         // + 2 (revenue share: L1 withdrawer + calculator) if opting in
-        uint256 expectedCallsToPortal = optInRevenueShare ? 12 : 10;
-        uint256 actualCallsToPortal = 0;
+        uint256 _expectedCallsToPortal = optInRevenueShare ? 12 : 10;
+        uint256 _actualCallsToPortal = 0;
         for (uint256 i = 0; i < _actions.length; i++) {
             Action memory action = _actions[i];
             if (action.target == address(portal) && action.arguments.length > 0) {
                 _verifyAndDecrementCallsToPortal(action.arguments);
-                actualCallsToPortal += 1;
+                _actualCallsToPortal += 1;
             }
         }
 
-        require(actualCallsToPortal == expectedCallsToPortal, "Invalid number of calls to portal");
+        require(_actualCallsToPortal == _expectedCallsToPortal, "Invalid number of calls to portal");
     }
 
     /// @notice Override to return a list of addresses that should not be checked for code length.
@@ -582,9 +582,9 @@ contract RevenueShareV100UpgradePath is SimpleTaskBase {
     }
 
     function _verifyAndDecrementCallsToPortal(bytes memory _calldata) private {
-        bytes32 calldataHash = keccak256(_calldata);
-        require(_callsToPortal[calldataHash] > 0, "Invalid number of calls with this calldata");
-        _callsToPortal[calldataHash] -= 1;
+        bytes32 _calldataHash = keccak256(_calldata);
+        require(_callsToPortal[_calldataHash] > 0, "Invalid number of calls with this calldata");
+        _callsToPortal[_calldataHash] -= 1;
     }
 
     function _getSalt(string memory _prefix, string memory _suffix) private pure returns (bytes32) {
