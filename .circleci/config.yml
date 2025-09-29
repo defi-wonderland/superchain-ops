@@ -65,7 +65,7 @@ jobs:
           name: Check superchain registry
           command: |
             just install
-            (cd src/improvements && just --justfile ci.just check-superchain-registry-latest)
+            (cd src/ && just --justfile ci.just check-superchain-registry-latest)
       # - notify-failures-on-main:
       #     mentions: "@evm-safety-team"
 
@@ -91,7 +91,7 @@ jobs:
             cd src/
             just simulate-stack <<parameters.network>> > stack-simulation-output.txt
       - store_artifacts:
-          path: src/improvements/stack-simulation-output.txt
+          path: src/stack-simulation-output.txt
       # - notify-failures-on-main:
       #     mentions: "@evm-safety-team"
 
@@ -152,7 +152,7 @@ jobs:
           max_auto_reruns: 3
           auto_rerun_delay: 10s
           command: |
-            (cd src/improvements && just --justfile ci.just simulate-all-templates)
+            (cd src/ && just --justfile ci.just simulate-all-templates)
       # - notify-failures-on-main:
       #     mentions: "@evm-safety-team"
 
