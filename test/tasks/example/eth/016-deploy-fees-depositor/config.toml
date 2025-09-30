@@ -1,7 +1,7 @@
 templateName = "DeployFeesDepositor"
 
 salt = "fees-depositor"
-minDepositAmount = 350000
+minDepositAmount = 5000000000000000000
 l2Recipient = "0x0000000000000000000000000000000000000001"
 portal = "0xbEb5Fc579115071764c7423A4f12eDde41f106Ed"
 gasLimit = 300000

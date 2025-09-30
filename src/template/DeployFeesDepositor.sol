@@ -13,13 +13,7 @@ import {Create2} from "@openzeppelin/contracts/utils/Create2.sol";
 /// @notice Interface for the FeesDepositor contract on L1.
 ///         This is used to deposit fees into L2.
 interface IFeesDepositor {
-    function initialize(
-        uint96 _minDepositAmount,
-        address _l2Recipient,
-        address _portal,
-        uint64 _gasLimit,
-        bytes memory _depositData
-    ) external;
+    function initialize(uint96 _minDepositAmount, address _l2Recipient, address _portal, uint64 _gasLimit) external;
 }
 
 /// @notice Interface for the CREATE2 deployer contract.
@@ -122,7 +116,7 @@ contract DeployFeesDepositor is SimpleTaskBase {
         // Initialize the proxy by upgrading to the implementation and calling initialize
         Proxy(payable(_proxyCalculatedAddress)).upgradeToAndCall(
             _implCalculatedAddress,
-            abi.encodeCall(IFeesDepositor.initialize, (minDepositAmount, l2Recipient, portal, gasLimit, ""))
+            abi.encodeCall(IFeesDepositor.initialize, (minDepositAmount, l2Recipient, portal, gasLimit))
         );
     }
 
