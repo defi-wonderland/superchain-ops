@@ -264,7 +264,7 @@ contract RevenueShareV100UpgradePath is SimpleTaskBase {
 
             // Calculate addresses and data to deploy L1 Withdrawer
             bytes memory _l1WithdrawerInitCode = bytes.concat(
-                RevShareCodeRepo.l1FeeWithdrawerCreationCode,
+                RevShareCodeRepo.l1WithdrawerCreationCode,
                 abi.encode(l1WithdrawerMinWithdrawalAmount, l1WithdrawerRecipient, l1WithdrawerGasLimit)
             );
             _l1WithdrawerCalldata =
