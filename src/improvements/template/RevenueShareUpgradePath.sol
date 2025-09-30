@@ -39,6 +39,10 @@ contract RevenueShareV100UpgradePath is SimpleTaskBase {
     using LibString for string;
     using stdToml for string;
 
+    /// @notice The gas limit for the L1 Withdrawer.
+    /// IMPORTANT: Keep this value above 200k in order to prevent finalization failures when sending fees to L1.
+    uint96 public constant L1_WITHDRAWER_MIN_GAS_LIMIT = 200_000;
+
     /// @notice Address of the Create2Deployer Preinstall on L2.
     address internal constant CREATE2_DEPLOYER = 0x13b0D85CcB8bf860b6b79AF3029fCA081AE9beF2;
     /// @notice Address of the Sequencer Fee Vault Predeploy on L2.
@@ -77,6 +81,7 @@ contract RevenueShareV100UpgradePath is SimpleTaskBase {
     uint256 public l1WithdrawerMinWithdrawalAmount;
     // TODO(17505): This address is expected to be set to the appropriate FeesDepositor address once deployed.
     address public l1WithdrawerRecipient;
+    /// @notice The gas limit for the L1 Withdrawer.
     uint96 public l1WithdrawerGasLimit;
 
     /// @notice The configuration for sc rev share calculator.
@@ -249,7 +254,10 @@ contract RevenueShareV100UpgradePath is SimpleTaskBase {
             require(l1WithdrawerRecipient != address(0), "l1WithdrawerRecipient must be set in config");
 
             l1WithdrawerGasLimit = uint96(_toml.readUint(".l1WithdrawerGasLimit"));
-            require(l1WithdrawerGasLimit > 0, "l1WithdrawerGasLimit must be greater than 0");
+            require(
+                l1WithdrawerGasLimit >= L1_WITHDRAWER_MIN_GAS_LIMIT,
+                "l1WithdrawerGasLimit must be greater than L1_WITHDRAWER_MIN_GAS_LIMIT"
+            );
 
             // Calculate addresses and data to deploy L1 Withdrawer
             bytes memory _l1WithdrawerInitCode = bytes.concat(
