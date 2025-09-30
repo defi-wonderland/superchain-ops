@@ -107,4 +107,24 @@ library Utils {
         }
         return childSafes;
     }
+
+    /// @notice Returns the address of a contract created with CREATE2 using the given CREATE2 deployer.
+    function getCreate2Address(bytes32 salt, bytes memory initCode, address deployer) internal pure returns (address) {
+        return vm.computeCreate2Address(salt, keccak256(initCode), deployer);
+    }
+
+    /// @notice Returns the owner that pointed to the owner to be removed in the linked list.
+    /// Taken from: https://github.com/ethereum-optimism/optimism/blob/7c59c8c262d4495bf6d982c67cfbd2804b7db1a7/packages/contracts-bedrock/test/safe-tools/SafeTestTools.sol#L213
+    function getPreviousOwner(address _rootSafe, address _owner) internal view returns (address) {
+        address SENTINEL_OWNERS = address(0x1);
+        address[] memory owners = IGnosisSafe(_rootSafe).getOwners();
+        for (uint256 i; i < owners.length; i++) {
+            if (owners[i] != _owner) continue;
+            if (i == 0) {
+                return SENTINEL_OWNERS;
+            }
+            return owners[i - 1];
+        }
+        revert(string.concat("Owner ", vm.toString(_owner), " not found in the safe: ", vm.toString(_rootSafe)));
+    }
 }
