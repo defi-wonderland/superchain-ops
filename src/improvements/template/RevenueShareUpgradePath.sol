@@ -73,7 +73,7 @@ contract RevenueShareV100UpgradePath is SimpleTaskBase {
     uint256 sequencerFeeVaultMinWithdrawalAmount;
     uint256 operatorFeeVaultMinWithdrawalAmount;
 
-    /// @notice The configuration for l1 fee withdrawer.
+    /// @notice The configuration for the l1 withdrawer
     uint256 public l1WithdrawerMinWithdrawalAmount;
     // TODO(17505): This address is expected to be set to the appropriate FeesDepositor address once deployed.
     address public l1WithdrawerRecipient;
