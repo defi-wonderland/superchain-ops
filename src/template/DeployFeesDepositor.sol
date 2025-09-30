@@ -86,7 +86,10 @@ contract DeployFeesDepositor is SimpleTaskBase {
         portal = tomlContent.readAddress(".portal");
         require(portal != address(0), "portal must be set");
 
-        gasLimit = uint64(tomlContent.readUint(".gasLimit"));
+        uint256 _gasLimitRaw = tomlContent.readUint(".gasLimit");
+        require(_gasLimitRaw > 0, "gasLimit must be set");
+        require(_gasLimitRaw <= type(uint64).max, "gasLimit must be less than uint64.max");
+        gasLimit = uint64(_gasLimitRaw);
 
         proxyAdminOwner = simpleAddrRegistry.get("ProxyAdminOwner");
         require(proxyAdminOwner != address(0), "proxyAdminOwner must be set");
