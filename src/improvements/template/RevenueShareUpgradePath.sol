@@ -100,39 +100,39 @@ contract RevenueShareV100UpgradePath is SimpleTaskBase {
     uint64 public deploymentGasLimit;
 
     /// @notice The address the OperatorFeeVault implementation is deployed to.
-    address internal _operatorFeeVaultCalculatedAddress;
+    address internal _operatorFeeVaultPrecalculatedAddress;
     /// @notice The calldata sent to the OptimismPortal to deploy the OperatorFeeVault.
     bytes internal _operatorFeeVaultCalldata;
 
     /// @notice The address the SequencerFeeVault implementation is deployed to.
-    address internal _sequencerFeeVaultCalculatedAddress;
+    address internal _sequencerFeeVaultPrecalculatedAddress;
     /// @notice The calldata sent to the OptimismPortal to deploy the SequencerFeeVault.
     bytes internal _sequencerFeeVaultCalldata;
 
     /// @notice The address the BaseFeeVault implementation is deployed to.
-    address internal _baseFeeVaultCalculatedAddress;
+    address internal _baseFeeVaultPrecalculatedAddress;
     /// @notice The calldata sent to the OptimismPortal to deploy the BaseFeeVault.
     bytes internal _baseFeeVaultCalldata;
 
     /// @notice The address the L1FeeVault implementation is deployed to.
-    address internal _l1FeeVaultCalculatedAddress;
+    address internal _l1FeeVaultPrecalculatedAddress;
     /// @notice The calldata sent to the OptimismPortal to deploy the L1FeeVault.
     bytes internal _l1FeeVaultCalldata;
 
     /// @notice The address the L1Withdrawer implementation is deployed to.
     /// @notice In case the chain is not opting to use the Fee Splitter this will be address(0).
-    address internal _l1WithdrawerCalculatedAddress;
+    address internal _l1WithdrawerPrecalculatedAddress;
     /// @notice The calldata sent to the OptimismPortal to deploy the L1Withdrawer.
     bytes internal _l1WithdrawerCalldata;
 
     /// @notice The address the SuperchainRevenueShareCalculator implementation is deployed to.
     /// @notice In case the chain is not opting to use the Fee Splitter this will be address(0).
-    address internal _scRevShareCalculatorCalculatedAddress;
+    address internal _scRevShareCalculatorPrecalculatedAddress;
     /// @notice The calldata sent to the OptimismPortal to deploy the SuperchainRevenueShareCalculator.
     bytes internal _scRevShareCalculatorCalldata;
 
     /// @notice The address the FeeSplitter implementation is deployed to.
-    address internal _feeSplitterCalculatedAddress;
+    address internal _feeSplitterPrecalculatedAddress;
     /// @notice The calldata sent to the OptimismPortal to deploy the FeeSplitter.
     bytes internal _feeSplitterCalldata;
 
@@ -266,7 +266,7 @@ contract RevenueShareV100UpgradePath is SimpleTaskBase {
             );
             _l1WithdrawerCalldata =
                 abi.encodeCall(ICreate2Deployer.deploy, (0, _getSalt(saltSeed, "L1Withdrawer"), _l1WithdrawerInitCode));
-            _l1WithdrawerCalculatedAddress =
+            _l1WithdrawerPrecalculatedAddress =
                 Utils.getCreate2Address(_getSalt(saltSeed, "L1Withdrawer"), _l1WithdrawerInitCode, CREATE2_DEPLOYER);
             // Expected calls for L1 Withdrawer: 1 (deploy)
             _incrementCallsToPortal(
@@ -279,13 +279,13 @@ contract RevenueShareV100UpgradePath is SimpleTaskBase {
             // Calculate addresses and data to deploy SC Rev Share Calculator
             bytes memory _scRevShareCalculatorInitCode = bytes.concat(
                 RevShareCodeRepo.scRevShareCalculatorCreationCode,
-                abi.encode(_l1WithdrawerCalculatedAddress, scRevShareCalcChainFeesRecipient)
+                abi.encode(_l1WithdrawerPrecalculatedAddress, scRevShareCalcChainFeesRecipient)
             );
             _scRevShareCalculatorCalldata = abi.encodeCall(
                 ICreate2Deployer.deploy, (0, _getSalt(saltSeed, "SCRevShareCalculator"), _scRevShareCalculatorInitCode)
             );
 
-            _scRevShareCalculatorCalculatedAddress = Utils.getCreate2Address(
+            _scRevShareCalculatorPrecalculatedAddress = Utils.getCreate2Address(
                 _getSalt(saltSeed, "SCRevShareCalculator"), _scRevShareCalculatorInitCode, CREATE2_DEPLOYER
             );
 
@@ -306,7 +306,7 @@ contract RevenueShareV100UpgradePath is SimpleTaskBase {
                 operatorFeeVaultRecipient, operatorFeeVaultMinWithdrawalAmount, operatorFeeVaultWithdrawalNetwork
             )
         );
-        _operatorFeeVaultCalculatedAddress =
+        _operatorFeeVaultPrecalculatedAddress =
             Utils.getCreate2Address(_getSalt(saltSeed, "OperatorFeeVault"), _operatorFeeVaultInitCode, CREATE2_DEPLOYER);
 
         _operatorFeeVaultCalldata = abi.encodeCall(
@@ -328,7 +328,7 @@ contract RevenueShareV100UpgradePath is SimpleTaskBase {
                     0,
                     deploymentGasLimit,
                     false,
-                    abi.encodeCall(IProxy.upgradeTo, (address(_operatorFeeVaultCalculatedAddress)))
+                    abi.encodeCall(IProxy.upgradeTo, (address(_operatorFeeVaultPrecalculatedAddress)))
                 )
             )
         );
@@ -340,7 +340,7 @@ contract RevenueShareV100UpgradePath is SimpleTaskBase {
                 sequencerFeeVaultRecipient, sequencerFeeVaultMinWithdrawalAmount, sequencerFeeVaultWithdrawalNetwork
             )
         );
-        _sequencerFeeVaultCalculatedAddress = Utils.getCreate2Address(
+        _sequencerFeeVaultPrecalculatedAddress = Utils.getCreate2Address(
             _getSalt(saltSeed, "SequencerFeeVault"), _sequencerFeeVaultInitCode, CREATE2_DEPLOYER
         );
         _sequencerFeeVaultCalldata = abi.encodeCall(
@@ -362,7 +362,7 @@ contract RevenueShareV100UpgradePath is SimpleTaskBase {
                     0,
                     deploymentGasLimit,
                     false,
-                    abi.encodeCall(IProxy.upgradeTo, (address(_sequencerFeeVaultCalculatedAddress)))
+                    abi.encodeCall(IProxy.upgradeTo, (address(_sequencerFeeVaultPrecalculatedAddress)))
                 )
             )
         );
@@ -372,7 +372,7 @@ contract RevenueShareV100UpgradePath is SimpleTaskBase {
             RevShareCodeRepo.baseFeeVaultCreationCode,
             abi.encode(baseFeeVaultRecipient, baseFeeVaultMinWithdrawalAmount, baseFeeVaultWithdrawalNetwork)
         );
-        _baseFeeVaultCalculatedAddress =
+        _baseFeeVaultPrecalculatedAddress =
             Utils.getCreate2Address(_getSalt(saltSeed, "BaseFeeVault"), _baseFeeVaultInitCode, CREATE2_DEPLOYER);
         _baseFeeVaultCalldata =
             abi.encodeCall(ICreate2Deployer.deploy, (0, _getSalt(saltSeed, "BaseFeeVault"), _baseFeeVaultInitCode));
@@ -392,7 +392,7 @@ contract RevenueShareV100UpgradePath is SimpleTaskBase {
                     0,
                     deploymentGasLimit,
                     false,
-                    abi.encodeCall(IProxy.upgradeTo, (address(_baseFeeVaultCalculatedAddress)))
+                    abi.encodeCall(IProxy.upgradeTo, (address(_baseFeeVaultPrecalculatedAddress)))
                 )
             )
         );
@@ -402,7 +402,7 @@ contract RevenueShareV100UpgradePath is SimpleTaskBase {
             RevShareCodeRepo.l1FeeVaultCreationCode,
             abi.encode(l1FeeVaultRecipient, l1FeeVaultMinWithdrawalAmount, l1FeeVaultWithdrawalNetwork)
         );
-        _l1FeeVaultCalculatedAddress =
+        _l1FeeVaultPrecalculatedAddress =
             Utils.getCreate2Address(_getSalt(saltSeed, "L1FeeVault"), _l1FeeVaultInitCode, CREATE2_DEPLOYER);
         _l1FeeVaultCalldata =
             abi.encodeCall(ICreate2Deployer.deploy, (0, _getSalt(saltSeed, "L1FeeVault"), _l1FeeVaultInitCode));
@@ -422,7 +422,7 @@ contract RevenueShareV100UpgradePath is SimpleTaskBase {
                     0,
                     deploymentGasLimit,
                     false,
-                    abi.encodeCall(IProxy.upgradeTo, (address(_l1FeeVaultCalculatedAddress)))
+                    abi.encodeCall(IProxy.upgradeTo, (address(_l1FeeVaultPrecalculatedAddress)))
                 )
             )
         );
@@ -431,7 +431,7 @@ contract RevenueShareV100UpgradePath is SimpleTaskBase {
         _feeSplitterCalldata = abi.encodeCall(
             ICreate2Deployer.deploy, (0, _getSalt(saltSeed, "FeeSplitter"), RevShareCodeRepo.feeSplitterCreationCode)
         );
-        _feeSplitterCalculatedAddress = Utils.getCreate2Address(
+        _feeSplitterPrecalculatedAddress = Utils.getCreate2Address(
             _getSalt(saltSeed, "FeeSplitter"), RevShareCodeRepo.feeSplitterCreationCode, CREATE2_DEPLOYER
         );
 
@@ -453,8 +453,8 @@ contract RevenueShareV100UpgradePath is SimpleTaskBase {
                     abi.encodeCall(
                         IProxy.upgradeToAndCall,
                         (
-                            address(_feeSplitterCalculatedAddress),
-                            abi.encodeCall(IFeeSplitter.initialize, (_scRevShareCalculatorCalculatedAddress))
+                            address(_feeSplitterPrecalculatedAddress),
+                            abi.encodeCall(IFeeSplitter.initialize, (_scRevShareCalculatorPrecalculatedAddress))
                         )
                     )
                 )
@@ -523,7 +523,7 @@ contract RevenueShareV100UpgradePath is SimpleTaskBase {
             0,
             deploymentGasLimit,
             false,
-            abi.encodeCall(IProxy.upgradeTo, (address(_operatorFeeVaultCalculatedAddress)))
+            abi.encodeCall(IProxy.upgradeTo, (address(_operatorFeeVaultPrecalculatedAddress)))
         );
 
         // Deploy the sequencer fee vault
@@ -535,7 +535,7 @@ contract RevenueShareV100UpgradePath is SimpleTaskBase {
             0,
             deploymentGasLimit,
             false,
-            abi.encodeCall(IProxy.upgradeTo, (address(_sequencerFeeVaultCalculatedAddress)))
+            abi.encodeCall(IProxy.upgradeTo, (address(_sequencerFeeVaultPrecalculatedAddress)))
         );
 
         // Deploy the base fee vault
@@ -547,7 +547,7 @@ contract RevenueShareV100UpgradePath is SimpleTaskBase {
             0,
             deploymentGasLimit,
             false,
-            abi.encodeCall(IProxy.upgradeTo, (address(_baseFeeVaultCalculatedAddress)))
+            abi.encodeCall(IProxy.upgradeTo, (address(_baseFeeVaultPrecalculatedAddress)))
         );
 
         // Deploy the l1 fee vault
@@ -559,7 +559,7 @@ contract RevenueShareV100UpgradePath is SimpleTaskBase {
             0,
             deploymentGasLimit,
             false,
-            abi.encodeCall(IProxy.upgradeTo, (address(_l1FeeVaultCalculatedAddress)))
+            abi.encodeCall(IProxy.upgradeTo, (address(_l1FeeVaultPrecalculatedAddress)))
         );
     }
 
@@ -578,8 +578,8 @@ contract RevenueShareV100UpgradePath is SimpleTaskBase {
             abi.encodeCall(
                 IProxy.upgradeToAndCall,
                 (
-                    address(_feeSplitterCalculatedAddress),
-                    abi.encodeCall(IFeeSplitter.initialize, (_scRevShareCalculatorCalculatedAddress))
+                    address(_feeSplitterPrecalculatedAddress),
+                    abi.encodeCall(IFeeSplitter.initialize, (_scRevShareCalculatorPrecalculatedAddress))
                 )
             )
         );
