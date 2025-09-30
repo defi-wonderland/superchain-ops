@@ -281,7 +281,7 @@ contract RevenueShareV100UpgradePath is SimpleTaskBase {
                 _getSalt(saltSeed, "SCRevShareCalculator"), _scRevShareCalculatorInitCode, CREATE2_DEPLOYER
             );
 
-            // Expected calls for SC Rev Share Calculator: 1 (deploy)
+            // Expected calls for SC Rev Shares Calculator: 1 (deploy)
             _incrementCallsToPortal(
                 abi.encodeCall(
                     IOptimismPortal2.depositTransaction,
