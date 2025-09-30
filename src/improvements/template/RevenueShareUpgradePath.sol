@@ -169,8 +169,11 @@ contract RevenueShareV100UpgradePath is SimpleTaskBase {
         saltSeed = _toml.readString(".saltSeed");
         require(bytes(saltSeed).length != 0, "saltSeed must be set in the config");
 
-        deploymentGasLimit = uint64(_toml.readUint(".deploymentGasLimit"));
-        require(deploymentGasLimit > 0, "deploymentGasLimit must be set in config");
+        uint256 _deploymentGasLimitRaw = _toml.readUint(".deploymentGasLimit");
+        require(_deploymentGasLimitRaw > 0, "deploymentGasLimit must be set in config");
+        require(_deploymentGasLimitRaw <= type(uint64).max, "deploymentGasLimit must be less than uint64.max");
+
+        deploymentGasLimit = uint64(_deploymentGasLimitRaw);
 
         optInRevenueShare = _toml.readBool(".optInRevenueShare");
 
@@ -277,6 +280,11 @@ contract RevenueShareV100UpgradePath is SimpleTaskBase {
             );
 
             // Calculate addresses and data to deploy SC Rev Share Calculator
+            scRevShareCalcChainFeesRecipient = _toml.readAddress(".scRevShareCalcChainFeesRecipient");
+            require(
+                scRevShareCalcChainFeesRecipient != address(0), "scRevShareCalcChainFeesRecipient must be set in config"
+            );
+
             bytes memory _scRevShareCalculatorInitCode = bytes.concat(
                 RevShareCodeRepo.scRevShareCalculatorCreationCode,
                 abi.encode(_l1WithdrawerPrecalculatedAddress, scRevShareCalcChainFeesRecipient)
