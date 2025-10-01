@@ -237,6 +237,9 @@ contract RevenueShareUpgradePathTest is Test {
         // Verify portal calls
         console2.log("\n2. Verifying non-opt-in portal calls...");
         _verifyNonOptInPortalCalls(actions);
+
+        // Clean up the temporary file
+        vm.removeFile(nonOptInConfig);
     }
 
     function _createNonOptInConfig() internal returns (string memory) {
