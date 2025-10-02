@@ -33,16 +33,6 @@ contract RevenueShareUpgradePathTest is Test {
     address internal constant CREATE2_DEPLOYER = 0x13b0D85CcB8bf860b6b79AF3029fCA081AE9beF2;
     address internal constant FEE_SPLITTER = 0x420000000000000000000000000000000000002B;
 
-    // Track portal calls for verification
-    struct PortalCall {
-        address to;
-        uint256 value;
-        uint64 gasLimit;
-        bool isCreation;
-        bytes data;
-    }
-    PortalCall[] public recordedPortalCalls;
-
     function _mockAndExpect(address _receiver, bytes memory _calldata, bytes memory _returned) internal {
         vm.mockCall(_receiver, _calldata, _returned);
         vm.expectCall(_receiver, _calldata);
