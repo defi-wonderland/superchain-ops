@@ -52,10 +52,10 @@ contract RevenueShareUpgradePathTest is Test {
     function testOptInRevenueShare() public {
         // Step 1: Run simulate to prepare everything and get the actions
         (
-            VmSafe.AccountAccess[] memory accountAccesses,
+            ,
             Action[] memory actions,
             bytes32 txHash,
-            bytes memory dataToSign,
+            ,
             address rootSafe
         ) = template.simulate(configPath, new address[](0));
 
@@ -66,7 +66,6 @@ contract RevenueShareUpgradePathTest is Test {
         // Step 2: Get the safe's owners
         IGnosisSafe safe = IGnosisSafe(rootSafe);
         address[] memory owners = safe.getOwners();
-        uint256 threshold = safe.getThreshold();
 
         // Step 3: Get the multicall calldata that will be executed
         IMulticall3.Call3Value[] memory calls = new IMulticall3.Call3Value[](actions.length);
@@ -151,7 +150,7 @@ contract RevenueShareUpgradePathTest is Test {
         _verifyPortalCalls(actions);
     }
 
-    function _verifyPortalCalls(Action[] memory actions) internal {
+    function _verifyPortalCalls(Action[] memory actions) internal pure {
 
         uint256 deploymentCalls = 0;
         uint256 upgradeCalls = 0;
@@ -162,7 +161,7 @@ contract RevenueShareUpgradePathTest is Test {
             for (uint j = 0; j < params.length; j++) {
                 params[j] = actions[i].arguments[j + 4];
             }
-            (address to, uint256 value, uint64 gasLimit, bool isCreation, bytes memory data) =
+            (address to, , , , ) =
                 abi.decode(params, (address, uint256, uint64, bool, bytes));
 
             if (to == CREATE2_DEPLOYER) {
@@ -187,11 +186,11 @@ contract RevenueShareUpgradePathTest is Test {
 
         // Step 1: Run simulate to prepare everything and get the actions
         (
-            VmSafe.AccountAccess[] memory accountAccesses,
+            ,
             Action[] memory actions,
-            bytes32 txHash,
-            bytes memory dataToSign,
-            address rootSafe
+            ,
+            ,
+
         ) = template.simulate(nonOptInConfig, new address[](0));
 
 
