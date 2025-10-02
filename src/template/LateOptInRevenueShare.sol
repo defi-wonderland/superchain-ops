@@ -52,9 +52,6 @@ contract LateOptInRevenueShare is SimpleTaskBase {
     address internal constant L1_FEE_VAULT = 0x420000000000000000000000000000000000001A;
     /// @notice Address of the FeeSplitter Predeploy on L2.
     address internal constant FEE_SPLITTER = 0x420000000000000000000000000000000000002B;
-    /// @notice The gas limit for the L1 Withdrawer.
-    /// IMPORTANT: Keep this value above 200k in order to prevent finalization failures when sending fees to L1.
-    uint96 public constant L1_WITHDRAWER_MIN_GAS_LIMIT = 200_000;
     /// @notice The default minimum withdrawal amount for the FeeVault once part of the Revenue Share system.
     uint256 public constant FEE_VAULT_MIN_WITHDRAWAL_AMOUNT = 0;
     /// @notice The default withdrawal network for the FeeVault once part of the Revenue Share system, 0 = L1, 1 = L2
@@ -167,10 +164,7 @@ contract LateOptInRevenueShare is SimpleTaskBase {
             require(l1WithdrawerRecipient != address(0), "l1WithdrawerRecipient must be set in config");
 
             l1WithdrawerGasLimit = uint96(_toml.readUint(".l1WithdrawerGasLimit"));
-            require(
-                l1WithdrawerGasLimit >= L1_WITHDRAWER_MIN_GAS_LIMIT,
-                "l1WithdrawerGasLimit must be greater than L1_WITHDRAWER_MIN_GAS_LIMIT"
-            );
+            require(l1WithdrawerGasLimit > 0, "l1WithdrawerGasLimit must be greater than 0");
 
             // Calculate addresses and data to deploy L1 Withdrawer
             bytes memory _l1WithdrawerInitCode = bytes.concat(
