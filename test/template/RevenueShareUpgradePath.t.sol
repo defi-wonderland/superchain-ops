@@ -43,6 +43,11 @@ contract RevenueShareUpgradePathTest is Test {
     }
     PortalCall[] public recordedPortalCalls;
 
+    function _mockAndExpect(address _receiver, bytes memory _calldata, bytes memory _returned) internal {
+        vm.mockCall(_receiver, _calldata, _returned);
+        vm.expectCall(_receiver, _calldata);
+    }
+
     function setUp() public {
         vm.createSelectFork("mainnet");
 
@@ -54,7 +59,7 @@ contract RevenueShareUpgradePathTest is Test {
         (
             ,
             Action[] memory actions,
-            bytes32 txHash,
+            ,
             ,
             address rootSafe
         ) = template.simulate(configPath, new address[](0));
@@ -79,33 +84,10 @@ contract RevenueShareUpgradePathTest is Test {
         }
         bytes memory multicallData = abi.encodeCall(IMulticall3.aggregate3Value, (calls));
 
-        // Step 4: Mock the portal to record calls instead of reverting
-        vm.mockCall(
-            PORTAL,
-            abi.encodeWithSelector(IOptimismPortal2.depositTransaction.selector),
-            abi.encode()
-        );
-
-        // Record portal calls using expectCall
-        for (uint i = 0; i < actions.length; i++) {
-            vm.expectCall(PORTAL, actions[i].arguments);
-        }
-
-        // Step 5: Prank owners to approve the hash
-        for (uint256 i = 0; i < owners.length; i++) {
-            vm.prank(owners[i]);
-            safe.approveHash(txHash);
-        }
-
-        // Step 6: Generate signatures after approval
-        bytes memory signatures = Signatures.genPrevalidatedSignatures(owners);
-
-        // Step 7: Execute the transaction
+        // Step 4: Get the nonce and compute transaction hash before any state changes
         uint256 nonceBefore = safe.nonce();
 
-        // The hash we computed should match the one from simulate
-        // Let's compute it fresh to make sure it's correct
-        bytes32 freshHash = safe.getTransactionHash(
+        bytes32 txHash = safe.getTransactionHash(
             template.multicallTarget(),
             0, // value
             multicallData,
@@ -118,16 +100,29 @@ contract RevenueShareUpgradePathTest is Test {
             nonceBefore
         );
 
+        // Step 5: Mock the portal to record calls instead of reverting
+        _mockAndExpect(
+            PORTAL,
+            abi.encodeWithSelector(IOptimismPortal2.depositTransaction.selector),
+            abi.encode()
+        );
 
-        // Make sure they match
-        if (freshHash != txHash) {
-            // Re-approve with the fresh hash
-            for (uint256 i = 0; i < owners.length; i++) {
-                vm.prank(owners[i]);
-                safe.approveHash(freshHash);
-            }
+        // Record portal calls using expectCall
+        for (uint i = 0; i < actions.length; i++) {
+            vm.expectCall(PORTAL, actions[i].arguments);
         }
 
+        // Step 6: Prank owners to approve the hash
+        for (uint256 i = 0; i < owners.length; i++) {
+            vm.prank(owners[i]);
+            safe.approveHash(txHash);
+        }
+
+        // Step 7: Generate signatures after approval
+        bytes memory signatures = Signatures.genPrevalidatedSignatures(owners);
+
+
+        // Step 8: Execute the transaction
         vm.prank(msg.sender); // Execute as current sender
         bool success = safe.execTransaction(
             template.multicallTarget(),
