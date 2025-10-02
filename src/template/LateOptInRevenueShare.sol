@@ -35,7 +35,12 @@ interface IFeeVault {
     function setWithdrawalNetwork(uint8 _newWithdrawalNetwork) external;
 }
 
-/// @notice A template contract for configuring SimpleTaskBase templates.
+/// @notice A template for chain operators who initially opted out of revenue sharing to enable it without deploying new contracts.
+///         Key Features:
+///         - No New Deployments: Configures existing predeployed fee vaults and fee splitter
+///         - Flexible Calculator: Use custom calculator or deploy default SuperchainRevSharesCalculator implementation
+///         - Complete Vault Setup: Configures Base, Sequencer, L1, and Operator fee vaults
+///         - L1 Withdrawer Support: Optional deployment with configurable parameters
 contract LateOptInRevenueShare is SimpleTaskBase {
     using LibString for string;
     using stdToml for string;
