@@ -81,7 +81,7 @@ contract LateOptInRevenueShareTest is Test {
     function test_lateOptInRevenueShare_defaultCalculator_succeeds() public {
         // Calculate the expected calculator address for default scenario
         address calculator = _calculateDefaultCalculatorAddress();
-        
+
         // Execute the test with default calculator
         _executeRevenueShareTest(configPathDefaultCalc, EXPECTED_ACTIONS_DEFAULT_CALC, 2, calculator);
     }
@@ -169,11 +169,11 @@ contract LateOptInRevenueShareTest is Test {
     /// @param multicallData The multicall data
     /// @param nonce The current nonce
     /// @return The computed transaction hash
-    function _computeTransactionHash(
-        IGnosisSafe safe,
-        bytes memory multicallData,
-        uint256 nonce
-    ) internal view returns (bytes32) {
+    function _computeTransactionHash(IGnosisSafe safe, bytes memory multicallData, uint256 nonce)
+        internal
+        view
+        returns (bytes32)
+    {
         return safe.getTransactionHash(
             template.multicallTarget(),
             0, // value
@@ -321,5 +321,4 @@ contract LateOptInRevenueShareTest is Test {
             vm.expectCall(PORTAL, setWithdrawalNetworkCalldata);
         }
     }
-
 }
