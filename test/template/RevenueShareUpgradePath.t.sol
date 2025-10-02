@@ -212,28 +212,21 @@ contract RevenueShareUpgradePathTest is Test {
             nonceBefore
         );
 
-        // Step 5: Mock the portal to record calls instead of reverting
-        _mockAndExpect(
-            PORTAL,
-            abi.encodeWithSelector(IOptimismPortal2.depositTransaction.selector),
-            abi.encode()
-        );
-
         // Expect all portal calls
         for (uint i = 0; i < actions.length; i++) {
             vm.expectCall(PORTAL, actions[i].arguments);
         }
 
-        // Step 6: Prank owners to approve the transaction
+        // Step 5: Prank owners to approve the transaction
         for (uint256 i = 0; i < owners.length; i++) {
             vm.prank(owners[i]);
             safe.approveHash(txHash);
         }
 
-        // Step 7: Generate signatures after approval
+        // Step 6: Generate signatures after approval
         bytes memory signatures = Signatures.genPrevalidatedSignatures(owners);
 
-        // Step 8: Execute the transaction
+        // Step 7: Execute the transaction
         bool success = safe.execTransaction(
             template.multicallTarget(),
             0, // value
@@ -250,7 +243,7 @@ contract RevenueShareUpgradePathTest is Test {
         assertTrue(success, "Transaction should execute successfully");
         assertEq(safe.nonce(), nonceBefore + 1, "Safe nonce should increment");
 
-        // Step 9: Verify the portal calls
+        // Step 8: Verify the portal calls
         _verifyNonOptInPortalCalls(actions);
     }
 
