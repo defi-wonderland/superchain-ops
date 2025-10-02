@@ -44,7 +44,7 @@ contract RevenueShareUpgradePathTest is Test {
         template = new RevenueShareV100UpgradePath();
     }
 
-    function testOptInRevenueShare() public {
+    function test_optInRevenueShare_succeeds() public {
         // Step 1: Run simulate to prepare everything and get the actions
         (
             ,
@@ -163,7 +163,7 @@ contract RevenueShareUpgradePathTest is Test {
         assertEq(upgradeCalls, 5, "Should have 5 upgrade calls");
     }
 
-    function testOptOutRevenueShare() public {
+    function test_optOutRevenueShare_succeeds() public {
         // Create a non-opt-in config
         string memory configPath = "test/tasks/example/eth/017-revenue-share-upgrade-opt-out/config.toml";
 
