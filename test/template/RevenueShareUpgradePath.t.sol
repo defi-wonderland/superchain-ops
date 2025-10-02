@@ -45,7 +45,7 @@ contract RevenueShareUpgradePathTest is Test {
     PortalCall[] public recordedPortalCalls;
 
     function setUp() public {
-        vm.createSelectFork("mainnet", 21_000_000);
+        vm.createSelectFork("mainnet");
 
         // Create template
         template = new RevenueShareV100UpgradePath();
