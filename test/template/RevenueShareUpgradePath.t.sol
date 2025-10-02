@@ -107,12 +107,12 @@ contract RevenueShareUpgradePathTest is Test {
             abi.encode()
         );
 
-        // Record portal calls using expectCall
+        // Expect all portal calls
         for (uint i = 0; i < actions.length; i++) {
             vm.expectCall(PORTAL, actions[i].arguments);
         }
 
-        // Step 6: Prank owners to approve the hash
+        // Step 6: Prank owners to approve the transaction
         for (uint256 i = 0; i < owners.length; i++) {
             vm.prank(owners[i]);
             safe.approveHash(txHash);
@@ -123,7 +123,6 @@ contract RevenueShareUpgradePathTest is Test {
 
 
         // Step 8: Execute the transaction
-        vm.prank(msg.sender); // Execute as current sender
         bool success = safe.execTransaction(
             template.multicallTarget(),
             0, // value
