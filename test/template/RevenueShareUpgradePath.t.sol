@@ -175,7 +175,7 @@ contract RevenueShareUpgradePathTest is Test {
 
     function testOptOutRevenueShare() public {
         // Create a non-opt-in config
-        string memory nonOptInConfig = _createNonOptInConfig();
+        string memory configPath = "test/tasks/example/eth/017-revenue-share-upgrade-opt-out/config.toml";
 
         // Step 1: Run simulate to prepare everything and get the actions
         (
@@ -184,7 +184,7 @@ contract RevenueShareUpgradePathTest is Test {
             ,
             ,
             address rootSafe
-        ) = template.simulate(nonOptInConfig, new address[](0));
+        ) = template.simulate(configPath, new address[](0));
 
         // Verify we got the expected safe and action count
         assertEq(rootSafe, PROXY_ADMIN_OWNER, "Root safe should be ProxyAdminOwner");
@@ -262,39 +262,6 @@ contract RevenueShareUpgradePathTest is Test {
 
         // Step 9: Verify the portal calls
         _verifyNonOptInPortalCalls(actions);
-
-        // Clean up the temporary file
-        vm.removeFile(nonOptInConfig);
-    }
-
-    function _createNonOptInConfig() internal returns (string memory) {
-        string memory config = string.concat(
-            "templateName = \"RevenueShareV100UpgradePath\"\n",
-            "optInRevenueShare = false\n",
-            "portal = \"0xbEb5Fc579115071764c7423A4f12eDde41f106Ed\"\n",
-            "saltSeed = \"DeploymentSalt\"\n",
-            "deploymentGasLimit = 1000000\n",
-            "baseFeeVaultWithdrawalNetwork = 0\n",
-            "baseFeeVaultRecipient = \"0x3333333333333333333333333333333333333333\"\n",
-            "baseFeeVaultMinWithdrawalAmount = \"1000000000000000000\"\n",
-            "l1FeeVaultWithdrawalNetwork = 0\n",
-            "l1FeeVaultRecipient = \"0x4444444444444444444444444444444444444444\"\n",
-            "l1FeeVaultMinWithdrawalAmount = \"1000000000000000000\"\n",
-            "sequencerFeeVaultWithdrawalNetwork = 0\n",
-            "sequencerFeeVaultRecipient = \"0x5555555555555555555555555555555555555555\"\n",
-            "sequencerFeeVaultMinWithdrawalAmount = \"1000000000000000000\"\n",
-            "operatorFeeVaultWithdrawalNetwork = 0\n",
-            "operatorFeeVaultRecipient = \"0x6666666666666666666666666666666666666666\"\n",
-            "operatorFeeVaultMinWithdrawalAmount = \"1000000000000000000\"\n",
-            "\n",
-            "[addresses]\n",
-            "ProxyAdminOwner = \"0x5a0Aae59D09fccBdDb6C6CcEB07B7279367C3d2A\"\n",
-            "OptimismPortal = \"0xbEb5Fc579115071764c7423A4f12eDde41f106Ed\"\n"
-        );
-
-        string memory path = "test/tasks/mock/configs/RevenueShareNonOptIn.toml";
-        vm.writeFile(path, config);
-        return path;
     }
 
     function _verifyNonOptInPortalCalls(Action[] memory actions) internal pure {
