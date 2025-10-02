@@ -174,7 +174,6 @@ contract RevenueShareUpgradePathTest is Test {
     }
 
     function testOptOutRevenueShare() public {
-
         // Create a non-opt-in config
         string memory nonOptInConfig = _createNonOptInConfig();
 
@@ -184,14 +183,84 @@ contract RevenueShareUpgradePathTest is Test {
             Action[] memory actions,
             ,
             ,
-
+            address rootSafe
         ) = template.simulate(nonOptInConfig, new address[](0));
 
-
-        // For non-opt-in, we should have 10 actions (no L1Withdrawer or SCRevShareCalc)
+        // Verify we got the expected safe and action count
+        assertEq(rootSafe, PROXY_ADMIN_OWNER, "Root safe should be ProxyAdminOwner");
         assertEq(actions.length, 10, "Should have 10 actions for non-opt-in scenario");
 
-        // Verify portal calls
+        // Step 2: Get the safe's owners
+        IGnosisSafe safe = IGnosisSafe(rootSafe);
+        address[] memory owners = safe.getOwners();
+
+        // Step 3: Get the multicall calldata that will be executed
+        IMulticall3.Call3Value[] memory calls = new IMulticall3.Call3Value[](actions.length);
+        for (uint256 i = 0; i < actions.length; i++) {
+            calls[i] = IMulticall3.Call3Value({
+                target: actions[i].target,
+                allowFailure: false,
+                value: actions[i].value,
+                callData: actions[i].arguments
+            });
+        }
+        bytes memory multicallData = abi.encodeCall(IMulticall3.aggregate3Value, (calls));
+
+        // Step 4: Get the nonce and compute transaction hash before any state changes
+        uint256 nonceBefore = safe.nonce();
+
+        bytes32 txHash = safe.getTransactionHash(
+            template.multicallTarget(),
+            0, // value
+            multicallData,
+            Enum.Operation.DelegateCall,
+            0, // safeTxGas
+            0, // baseGas
+            0, // gasPrice
+            address(0), // gasToken
+            payable(address(0)), // refundReceiver
+            nonceBefore
+        );
+
+        // Step 5: Mock the portal to record calls instead of reverting
+        _mockAndExpect(
+            PORTAL,
+            abi.encodeWithSelector(IOptimismPortal2.depositTransaction.selector),
+            abi.encode()
+        );
+
+        // Expect all portal calls
+        for (uint i = 0; i < actions.length; i++) {
+            vm.expectCall(PORTAL, actions[i].arguments);
+        }
+
+        // Step 6: Prank owners to approve the transaction
+        for (uint256 i = 0; i < owners.length; i++) {
+            vm.prank(owners[i]);
+            safe.approveHash(txHash);
+        }
+
+        // Step 7: Generate signatures after approval
+        bytes memory signatures = Signatures.genPrevalidatedSignatures(owners);
+
+        // Step 8: Execute the transaction
+        bool success = safe.execTransaction(
+            template.multicallTarget(),
+            0, // value
+            multicallData,
+            Enum.Operation.DelegateCall,
+            0, // safeTxGas
+            0, // baseGas
+            0, // gasPrice
+            address(0), // gasToken
+            payable(address(0)), // refundReceiver
+            signatures
+        );
+
+        assertTrue(success, "Transaction should execute successfully");
+        assertEq(safe.nonce(), nonceBefore + 1, "Safe nonce should increment");
+
+        // Step 9: Verify the portal calls
         _verifyNonOptInPortalCalls(actions);
 
         // Clean up the temporary file
