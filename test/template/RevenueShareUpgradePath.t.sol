@@ -47,6 +47,10 @@ contract RevenueShareUpgradePathTest is Test {
     // L2 predeploys
     address internal constant CREATE2_DEPLOYER = 0x13b0D85CcB8bf860b6b79AF3029fCA081AE9beF2;
     address internal constant FEE_SPLITTER = 0x420000000000000000000000000000000000002B;
+    address internal constant SEQUENCER_FEE_VAULT = 0x4200000000000000000000000000000000000011;
+    address internal constant OPERATOR_FEE_VAULT = 0x420000000000000000000000000000000000001b;
+    address internal constant BASE_FEE_VAULT = 0x4200000000000000000000000000000000000019;
+    address internal constant L1_FEE_VAULT = 0x420000000000000000000000000000000000001A;
 
     function _mockAndExpect(address _receiver, bytes memory _calldata, bytes memory _returned) internal {
         vm.mockCall(_receiver, _calldata, _returned);
@@ -331,13 +335,13 @@ contract RevenueShareUpgradePathTest is Test {
     }
 
     function _assertIsKnownVault(address to) internal pure {
-        require(
-            to == 0x420000000000000000000000000000000000002B // L1_FEE_VAULT
-                || to == 0x4200000000000000000000000000000000000011 // SEQUENCER_FEE_VAULT
-                || to == 0x4200000000000000000000000000000000000019 // BASE_FEE_VAULT
-                || to == 0x420000000000000000000000000000000000001A // OPERATOR_FEE_VAULT
-                || to == 0x420000000000000000000000000000000000001b, // L1_BLOCK_ATTRIBUTES
-            "Upgrade should target a known vault or L1Block contract"
+        assertTrue(
+            to == L1_FEE_VAULT // L1_FEE_VAULT
+                || to == SEQUENCER_FEE_VAULT // SEQUENCER_FEE_VAULT
+                || to == BASE_FEE_VAULT // BASE_FEE_VAULT
+                || to == OPERATOR_FEE_VAULT // OPERATOR_FEE_VAULT
+                || to == FEE_SPLITTER, // FEE_SPLITTER
+            "Upgrade should target a known vault or the fee splitter"
         );
     }
 }
