@@ -249,9 +249,9 @@ contract LateOptInRevenueShareTest is Test {
         uint256 expectedVaultsSetOperations = 12;
         uint256 expectedFeeSplitterSetOperations = 1;
 
-        uint256 vaultsSetOperations = 0;
-        uint256 feeSplitterSetOperations = 0;
-        uint256 deploymentCalls = 0;
+        uint256 vaultsSetOperations;
+        uint256 feeSplitterSetOperations;
+        uint256 deploymentCalls;
 
         for (uint256 i = 0; i < actions.length; i++) {
             // Decode the depositTransaction parameters
