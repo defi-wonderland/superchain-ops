@@ -61,17 +61,15 @@ contract RevenueShareUpgradePathTest is Test {
 
     function test_optInRevenueShare_succeeds() public {
         // Step 1: Run simulate to prepare everything and get the actions
-        (
-            ,
-            Action[] memory actions,
-            ,
-            ,
-            address rootSafe
-        ) = template.simulate(configPath, new address[](0));
+        (, Action[] memory actions,,, address rootSafe) = template.simulate(configPath, new address[](0));
 
         // Verify we got the expected safe
         assertEq(rootSafe, PROXY_ADMIN_OWNER, "Root safe should be ProxyAdminOwner");
-        assertEq(actions.length, EXPECTED_DEPLOYMENTS_OPT_IN + EXPECTED_UPGRADES_OPT_IN, "Should have 12 actions for opt-in scenario");
+        assertEq(
+            actions.length,
+            EXPECTED_DEPLOYMENTS_OPT_IN + EXPECTED_UPGRADES_OPT_IN,
+            "Should have 12 actions for opt-in scenario"
+        );
 
         // Step 2: Get the safe's owners
         IGnosisSafe safe = IGnosisSafe(rootSafe);
@@ -106,11 +104,7 @@ contract RevenueShareUpgradePathTest is Test {
         );
 
         // Step 5: Mock the portal to record calls instead of reverting
-        _mockAndExpect(
-            PORTAL,
-            abi.encodeWithSelector(IOptimismPortal2.depositTransaction.selector),
-            abi.encode()
-        );
+        _mockAndExpect(PORTAL, abi.encodeWithSelector(IOptimismPortal2.depositTransaction.selector), abi.encode());
 
         // Step 6: Manually verify expected portal calls based on known config values
         _verifyExpectedPortalCalls(actions);
@@ -123,7 +117,6 @@ contract RevenueShareUpgradePathTest is Test {
 
         // Step 8: Generate signatures after approval
         bytes memory signatures = Signatures.genPrevalidatedSignatures(owners);
-
 
         // Step 9: Execute the transaction
         bool success = safe.execTransaction(
@@ -142,7 +135,6 @@ contract RevenueShareUpgradePathTest is Test {
         assertTrue(success, "Transaction should execute successfully");
         assertEq(safe.nonce(), nonceBefore + 1, "Safe nonce should increment");
 
-
         // Step 10: Verify the portal calls
         // For opt-in scenario, we expect:
         // - 7 deployments (L1Withdrawer, SCRevShareCalc, FeeSplitter, 4 vaults)
@@ -155,17 +147,15 @@ contract RevenueShareUpgradePathTest is Test {
         configPath = "test/tasks/example/eth/017-revenue-share-upgrade-opt-out/config.toml";
 
         // Step 1: Run simulate to prepare everything and get the actions
-        (
-            ,
-            Action[] memory actions,
-            ,
-            ,
-            address rootSafe
-        ) = template.simulate(configPath, new address[](0));
+        (, Action[] memory actions,,, address rootSafe) = template.simulate(configPath, new address[](0));
 
         // Verify we got the expected safe and action count
         assertEq(rootSafe, PROXY_ADMIN_OWNER, "Root safe should be ProxyAdminOwner");
-        assertEq(actions.length, EXPECTED_DEPLOYMENTS_OPT_OUT + EXPECTED_UPGRADES_OPT_OUT, "Should have 10 actions for non-opt-in scenario");
+        assertEq(
+            actions.length,
+            EXPECTED_DEPLOYMENTS_OPT_OUT + EXPECTED_UPGRADES_OPT_OUT,
+            "Should have 10 actions for non-opt-in scenario"
+        );
 
         // Step 2: Get the safe's owners
         IGnosisSafe safe = IGnosisSafe(rootSafe);
@@ -235,18 +225,20 @@ contract RevenueShareUpgradePathTest is Test {
         _verifyPortalCalls(actions, EXPECTED_DEPLOYMENTS_OPT_OUT, EXPECTED_UPGRADES_OPT_OUT);
     }
 
-    function _verifyPortalCalls(Action[] memory actions, uint256 expectedDeployments, uint256 expectedUpgrades) internal pure {
+    function _verifyPortalCalls(Action[] memory actions, uint256 expectedDeployments, uint256 expectedUpgrades)
+        internal
+        pure
+    {
         uint256 deploymentCalls = 0;
         uint256 upgradeCalls = 0;
 
-        for (uint i = 0; i < actions.length; i++) {
+        for (uint256 i = 0; i < actions.length; i++) {
             // Decode the depositTransaction parameters
             bytes memory params = new bytes(actions[i].arguments.length - 4);
-            for (uint j = 0; j < params.length; j++) {
+            for (uint256 j = 0; j < params.length; j++) {
                 params[j] = actions[i].arguments[j + 4];
             }
-            (address to, , , , ) =
-                abi.decode(params, (address, uint256, uint64, bool, bytes));
+            (address to,,,,) = abi.decode(params, (address, uint256, uint64, bool, bytes));
 
             if (to == CREATE2_DEPLOYER) {
                 deploymentCalls++;
@@ -264,15 +256,15 @@ contract RevenueShareUpgradePathTest is Test {
     function _verifyExpectedPortalCalls(Action[] memory actions) internal {
         string memory config = vm.readFile(configPath);
         uint64 gasLimit = uint64(vm.parseTomlUint(config, ".deploymentGasLimit"));
-        
+
         uint256 deploymentCount;
         uint256 upgradeCount;
-        
+
         for (uint256 i = 0; i < actions.length; i++) {
             bytes memory params = _extractParams(actions[i].arguments);
             (address to, uint256 value, uint64 actualGasLimit, bool isCreation, bytes memory data) =
                 abi.decode(params, (address, uint256, uint64, bool, bytes));
-            
+
             assertEq(actions[i].target, PORTAL, "All actions should target the portal");
             _verifyCommonParams(value, actualGasLimit, gasLimit, isCreation, data);
 
@@ -284,7 +276,7 @@ contract RevenueShareUpgradePathTest is Test {
                 _verifyUpgradeCall(to, gasLimit, data);
             }
         }
-        
+
         assertGt(deploymentCount, 0, "Should have at least one deployment");
         assertGt(upgradeCount, 0, "Should have at least one upgrade");
         assertEq(deploymentCount + upgradeCount, actions.length, "All actions should be accounted for");
@@ -313,10 +305,9 @@ contract RevenueShareUpgradePathTest is Test {
 
     function _verifyDeploymentCall(address to, uint64 gasLimit, bytes memory data) internal {
         vm.expectCall(
-            PORTAL,
-            abi.encodeCall(IOptimismPortal2.depositTransaction, (CREATE2_DEPLOYER, 0, gasLimit, false, data))
+            PORTAL, abi.encodeCall(IOptimismPortal2.depositTransaction, (CREATE2_DEPLOYER, 0, gasLimit, false, data))
         );
-        
+
         bytes4 actualSelector;
         assembly {
             actualSelector := mload(add(data, 32))
@@ -325,13 +316,10 @@ contract RevenueShareUpgradePathTest is Test {
     }
 
     function _verifyUpgradeCall(address to, uint64 gasLimit, bytes memory data) internal {
-        vm.expectCall(
-            PORTAL,
-            abi.encodeCall(IOptimismPortal2.depositTransaction, (to, 0, gasLimit, false, data))
-        );
-        
+        vm.expectCall(PORTAL, abi.encodeCall(IOptimismPortal2.depositTransaction, (to, 0, gasLimit, false, data)));
+
         _assertIsKnownVault(to);
-        
+
         bytes4 selector;
         assembly {
             selector := mload(add(data, 32))
@@ -344,11 +332,11 @@ contract RevenueShareUpgradePathTest is Test {
 
     function _assertIsKnownVault(address to) internal pure {
         require(
-            to == 0x420000000000000000000000000000000000002B || // L1_FEE_VAULT
-            to == 0x4200000000000000000000000000000000000011 || // SEQUENCER_FEE_VAULT
-            to == 0x4200000000000000000000000000000000000019 || // BASE_FEE_VAULT
-            to == 0x420000000000000000000000000000000000001A || // OPERATOR_FEE_VAULT
-            to == 0x420000000000000000000000000000000000001b,   // L1_BLOCK_ATTRIBUTES
+            to == 0x420000000000000000000000000000000000002B // L1_FEE_VAULT
+                || to == 0x4200000000000000000000000000000000000011 // SEQUENCER_FEE_VAULT
+                || to == 0x4200000000000000000000000000000000000019 // BASE_FEE_VAULT
+                || to == 0x420000000000000000000000000000000000001A // OPERATOR_FEE_VAULT
+                || to == 0x420000000000000000000000000000000000001b, // L1_BLOCK_ATTRIBUTES
             "Upgrade should target a known vault or L1Block contract"
         );
     }
