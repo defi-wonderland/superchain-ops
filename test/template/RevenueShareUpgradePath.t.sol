@@ -148,7 +148,7 @@ contract RevenueShareUpgradePathTest is Test {
 
     function test_optOutRevenueShare_succeeds() public {
         // Define the config path
-        configPath = "test/tasks/example/eth/017-revenue-share-upgrade-opt-out/config.toml";
+        configPath = "test/tasks/example/eth/019-revenueshare-upgrade-opt-out/config.toml";
 
         // Step 1: Run simulate to prepare everything and get the actions
         (, Action[] memory actions,,, address rootSafe) = template.simulate(configPath, new address[](0));
