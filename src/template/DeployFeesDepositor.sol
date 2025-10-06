@@ -13,7 +13,8 @@ import {Create2} from "@openzeppelin/contracts/utils/Create2.sol";
 /// @notice Interface for the FeesDepositor contract on L1.
 ///         This is used to deposit fees into L2.
 interface IFeesDepositor {
-    function initialize(uint96 _minDepositAmount, address _l2Recipient, address _portal, uint64 _gasLimit) external;
+    function initialize(uint96 _minDepositAmount, address _l2Recipient, address _messenger, uint32 _gasLimit)
+        external;
 }
 
 /// @notice Interface for the CREATE2 deployer contract.
@@ -39,7 +40,7 @@ contract DeployFeesDepositor is SimpleTaskBase {
     /// @notice The address of the portal contract.
     address public portal;
     /// @notice The gas limit for the deposit.
-    uint64 public gasLimit;
+    uint32 public gasLimit;
     /// @notice The address of the proxy admin owner.
     address public proxyAdminOwner;
 
@@ -82,8 +83,8 @@ contract DeployFeesDepositor is SimpleTaskBase {
 
         uint256 _gasLimitRaw = tomlContent.readUint(".gasLimit");
         require(_gasLimitRaw > 0, "gasLimit must be set");
-        require(_gasLimitRaw <= type(uint64).max, "gasLimit must be less than uint64.max");
-        gasLimit = uint64(_gasLimitRaw);
+        require(_gasLimitRaw <= type(uint32).max, "gasLimit must be less than uint32.max");
+        gasLimit = uint32(_gasLimitRaw);
 
         proxyAdminOwner = simpleAddrRegistry.get("ProxyAdminOwner");
         require(proxyAdminOwner != address(0), "proxyAdminOwner must be set");
