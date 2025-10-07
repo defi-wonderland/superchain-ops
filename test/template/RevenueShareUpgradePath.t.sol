@@ -336,10 +336,7 @@ contract RevenueShareUpgradePathTest is Test {
 
     function _assertIsKnownVault(address to) internal pure {
         assertTrue(
-            to == L1_FEE_VAULT
-                || to == SEQUENCER_FEE_VAULT
-                || to == BASE_FEE_VAULT
-                || to == OPERATOR_FEE_VAULT
+            to == L1_FEE_VAULT || to == SEQUENCER_FEE_VAULT || to == BASE_FEE_VAULT || to == OPERATOR_FEE_VAULT
                 || to == FEE_SPLITTER,
             "Upgrade should target a known vault or the fee splitter"
         );
