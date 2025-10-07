@@ -12,6 +12,7 @@ import {RevenueShareV100UpgradePath} from "src/template/RevenueShareUpgradePath.
 import {SimpleAddressRegistry} from "src/SimpleAddressRegistry.sol";
 import {Action, TaskPayload, SafeData} from "src/libraries/MultisigTypes.sol";
 import {Utils} from "src/libraries/Utils.sol";
+import {AddressAliasHelper} from "@eth-optimism-bedrock/src/vendor/AddressAliasHelper.sol";
 
 interface IOptimismPortal2 {
     function depositTransaction(address _to, uint256 _value, uint64 _gasLimit, bool _isCreation, bytes memory _data)
@@ -30,6 +31,8 @@ interface IProxy {
 
 contract RevenueShareUpgradePathTest is Test {
     using stdStorage for StdStorage;
+
+    event TransactionDeposited(address indexed from, address indexed to, uint256 indexed version, bytes opaqueData);
 
     RevenueShareV100UpgradePath public template;
     string public configPath = "test/tasks/example/eth/015-revenue-share-upgrade/config.toml";
@@ -51,6 +54,8 @@ contract RevenueShareUpgradePathTest is Test {
     address internal constant OPERATOR_FEE_VAULT = 0x420000000000000000000000000000000000001b;
     address internal constant BASE_FEE_VAULT = 0x4200000000000000000000000000000000000019;
     address internal constant L1_FEE_VAULT = 0x420000000000000000000000000000000000001A;
+
+    uint256 internal constant DEPOSIT_VERSION = 0;
 
     function _mockAndExpect(address _receiver, bytes memory _calldata, bytes memory _returned) internal {
         vm.mockCall(_receiver, _calldata, _returned);
@@ -205,6 +210,8 @@ contract RevenueShareUpgradePathTest is Test {
         // Step 7: Generate signatures after approval
         bytes memory signatures = Signatures.genPrevalidatedSignatures(owners);
 
+        _expectPortalEvents(actions);
+
         // Step 8: Execute the transaction
         bool success = safe.execTransaction(
             template.multicallTarget(),
@@ -336,12 +343,22 @@ contract RevenueShareUpgradePathTest is Test {
 
     function _assertIsKnownVault(address to) internal pure {
         assertTrue(
-            to == L1_FEE_VAULT
-                || to == SEQUENCER_FEE_VAULT
-                || to == BASE_FEE_VAULT
-                || to == OPERATOR_FEE_VAULT
+            to == L1_FEE_VAULT || to == SEQUENCER_FEE_VAULT || to == BASE_FEE_VAULT || to == OPERATOR_FEE_VAULT
                 || to == FEE_SPLITTER,
             "Upgrade should target a known vault or the fee splitter"
         );
+    }
+
+    function _expectPortalEvents(Action[] memory actions) internal {
+        for (uint256 i = 0; i < actions.length; i++) {
+            bytes memory params = _extractParams(actions[i].arguments);
+            (address to, uint256 value, uint64 actualGasLimit, bool isCreation, bytes memory data) =
+                abi.decode(params, (address, uint256, uint64, bool, bytes));
+
+            bytes memory opaqueData = abi.encodePacked(uint256(0), uint256(0), actualGasLimit, isCreation, data);
+
+            vm.expectEmit(true, true, true, true, PORTAL);
+            emit TransactionDeposited(AddressAliasHelper.applyL1ToL2Alias(PROXY_ADMIN_OWNER), to, DEPOSIT_VERSION, opaqueData);
+        }
     }
 }
