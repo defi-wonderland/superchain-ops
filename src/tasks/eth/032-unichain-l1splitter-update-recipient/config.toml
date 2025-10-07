@@ -1,0 +1,13 @@
+templateName = "L1PortalExecuteL2Call"
+
+l2chains = [{name = "Unichain", chainId = 130}]
+
+# L2 call params
+l2Target = "0x4300c0d3c0d3c0D3c0d3C0D3c0d3C0D3C0D30003" # L1 Splitter contract
+# TODO(17505): This address MUST be updated once the appropriate FeesDepositor is deployed
+l2Data = "0xf62b6105000000000000000000000000deadbeef1234567890abcdef1234567890abcdef" # updateL1Recipient(0xdeadbeef1234567890abcdef1234567890abcdef)
+gasLimit = 500000
+isCreation = false
+
+[addresses]
+ProxyAdminOwner = "0x9245d5D10AA8a842B31530De71EA86c0760Ca1b1"
