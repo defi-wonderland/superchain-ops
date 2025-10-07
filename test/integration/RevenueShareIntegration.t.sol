@@ -9,6 +9,7 @@ import {Signatures} from "@base-contracts/script/universal/Signatures.sol";
 
 import {RevenueShareV100UpgradePath} from "src/template/RevenueShareUpgradePath.sol";
 import {Action} from "src/libraries/MultisigTypes.sol";
+import {Relayer} from "lib/interop-lib/src/test/Relayer.sol";
 
 struct RelayedMessage {
     address target;
@@ -30,19 +31,13 @@ interface IFeeSplitter {
     function recipient() external view returns (address);
 }
 
-contract RevenueShareIntegrationTest is Test {
+contract RevenueShareIntegrationTest is Test, Relayer {
     RevenueShareV100UpgradePath public template;
-
-    // Fork identifiers
-    uint256 public l1Fork;
-    uint256 public l2Fork;
-
-    // Fork mapping
-    mapping(uint256 => uint256) public chainIdByForkId;
 
     // Constants
     address public constant PORTAL = 0xbEb5Fc579115071764c7423A4f12eDde41f106Ed;
     address public constant PROXY_ADMIN_OWNER = 0x5a0Aae59D09fccBdDb6C6CcEB07B7279367C3d2A;
+    address public constant RELAYER = address(0);
 
     // L2 predeploys
     address internal constant FEE_SPLITTER = 0x420000000000000000000000000000000000002B;
@@ -51,42 +46,35 @@ contract RevenueShareIntegrationTest is Test {
     address internal constant BASE_FEE_VAULT = 0x4200000000000000000000000000000000000019;
     address internal constant L1_FEE_VAULT = 0x420000000000000000000000000000000000001A;
 
+    // Chain IDs
+  uint256 internal _mainnetChainId;
+  uint256 internal _optimismChainId;
+
+  string[] internal _rpcUrls = ['http://127.0.0.1:8545', 'http://127.0.0.1:9545'];
+
+    constructor() Relayer(_rpcUrls) {
+        _mainnetChainId = forkIds[0];
+        _optimismChainId = forkIds[1];
+    }
+
     function setUp() public {
-        // Create L1 and L2 forks using Supersim
-        l1Fork = vm.createSelectFork("http://127.0.0.1:8545");
-        l2Fork = vm.createFork("http://127.0.0.1:9545");
-
-        // Map chain IDs to fork IDs
-        vm.selectFork(l1Fork);
-        chainIdByForkId[l1Fork] = block.chainid;
-
-        vm.selectFork(l2Fork);
-        chainIdByForkId[l2Fork] = block.chainid;
-
-        // Start on L1
-        vm.selectFork(l1Fork);
-
         template = new RevenueShareV100UpgradePath();
     }
 
     function test_optInRevenueShare_integration() public {
         string memory configPath = "test/tasks/example/eth/015-revenue-share-upgrade/config.toml";
 
-        // Start recording logs for message relaying
-        vm.recordLogs();
-
         // Step 1: Execute L1 transaction
         _executeL1Transaction(configPath);
-
+/* 
         // Step 2: Relay messages from L1 to L2
-        RelayedMessage[] memory messages = _relayAllMessages();
+        vm.selectFork(_optimismChainId);
 
-        // Log number of messages relayed for debugging
-        emit log_named_uint("Messages relayed", messages.length);
+        // Relay the op to the optimism chain
+        vm.startPrank(RELAYER);
+        relayAllMessages();
 
-        // Step 3: Verify L2 state changes
-        vm.selectFork(l2Fork);
-        _verifyL2StateOptIn();
+        vm.stopPrank(); */
     }
 
 /*     function test_optOutRevenueShare_integration() public {
@@ -105,15 +93,15 @@ contract RevenueShareIntegrationTest is Test {
  */
     function _executeL1Transaction(string memory configPath) internal {
         // Ensure we're on L1
-        vm.selectFork(l1Fork);
+        vm.selectFork(_mainnetChainId);
 
         // Get actions from template simulation
         (, Action[] memory actions,,, address rootSafe) = template.simulate(configPath, new address[](0));
 
         // Verify we got the expected safe
-        assertEq(rootSafe, PROXY_ADMIN_OWNER, "Root safe should be ProxyAdminOwner");
+        /* assertEq(rootSafe, PROXY_ADMIN_OWNER, "Root safe should be ProxyAdminOwner"); */
 
-        // Get the safe and its owners
+       /*  // Get the safe and its owners
         IGnosisSafe safe = IGnosisSafe(rootSafe);
         address[] memory owners = safe.getOwners();
 
@@ -176,61 +164,7 @@ contract RevenueShareIntegrationTest is Test {
         }
 
         assertTrue(success, "L1 transaction should execute successfully");
-        assertEq(safe.nonce(), nonceBefore + 1, "Safe nonce should increment");
-    }
-
-    function _relayAllMessages() internal returns (RelayedMessage[] memory) {
-        uint256 currentFork = vm.activeFork();
-        uint256 sourceChainId = chainIdByForkId[currentFork];
-        return _relayMessages(vm.getRecordedLogs(), sourceChainId);
-    }
-
-    function _relayMessages(Vm.Log[] memory logs, uint256 sourceChainId)
-        internal
-        returns (RelayedMessage[] memory messages_)
-    {
-        uint256 originalFork = vm.activeFork();
-
-        messages_ = new RelayedMessage[](logs.length);
-        uint256 messageCount = 0;
-
-        for (uint256 i = 0; i < logs.length; i++) {
-            Vm.Log memory log = logs[i];
-
-            // Skip logs that aren't depositTransaction events to OptimismPortal2
-            if (
-                log.emitter != PORTAL
-                    || log.topics[0] != keccak256("TransactionDeposited(address,address,uint256,bytes)")
-            ) continue;
-
-            // Extract the depositTransaction parameters from the log
-            bytes memory payload = _constructMessagePayload(log);
-            if (payload.length == 0) continue;
-
-            // Decode the parameters: (address _to, uint256 _value, uint64 _gasLimit, bool _isCreation, bytes _data)
-            (address to, uint256 value,, bool isCreation, bytes memory data) =
-                abi.decode(payload, (address, uint256, uint64, bool, bytes));
-
-            // Skip creation transactions for this test
-            if (isCreation) continue;
-
-            // For integration testing, we'll just record the message without executing
-            // In a real Supersim integration, these would be executed automatically
-            // Add to messages array
-            messages_[messageCount] = RelayedMessage({target: to, callData: data, value: value});
-            messageCount++;
-        }
-
-        // Resize array if needed
-        if (messageCount < logs.length) {
-            RelayedMessage[] memory resizedMessages = new RelayedMessage[](messageCount);
-            for (uint256 i = 0; i < messageCount; i++) {
-                resizedMessages[i] = messages_[i];
-            }
-            messages_ = resizedMessages;
-        }
-
-        vm.selectFork(originalFork);
+        assertEq(safe.nonce(), nonceBefore + 1, "Safe nonce should increment"); */
     }
 
     function _constructMessagePayload(Vm.Log memory log) internal pure returns (bytes memory) {

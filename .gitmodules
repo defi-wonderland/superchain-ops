@@ -23,6 +23,3 @@
 [submodule "lib/superchain-registry"]
 	path = lib/superchain-registry
 	url = https://github.com/ethereum-optimism/superchain-registry
-[submodule "lib/interop-lib"]
-	path = lib/interop-lib
-	url = https://github.com/ethereum-optimism/interop-lib
