@@ -6,10 +6,11 @@ import {Vm} from "forge-std/Vm.sol";
 import {IGnosisSafe, Enum} from "@base-contracts/script/universal/IGnosisSafe.sol";
 import {IMulticall3} from "forge-std/interfaces/IMulticall3.sol";
 import {Signatures} from "@base-contracts/script/universal/Signatures.sol";
-
+import {console2} from "forge-std/console2.sol";
 import {RevenueShareV100UpgradePath} from "src/template/RevenueShareUpgradePath.sol";
 import {Action} from "src/libraries/MultisigTypes.sol";
 import {AddressAliasHelper} from "@eth-optimism-bedrock/src/vendor/AddressAliasHelper.sol";
+
 
 struct RelayedMessage {
     address target;
@@ -72,60 +73,8 @@ contract RevenueShareIntegrationTest is Test {
         // Step 1: Execute L1 transaction
         _executeL1Transaction(configPath);
 
-        Vm.Log[] memory logs = vm.getRecordedLogs();
-        DepositedTransaction[] memory depositedTransactions = new DepositedTransaction[](logs.length);
-        uint256 depositCount;
-        uint256 deploymentsCount;
-
-        // Filter for TransactionDeposited events
-        bytes32 transactionDepositedHash = keccak256("TransactionDeposited(address,address,uint256,bytes)");
-        uint256 totalTransactionDepositedEvents;
-        
-        for (uint256 i = 0; i < logs.length; i++) {
-            if (logs[i].topics[0] == transactionDepositedHash) {
-                totalTransactionDepositedEvents++;
-                // Decode indexed parameters from topics
-                address from = address(uint160(uint256(logs[i].topics[1])));
-                address to = address(uint160(uint256(logs[i].topics[2])));
-                uint256 version = uint256(logs[i].topics[3]);
-                
-                
-                // Only process transactions from the aliased PROXY_ADMIN_OWNER
-                if (from == AddressAliasHelper.applyL1ToL2Alias(PROXY_ADMIN_OWNER)) {
-                    // Decode non-indexed parameter from data
-                    bytes memory opaqueData = abi.decode(logs[i].data, (bytes));
-                    
-                    depositedTransactions[depositCount] = DepositedTransaction({
-                        from: from,
-                        to: to,
-                        version: version,
-                        opaqueData: opaqueData
-                    });
-                    depositCount++;
-
-                    if (to == CREATE2_DEPLOYER) {
-                        deploymentsCount++;
-                    }
-                }
-            }
-        }
-        
-        // Check for duplicate data
-        uint256 duplicateCount;
-        for (uint256 i = 0; i < depositCount; i++) {
-            for (uint256 j = i + 1; j < depositCount; j++) {
-                if (keccak256(depositedTransactions[i].opaqueData) == keccak256(depositedTransactions[j].opaqueData)) {
-                    duplicateCount++;
-                }
-            }
-        }
-        
-
         // Step 2: Relay messages from L1 to L2
-        vm.selectFork(_optimismForkId);
-
-        // Relay the op to the optimism chain
-        /* _relayAllMessages(); */
+        _relayAllMessages();
     }
 
 /*     function test_optOutRevenueShare_integration() public {
@@ -221,5 +170,92 @@ contract RevenueShareIntegrationTest is Test {
 
         assertTrue(success, "L1 transaction should execute successfully");
         assertEq(safe.nonce(), nonceBefore + 1, "Safe nonce should increment");
+    }
+
+    function _relayAllMessages() internal {
+        vm.selectFork(_optimismForkId);
+
+        // Get logs from L1 execution
+        Vm.Log[] memory logs = vm.getRecordedLogs();
+        
+        // Filter for TransactionDeposited events
+        bytes32 transactionDepositedHash = keccak256("TransactionDeposited(address,address,uint256,bytes)");
+        
+        console2.log("\n=== Replaying Deposit Transactions on L2 ===");
+        uint256 successCount;
+        uint256 failureCount;
+        
+        for (uint256 i = 0; i < logs.length; i++) {
+            // Check if this is a TransactionDeposited event
+            if (logs[i].topics[0] == transactionDepositedHash) {
+                // Decode indexed parameters
+                address from = address(uint160(uint256(logs[i].topics[1])));
+                address to = address(uint160(uint256(logs[i].topics[2])));
+                
+                // Only process transactions from the aliased PROXY_ADMIN_OWNER
+                if (from == AddressAliasHelper.applyL1ToL2Alias(PROXY_ADMIN_OWNER)) {
+                    // Decode the opaqueData
+                    bytes memory opaqueData = abi.decode(logs[i].data, (bytes));
+                    
+                    // The opaqueData is: abi.encodePacked(value, mint, gasLimit, isCreation, data)
+                    // Layout:
+                    //   value: uint256 (32 bytes) - ETH to send with the call
+                    //   mint: uint256 (32 bytes) - ETH to mint on L2
+                    //   gasLimit: uint64 (8 bytes) - gas limit for L2 tx
+                    //   isCreation: bool (1 byte) - is contract creation
+                    //   data: bytes (remaining) - the actual calldata
+                    
+                    // Extract value (bytes 0-31)
+                    uint256 value = uint256(bytes32(_slice(opaqueData, 0, 32)));
+                    
+                    // Extract mint (bytes 32-63)
+                    uint256 mint = uint256(bytes32(_slice(opaqueData, 32, 32)));
+                    
+                    // Extract gasLimit (bytes 64-71)
+                    uint64 gasLimit = uint64(bytes8(_slice(opaqueData, 64, 8)));
+                    
+                    // Extract isCreation (byte 72)
+                    bool isCreation = uint8(opaqueData[72]) != 0;
+                    
+                    // Extract data (bytes 73 onwards)
+                    bytes memory data = _slice(opaqueData, 73, opaqueData.length - 73);
+                    
+                    // Execute the transaction on L2 as if it came from the aliased address
+                    vm.prank(from);
+                    (bool success, bytes memory returnData) = to.call{value: value}(data);
+                    
+                    if (!success) {
+                        console2.log("  Result: FAILED");
+                        failureCount++;
+                        if (returnData.length > 0) {
+                            console2.log("  Error data:");
+                            console2.logBytes(returnData);
+                        }
+                    } else {
+                        console2.log("  Result: SUCCESS");
+                        successCount++;
+                        if (returnData.length > 0) {
+                            console2.log("  Return data length:", returnData.length);
+                        }
+                    }
+                }
+            }
+        }
+        
+        console2.log("\n=== Summary ===");
+        console2.log("Successful transactions:", successCount);
+        console2.log("Failed transactions:", failureCount);
+        
+        // Assert all transactions succeeded
+        assertEq(failureCount, 0, "All deposit transactions should succeed");
+    }
+
+    /// @notice Helper function to slice bytes
+    function _slice(bytes memory data, uint256 start, uint256 length) internal pure returns (bytes memory) {
+        bytes memory result = new bytes(length);
+        for (uint256 i = 0; i < length; i++) {
+            result[i] = data[start + i];
+        }
+        return result;
     }
 }
