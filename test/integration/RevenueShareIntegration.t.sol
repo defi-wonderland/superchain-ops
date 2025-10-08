@@ -9,12 +9,20 @@ import {Signatures} from "@base-contracts/script/universal/Signatures.sol";
 
 import {RevenueShareV100UpgradePath} from "src/template/RevenueShareUpgradePath.sol";
 import {Action} from "src/libraries/MultisigTypes.sol";
-import {Relayer} from "lib/interop-lib/src/test/Relayer.sol";
+import {console} from "forge-std/console.sol";
+import {AddressAliasHelper} from "@eth-optimism-bedrock/src/vendor/AddressAliasHelper.sol";
 
 struct RelayedMessage {
     address target;
     bytes callData;
     uint256 value;
+}
+
+struct DepositedTransaction {
+    address from;
+    address to;
+    uint256 version;
+    bytes opaqueData;
 }
 
 interface IOptimismPortal2 {
@@ -31,13 +39,13 @@ interface IFeeSplitter {
     function recipient() external view returns (address);
 }
 
-contract RevenueShareIntegrationTest is Test, Relayer {
+contract RevenueShareIntegrationTest is Test {
     RevenueShareV100UpgradePath public template;
 
     // Constants
     address public constant PORTAL = 0xbEb5Fc579115071764c7423A4f12eDde41f106Ed;
     address public constant PROXY_ADMIN_OWNER = 0x5a0Aae59D09fccBdDb6C6CcEB07B7279367C3d2A;
-    address public constant RELAYER = address(0);
+    address public constant CREATE2_DEPLOYER = 0x13b0D85CcB8bf860b6b79AF3029fCA081AE9beF2;
 
     // L2 predeploys
     address internal constant FEE_SPLITTER = 0x420000000000000000000000000000000000002B;
@@ -46,18 +54,16 @@ contract RevenueShareIntegrationTest is Test, Relayer {
     address internal constant BASE_FEE_VAULT = 0x4200000000000000000000000000000000000019;
     address internal constant L1_FEE_VAULT = 0x420000000000000000000000000000000000001A;
 
-    // Chain IDs
-  uint256 internal _mainnetChainId;
-  uint256 internal _optimismChainId;
+    // Fork IDs
+  uint256 internal _mainnetForkId;
+  uint256 internal _optimismForkId;
 
   string[] internal _rpcUrls = ['http://127.0.0.1:8545', 'http://127.0.0.1:9545'];
 
-    constructor() Relayer(_rpcUrls) {
-        _mainnetChainId = forkIds[0];
-        _optimismChainId = forkIds[1];
-    }
-
     function setUp() public {
+        _mainnetForkId = vm.createFork("http://127.0.0.1:8545");
+        _optimismForkId = vm.createFork("http://127.0.0.1:9545");
+        vm.selectFork(_mainnetForkId);
         template = new RevenueShareV100UpgradePath();
     }
 
@@ -66,15 +72,73 @@ contract RevenueShareIntegrationTest is Test, Relayer {
 
         // Step 1: Execute L1 transaction
         _executeL1Transaction(configPath);
-/* 
+
+        Vm.Log[] memory logs = vm.getRecordedLogs();
+        DepositedTransaction[] memory depositedTransactions = new DepositedTransaction[](logs.length);
+        uint256 depositCount;
+        uint256 deploymentsCount;
+
+        // Filter for TransactionDeposited events
+        bytes32 transactionDepositedHash = keccak256("TransactionDeposited(address,address,uint256,bytes)");
+        uint256 totalTransactionDepositedEvents;
+        
+        for (uint256 i = 0; i < logs.length; i++) {
+            if (logs[i].topics[0] == transactionDepositedHash) {
+                totalTransactionDepositedEvents++;
+                // Decode indexed parameters from topics
+                address from = address(uint160(uint256(logs[i].topics[1])));
+                address to = address(uint160(uint256(logs[i].topics[2])));
+                uint256 version = uint256(logs[i].topics[3]);
+                
+                console.log("TransactionDeposited event #", totalTransactionDepositedEvents);
+                console.log("  from:", from);
+                console.log("  to:", to);
+                console.log("  expected from:", AddressAliasHelper.applyL1ToL2Alias(PROXY_ADMIN_OWNER));
+                
+                // Only process transactions from the aliased PROXY_ADMIN_OWNER
+                if (from == AddressAliasHelper.applyL1ToL2Alias(PROXY_ADMIN_OWNER)) {
+                    // Decode non-indexed parameter from data
+                    bytes memory opaqueData = abi.decode(logs[i].data, (bytes));
+                    
+                    depositedTransactions[depositCount] = DepositedTransaction({
+                        from: from,
+                        to: to,
+                        version: version,
+                        opaqueData: opaqueData
+                    });
+                    depositCount++;
+
+                    if (to == CREATE2_DEPLOYER) {
+                        deploymentsCount++;
+                    }
+                }
+            }
+        }
+        
+        // Check for duplicate data
+        uint256 duplicateCount;
+        for (uint256 i = 0; i < depositCount; i++) {
+            for (uint256 j = i + 1; j < depositCount; j++) {
+                if (keccak256(depositedTransactions[i].opaqueData) == keccak256(depositedTransactions[j].opaqueData)) {
+                    duplicateCount++;
+                }
+            }
+        }
+        
+        console.log("\n=== Summary ===");
+        console.log("Total logs:", logs.length);
+        console.log("Total TransactionDeposited events:", totalTransactionDepositedEvents);
+        console.log("Filtered deposited transactions (from aliased PROXY_ADMIN_OWNER):", depositCount);
+        console.log("Deployments to CREATE2_DEPLOYER:", deploymentsCount);
+        console.log("Duplicate data count:", duplicateCount);
+        console.log("Chain id:", block.chainid);
+
         // Step 2: Relay messages from L1 to L2
-        vm.selectFork(_optimismChainId);
+        vm.selectFork(_optimismForkId);
+        console.log("chain id", block.chainid);
 
         // Relay the op to the optimism chain
-        vm.startPrank(RELAYER);
-        relayAllMessages();
-
-        vm.stopPrank(); */
+        /* _relayAllMessages(); */
     }
 
 /*     function test_optOutRevenueShare_integration() public {
@@ -92,16 +156,15 @@ contract RevenueShareIntegrationTest is Test, Relayer {
     }
  */
     function _executeL1Transaction(string memory configPath) internal {
-        // Ensure we're on L1
-        vm.selectFork(_mainnetChainId);
-
         // Get actions from template simulation
         (, Action[] memory actions,,, address rootSafe) = template.simulate(configPath, new address[](0));
 
         // Verify we got the expected safe
-        /* assertEq(rootSafe, PROXY_ADMIN_OWNER, "Root safe should be ProxyAdminOwner"); */
+        assertEq(rootSafe, PROXY_ADMIN_OWNER, "Root safe should be ProxyAdminOwner");
+        
+        console.log("Total actions from simulate:", actions.length);
 
-       /*  // Get the safe and its owners
+       // Get the safe and its owners
         IGnosisSafe safe = IGnosisSafe(rootSafe);
         address[] memory owners = safe.getOwners();
 
@@ -142,6 +205,9 @@ contract RevenueShareIntegrationTest is Test, Relayer {
         // Generate signatures and execute
         bytes memory signatures = Signatures.genPrevalidatedSignatures(owners);
 
+        // Start recording logs only for the actual execution
+        vm.recordLogs();
+
         bool success = safe.execTransaction(
             template.multicallTarget(),
             0,
@@ -164,64 +230,6 @@ contract RevenueShareIntegrationTest is Test, Relayer {
         }
 
         assertTrue(success, "L1 transaction should execute successfully");
-        assertEq(safe.nonce(), nonceBefore + 1, "Safe nonce should increment"); */
-    }
-
-    function _constructMessagePayload(Vm.Log memory log) internal pure returns (bytes memory) {
-        // For OptimismPortal2 TransactionDeposited events, the data contains the encoded parameters
-        // The event signature is: TransactionDeposited(address indexed from, address indexed to, uint256 indexed version, bytes opaqueData)
-        // The opaqueData contains the encoded depositTransaction parameters
-
-        if (log.data.length < 32) return new bytes(0);
-
-        // Decode the opaqueData from the event
-        bytes memory opaqueData = abi.decode(log.data, (bytes));
-
-        // The opaqueData should contain the depositTransaction parameters
-        return opaqueData;
-    }
-
-    function _verifyL2StateOptIn() internal {
-        // NOTE: In a real integration test with actual message relay,
-        // this would verify that L2 contracts have been properly deployed and configured
-
-        // For now, we verify basic L2 state since we're simulating message relay
-        // In actual Supersim integration, the messages would have been processed
-        // and the L2 state would reflect the deployments and upgrades
-
-        // Verify we can access L2 predeploys
-        assertTrue(FEE_SPLITTER.code.length > 0, "FeeSplitter should exist");
-        assertTrue(SEQUENCER_FEE_VAULT.code.length > 0, "SequencerFeeVault should exist");
-        assertTrue(BASE_FEE_VAULT.code.length > 0, "BaseFeeVault should exist");
-        assertTrue(L1_FEE_VAULT.code.length > 0, "L1FeeVault should exist");
-        assertTrue(OPERATOR_FEE_VAULT.code.length > 0, "OperatorFeeVault should exist");
-
-        // In a real integration test, we would verify:
-        // - New vault implementations have been deployed
-        // - FeeSplitter has been configured with revenue sharing
-        // - All proxy upgrades have been applied
-        // - Revenue sharing contracts are properly initialized
-    }
-
-    function _verifyL2StateOptOut() internal {
-        // NOTE: In a real integration test with actual message relay,
-        // this would verify that L2 contracts have been properly deployed and configured
-
-        // For now, we verify basic L2 state since we're simulating message relay
-        // In actual Supersim integration, the messages would have been processed
-        // and the L2 state would reflect the deployments and upgrades
-
-        // Verify we can access L2 predeploys
-        assertTrue(FEE_SPLITTER.code.length > 0, "FeeSplitter should exist");
-        assertTrue(SEQUENCER_FEE_VAULT.code.length > 0, "SequencerFeeVault should exist");
-        assertTrue(BASE_FEE_VAULT.code.length > 0, "BaseFeeVault should exist");
-        assertTrue(L1_FEE_VAULT.code.length > 0, "L1FeeVault should exist");
-        assertTrue(OPERATOR_FEE_VAULT.code.length > 0, "OperatorFeeVault should exist");
-
-        // In a real integration test, we would verify:
-        // - New vault implementations have been deployed (without revenue sharing)
-        // - FeeSplitter maintains standard fee handling behavior
-        // - All proxy upgrades have been applied
-        // - No revenue sharing contracts are deployed or configured
+        assertEq(safe.nonce(), nonceBefore + 1, "Safe nonce should increment");
     }
 }
