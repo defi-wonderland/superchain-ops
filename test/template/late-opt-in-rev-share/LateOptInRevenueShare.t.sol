@@ -390,4 +390,11 @@ contract LateOptInRevenueShareRequiredFieldsTest is Test {
         vm.expectRevert("scRevShareCalcChainFeesRecipient must be set in config");
         template.simulate(configPath);
     }
+
+    /// @notice Tests that the template reverts when the portal is a zero address.
+    function test_lateOptInRevenueShare_portal_zero_address_reverts() public {
+        string memory configPath = "test/template/late-opt-in-rev-share/config/portal-zero-address-config.toml";
+        vm.expectRevert("SimpleAddressRegistry: zero address for OptimismPortal");
+        template.simulate(configPath);
+    }
 }
