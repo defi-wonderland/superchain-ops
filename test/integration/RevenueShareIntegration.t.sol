@@ -9,7 +9,6 @@ import {Signatures} from "@base-contracts/script/universal/Signatures.sol";
 
 import {RevenueShareV100UpgradePath} from "src/template/RevenueShareUpgradePath.sol";
 import {Action} from "src/libraries/MultisigTypes.sol";
-import {console} from "forge-std/console.sol";
 import {AddressAliasHelper} from "@eth-optimism-bedrock/src/vendor/AddressAliasHelper.sol";
 
 struct RelayedMessage {
@@ -90,10 +89,6 @@ contract RevenueShareIntegrationTest is Test {
                 address to = address(uint160(uint256(logs[i].topics[2])));
                 uint256 version = uint256(logs[i].topics[3]);
                 
-                console.log("TransactionDeposited event #", totalTransactionDepositedEvents);
-                console.log("  from:", from);
-                console.log("  to:", to);
-                console.log("  expected from:", AddressAliasHelper.applyL1ToL2Alias(PROXY_ADMIN_OWNER));
                 
                 // Only process transactions from the aliased PROXY_ADMIN_OWNER
                 if (from == AddressAliasHelper.applyL1ToL2Alias(PROXY_ADMIN_OWNER)) {
@@ -125,17 +120,9 @@ contract RevenueShareIntegrationTest is Test {
             }
         }
         
-        console.log("\n=== Summary ===");
-        console.log("Total logs:", logs.length);
-        console.log("Total TransactionDeposited events:", totalTransactionDepositedEvents);
-        console.log("Filtered deposited transactions (from aliased PROXY_ADMIN_OWNER):", depositCount);
-        console.log("Deployments to CREATE2_DEPLOYER:", deploymentsCount);
-        console.log("Duplicate data count:", duplicateCount);
-        console.log("Chain id:", block.chainid);
 
         // Step 2: Relay messages from L1 to L2
         vm.selectFork(_optimismForkId);
-        console.log("chain id", block.chainid);
 
         // Relay the op to the optimism chain
         /* _relayAllMessages(); */
@@ -161,8 +148,11 @@ contract RevenueShareIntegrationTest is Test {
 
         // Verify we got the expected safe
         assertEq(rootSafe, PROXY_ADMIN_OWNER, "Root safe should be ProxyAdminOwner");
-        
-        console.log("Total actions from simulate:", actions.length);
+
+        // Mine a new block to reset OptimismPortal2's resource metering
+        // The simulate() call consumed resources, so we need a fresh block
+        vm.roll(block.number + 1);
+        vm.warp(block.timestamp + 12);
 
        // Get the safe and its owners
         IGnosisSafe safe = IGnosisSafe(rootSafe);
