@@ -27,11 +27,10 @@ interface IFeeSplitter {
     function initialize(address _sharesCalculator) external;
 }
 
-/// @notice Interface for the Proxy.
-interface IProxy {
-    function upgradeTo(address _implementation) external;
-
-    function upgradeToAndCall(address _implementation, bytes memory _data) external payable returns (bytes memory);
+/// @notice Interface for ProxyAdmin.
+interface IProxyAdmin {
+    function upgrade(address payable _proxy, address _implementation) external;
+    function upgradeAndCall(address payable _proxy, address _implementation, bytes memory _data) external;
 }
 
 /// @notice A template contract for chains to upgrade to the Revenue Share v1.0.0 implementation.
@@ -51,6 +50,8 @@ contract RevenueShareV100UpgradePath is SimpleTaskBase {
     address internal constant L1_FEE_VAULT = 0x420000000000000000000000000000000000001A;
     /// @notice Address of the FeeSplitter Predeploy on L2.
     address internal constant FEE_SPLITTER = 0x420000000000000000000000000000000000002B;
+    /// @notice Address of the ProxyAdmin predeploy on L2.
+    address internal constant PROXY_ADMIN = 0x4200000000000000000000000000000000000018;
 
     /// @notice Used to validate calls made to the OptimismPortal.
     mapping(bytes32 => uint8) internal _callsToPortal;
@@ -327,11 +328,14 @@ contract RevenueShareV100UpgradePath is SimpleTaskBase {
             abi.encodeCall(
                 IOptimismPortal2.depositTransaction,
                 (
-                    address(OPERATOR_FEE_VAULT),
+                    address(PROXY_ADMIN),
                     0,
                     deploymentGasLimit,
                     false,
-                    abi.encodeCall(IProxy.upgradeTo, (address(_operatorFeeVaultPrecalculatedAddress)))
+                    abi.encodeCall(
+                        IProxyAdmin.upgrade,
+                        (payable(OPERATOR_FEE_VAULT), address(_operatorFeeVaultPrecalculatedAddress))
+                    )
                 )
             )
         );
@@ -361,11 +365,14 @@ contract RevenueShareV100UpgradePath is SimpleTaskBase {
             abi.encodeCall(
                 IOptimismPortal2.depositTransaction,
                 (
-                    address(SEQUENCER_FEE_VAULT),
+                    address(PROXY_ADMIN),
                     0,
                     deploymentGasLimit,
                     false,
-                    abi.encodeCall(IProxy.upgradeTo, (address(_sequencerFeeVaultPrecalculatedAddress)))
+                    abi.encodeCall(
+                        IProxyAdmin.upgrade,
+                        (payable(SEQUENCER_FEE_VAULT), address(_sequencerFeeVaultPrecalculatedAddress))
+                    )
                 )
             )
         );
@@ -391,11 +398,13 @@ contract RevenueShareV100UpgradePath is SimpleTaskBase {
             abi.encodeCall(
                 IOptimismPortal2.depositTransaction,
                 (
-                    address(BASE_FEE_VAULT),
+                    address(PROXY_ADMIN),
                     0,
                     deploymentGasLimit,
                     false,
-                    abi.encodeCall(IProxy.upgradeTo, (address(_baseFeeVaultPrecalculatedAddress)))
+                    abi.encodeCall(
+                        IProxyAdmin.upgrade, (payable(BASE_FEE_VAULT), address(_baseFeeVaultPrecalculatedAddress))
+                    )
                 )
             )
         );
@@ -421,11 +430,13 @@ contract RevenueShareV100UpgradePath is SimpleTaskBase {
             abi.encodeCall(
                 IOptimismPortal2.depositTransaction,
                 (
-                    address(L1_FEE_VAULT),
+                    address(PROXY_ADMIN),
                     0,
                     deploymentGasLimit,
                     false,
-                    abi.encodeCall(IProxy.upgradeTo, (address(_l1FeeVaultPrecalculatedAddress)))
+                    abi.encodeCall(
+                        IProxyAdmin.upgrade, (payable(L1_FEE_VAULT), address(_l1FeeVaultPrecalculatedAddress))
+                    )
                 )
             )
         );
@@ -449,13 +460,14 @@ contract RevenueShareV100UpgradePath is SimpleTaskBase {
             abi.encodeCall(
                 IOptimismPortal2.depositTransaction,
                 (
-                    address(FEE_SPLITTER),
+                    address(PROXY_ADMIN),
                     0,
                     deploymentGasLimit,
                     false,
                     abi.encodeCall(
-                        IProxy.upgradeToAndCall,
+                        IProxyAdmin.upgradeAndCall,
                         (
+                            payable(FEE_SPLITTER),
                             address(_feeSplitterPrecalculatedAddress),
                             abi.encodeCall(IFeeSplitter.initialize, (_scRevShareCalculatorPrecalculatedAddress))
                         )
@@ -522,11 +534,13 @@ contract RevenueShareV100UpgradePath is SimpleTaskBase {
             address(CREATE2_DEPLOYER), 0, deploymentGasLimit, false, _operatorFeeVaultCalldata
         );
         IOptimismPortal2(payable(portal)).depositTransaction(
-            address(OPERATOR_FEE_VAULT),
+            address(PROXY_ADMIN),
             0,
             deploymentGasLimit,
             false,
-            abi.encodeCall(IProxy.upgradeTo, (address(_operatorFeeVaultPrecalculatedAddress)))
+            abi.encodeCall(
+                IProxyAdmin.upgrade, (payable(OPERATOR_FEE_VAULT), address(_operatorFeeVaultPrecalculatedAddress))
+            )
         );
 
         // Deploy the sequencer fee vault
@@ -534,11 +548,13 @@ contract RevenueShareV100UpgradePath is SimpleTaskBase {
             address(CREATE2_DEPLOYER), 0, deploymentGasLimit, false, _sequencerFeeVaultCalldata
         );
         IOptimismPortal2(payable(portal)).depositTransaction(
-            address(SEQUENCER_FEE_VAULT),
+            address(PROXY_ADMIN),
             0,
             deploymentGasLimit,
             false,
-            abi.encodeCall(IProxy.upgradeTo, (address(_sequencerFeeVaultPrecalculatedAddress)))
+            abi.encodeCall(
+                IProxyAdmin.upgrade, (payable(SEQUENCER_FEE_VAULT), address(_sequencerFeeVaultPrecalculatedAddress))
+            )
         );
 
         // Deploy the base fee vault
@@ -546,11 +562,11 @@ contract RevenueShareV100UpgradePath is SimpleTaskBase {
             address(CREATE2_DEPLOYER), 0, deploymentGasLimit, false, _baseFeeVaultCalldata
         );
         IOptimismPortal2(payable(portal)).depositTransaction(
-            address(BASE_FEE_VAULT),
+            address(PROXY_ADMIN),
             0,
             deploymentGasLimit,
             false,
-            abi.encodeCall(IProxy.upgradeTo, (address(_baseFeeVaultPrecalculatedAddress)))
+            abi.encodeCall(IProxyAdmin.upgrade, (payable(BASE_FEE_VAULT), address(_baseFeeVaultPrecalculatedAddress)))
         );
 
         // Deploy the l1 fee vault
@@ -558,11 +574,11 @@ contract RevenueShareV100UpgradePath is SimpleTaskBase {
             address(CREATE2_DEPLOYER), 0, deploymentGasLimit, false, _l1FeeVaultCalldata
         );
         IOptimismPortal2(payable(portal)).depositTransaction(
-            address(L1_FEE_VAULT),
+            address(PROXY_ADMIN),
             0,
             deploymentGasLimit,
             false,
-            abi.encodeCall(IProxy.upgradeTo, (address(_l1FeeVaultPrecalculatedAddress)))
+            abi.encodeCall(IProxyAdmin.upgrade, (payable(L1_FEE_VAULT), address(_l1FeeVaultPrecalculatedAddress)))
         );
     }
 
@@ -574,13 +590,14 @@ contract RevenueShareV100UpgradePath is SimpleTaskBase {
         );
 
         IOptimismPortal2(payable(portal)).depositTransaction(
-            address(FEE_SPLITTER),
+            address(PROXY_ADMIN),
             0,
             deploymentGasLimit,
             false,
             abi.encodeCall(
-                IProxy.upgradeToAndCall,
+                IProxyAdmin.upgradeAndCall,
                 (
+                    payable(FEE_SPLITTER),
                     address(_feeSplitterPrecalculatedAddress),
                     abi.encodeCall(IFeeSplitter.initialize, (_scRevShareCalculatorPrecalculatedAddress))
                 )
