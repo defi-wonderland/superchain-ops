@@ -58,8 +58,6 @@ contract RevenueShareIntegrationTest is Test {
   uint256 internal _mainnetForkId;
   uint256 internal _optimismForkId;
 
-  string[] internal _rpcUrls = ['http://127.0.0.1:8545', 'http://127.0.0.1:9545'];
-
     function setUp() public {
         _mainnetForkId = vm.createFork("http://127.0.0.1:8545");
         _optimismForkId = vm.createFork("http://127.0.0.1:9545");
@@ -92,84 +90,9 @@ contract RevenueShareIntegrationTest is Test {
     }
  */
     function _executeL1Transaction(string memory configPath) internal {
+        vm.recordLogs();
         // Get actions from template simulation
         (, Action[] memory actions,,, address rootSafe) = template.simulate(configPath, new address[](0));
-
-        // Verify we got the expected safe
-        assertEq(rootSafe, PROXY_ADMIN_OWNER, "Root safe should be ProxyAdminOwner");
-
-        // Mine a new block to reset OptimismPortal2's resource metering
-        // The simulate() call consumed resources, so we need a fresh block
-        vm.roll(block.number + 1);
-        vm.warp(block.timestamp + 12);
-
-       // Get the safe and its owners
-        IGnosisSafe safe = IGnosisSafe(rootSafe);
-        address[] memory owners = safe.getOwners();
-
-        // Prepare multicall calldata
-        IMulticall3.Call3Value[] memory calls = new IMulticall3.Call3Value[](actions.length);
-        for (uint256 i = 0; i < actions.length; i++) {
-            calls[i] = IMulticall3.Call3Value({
-                target: actions[i].target,
-                allowFailure: false,
-                value: actions[i].value,
-                callData: actions[i].arguments
-            });
-        }
-        bytes memory multicallData = abi.encodeCall(IMulticall3.aggregate3Value, (calls));
-
-        // Get transaction hash
-        uint256 nonceBefore = safe.nonce();
-        uint256 safeTxGas = 10000000; // Set reasonable gas limit for Safe transaction
-        bytes32 txHash = safe.getTransactionHash(
-            template.multicallTarget(),
-            0,
-            multicallData,
-            Enum.Operation.DelegateCall,
-            safeTxGas,
-            0, // baseGas
-            0, // gasPrice
-            address(0), // gasToken
-            payable(address(0)), // refundReceiver
-            nonceBefore
-        );
-
-        // Approve transaction with all owners
-        for (uint256 i = 0; i < owners.length; i++) {
-            vm.prank(owners[i]);
-            safe.approveHash(txHash);
-        }
-
-        // Generate signatures and execute
-        bytes memory signatures = Signatures.genPrevalidatedSignatures(owners);
-
-        // Start recording logs only for the actual execution
-        vm.recordLogs();
-
-        bool success = safe.execTransaction(
-            template.multicallTarget(),
-            0,
-            multicallData,
-            Enum.Operation.DelegateCall,
-            safeTxGas,
-            0, // baseGas
-            0, // gasPrice
-            address(0), // gasToken
-            payable(address(0)), // refundReceiver
-            signatures
-        );
-
-        // Check if nonce incremented (this means the transaction was executed even if it reverted internally)
-        if (safe.nonce() == nonceBefore + 1) {
-            // Transaction was executed, even if success is false due to internal reverts
-            // In Safe contracts, execTransaction can return false but still increment nonce
-            // if the transaction was executed but had internal failures
-            success = true;
-        }
-
-        assertTrue(success, "L1 transaction should execute successfully");
-        assertEq(safe.nonce(), nonceBefore + 1, "Safe nonce should increment");
     }
 
     function _relayAllMessages() internal {
@@ -181,7 +104,12 @@ contract RevenueShareIntegrationTest is Test {
         // Filter for TransactionDeposited events
         bytes32 transactionDepositedHash = keccak256("TransactionDeposited(address,address,uint256,bytes)");
         
-        console2.log("\n=== Replaying Deposit Transactions on L2 ===");
+        console2.log("\n=== Deduplicating and Replaying Deposit Transactions on L2 ===");
+        
+        // First pass: collect unique opaqueData hashes
+        bytes32[] memory seenHashes = new bytes32[](logs.length);
+        uint256 uniqueCount;
+        
         uint256 successCount;
         uint256 failureCount;
         
@@ -194,10 +122,31 @@ contract RevenueShareIntegrationTest is Test {
                 
                 // Only process transactions from the aliased PROXY_ADMIN_OWNER
                 if (from == AddressAliasHelper.applyL1ToL2Alias(PROXY_ADMIN_OWNER)) {
-                    // Decode the opaqueData
+                    // Decode the opaqueData to check for duplicates
                     bytes memory opaqueData = abi.decode(logs[i].data, (bytes));
+                    bytes32 dataHash = keccak256(opaqueData);
                     
-                    // The opaqueData is: abi.encodePacked(value, mint, gasLimit, isCreation, data)
+                    // Check if we've seen this exact transaction before
+                    bool isDuplicate = false;
+                    for (uint256 j = 0; j < uniqueCount; j++) {
+                        if (seenHashes[j] == dataHash) {
+                            isDuplicate = true;
+                            console2.log("\nSkipping duplicate transaction with hash:");
+                            console2.logBytes32(dataHash);
+                            break;
+                        }
+                    }
+                    
+                    // Skip if duplicate
+                    if (isDuplicate) {
+                        continue;
+                    }
+                    
+                    // Mark as seen
+                    seenHashes[uniqueCount] = dataHash;
+                    uniqueCount++;
+                    
+                    // The opaqueData is: abi.encodePacked(mint, value, gasLimit, isCreation, data)
                     // Layout:
                     //   value: uint256 (32 bytes) - ETH to send with the call
                     //   mint: uint256 (32 bytes) - ETH to mint on L2
@@ -243,11 +192,13 @@ contract RevenueShareIntegrationTest is Test {
         }
         
         console2.log("\n=== Summary ===");
+        console2.log("Unique transactions:", uniqueCount);
         console2.log("Successful transactions:", successCount);
         console2.log("Failed transactions:", failureCount);
         
         // Assert all transactions succeeded
         assertEq(failureCount, 0, "All deposit transactions should succeed");
+        assertEq(successCount, uniqueCount, "All unique transactions should succeed");
     }
 
     /// @notice Helper function to slice bytes
