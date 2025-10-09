@@ -68,7 +68,7 @@ contract RevenueShareV100UpgradePath is SimpleTaskBase {
     uint64 internal constant FEE_VAULTS_DEPLOYMENT_GAS_LIMIT = 910_000;
     /// @notice The gas limit for the Fee Splitter deployment.
     uint64 internal constant FEE_SPLITTER_DEPLOYMENT_GAS_LIMIT = 1_235_000;
-    /// @notice The gas limit for the Fee Splitter upgrade.
+    /// @notice The gas limit for the upgrade calls on L2.
     uint64 internal constant UPGRADE_GAS_LIMIT = 500_000;
 
     /// @notice Used to validate calls made to the OptimismPortal.
