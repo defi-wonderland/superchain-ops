@@ -53,6 +53,24 @@ contract RevenueShareV100UpgradePath is SimpleTaskBase {
     /// @notice Address of the ProxyAdmin predeploy on L2.
     address internal constant PROXY_ADMIN = 0x4200000000000000000000000000000000000018;
 
+    /// @notice Based on deployment tests, these are the average gas costs for each of the deployments:
+    ///         - L1 Withdrawer: TBD
+    ///         - SC Rev Share Calculator: 518,168
+    ///         - Fee Vaults: 757,214
+    ///         - Fee Splitter: 1,027,359
+    ///         A buffer of ~20% is applied to each value to have enough margin.
+
+    /// @notice The gas limit for the SC Rev Share Calculator deployment.
+    uint64 internal constant SC_REV_SHARE_CALCULATOR_DEPLOYMENT_GAS_LIMIT = 625_000;
+    /// @notice The gas limit for the L1 Withdrawer deployment.
+    uint64 internal constant L1_WITHDRAWER_DEPLOYMENT_GAS_LIMIT = 625_000;
+    /// @notice The gas limit for the Fee Vaults deployment.
+    uint64 internal constant FEE_VAULTS_DEPLOYMENT_GAS_LIMIT = 910_000;
+    /// @notice The gas limit for the Fee Splitter deployment.
+    uint64 internal constant FEE_SPLITTER_DEPLOYMENT_GAS_LIMIT = 1_235_000;
+    /// @notice The gas limit for the upgrade calls on L2.
+    uint64 internal constant UPGRADE_GAS_LIMIT = 500_000;
+
     /// @notice Used to validate calls made to the OptimismPortal.
     mapping(bytes32 => uint8) internal _callsToPortal;
 
@@ -92,9 +110,6 @@ contract RevenueShareV100UpgradePath is SimpleTaskBase {
 
     /// @notice Config value indicating if the chain is opting in to use FeeSplitter
     bool public optInRevenueShare;
-
-    /// @notice Config value indicating the gas limit for L2 calls
-    uint64 public deploymentGasLimit;
 
     /// @notice The address the OperatorFeeVault implementation is deployed to.
     address internal _operatorFeeVaultPrecalculatedAddress;
@@ -165,12 +180,6 @@ contract RevenueShareV100UpgradePath is SimpleTaskBase {
 
         saltSeed = _toml.readString(".saltSeed");
         require(bytes(saltSeed).length != 0, "saltSeed must be set in the config");
-
-        uint256 _deploymentGasLimitRaw = _toml.readUint(".deploymentGasLimit");
-        require(_deploymentGasLimitRaw > 0, "deploymentGasLimit must be set in config");
-        require(_deploymentGasLimitRaw <= type(uint64).max, "deploymentGasLimit must be less than uint64.max");
-
-        deploymentGasLimit = uint64(_deploymentGasLimitRaw);
 
         optInRevenueShare = _toml.readBool(".optInRevenueShare");
 
@@ -271,7 +280,7 @@ contract RevenueShareV100UpgradePath is SimpleTaskBase {
             _incrementCallsToPortal(
                 abi.encodeCall(
                     IOptimismPortal2.depositTransaction,
-                    (address(CREATE2_DEPLOYER), 0, deploymentGasLimit, false, _l1WithdrawerCalldata)
+                    (address(CREATE2_DEPLOYER), 0, L1_WITHDRAWER_DEPLOYMENT_GAS_LIMIT, false, _l1WithdrawerCalldata)
                 )
             );
 
@@ -297,7 +306,13 @@ contract RevenueShareV100UpgradePath is SimpleTaskBase {
             _incrementCallsToPortal(
                 abi.encodeCall(
                     IOptimismPortal2.depositTransaction,
-                    (address(CREATE2_DEPLOYER), 0, deploymentGasLimit, false, _scRevShareCalculatorCalldata)
+                    (
+                        address(CREATE2_DEPLOYER),
+                        0,
+                        SC_REV_SHARE_CALCULATOR_DEPLOYMENT_GAS_LIMIT,
+                        false,
+                        _scRevShareCalculatorCalldata
+                    )
                 )
             );
         }
@@ -321,7 +336,7 @@ contract RevenueShareV100UpgradePath is SimpleTaskBase {
         _incrementCallsToPortal(
             abi.encodeCall(
                 IOptimismPortal2.depositTransaction,
-                (address(CREATE2_DEPLOYER), 0, deploymentGasLimit, false, _operatorFeeVaultCalldata)
+                (address(CREATE2_DEPLOYER), 0, FEE_VAULTS_DEPLOYMENT_GAS_LIMIT, false, _operatorFeeVaultCalldata)
             )
         );
         _incrementCallsToPortal(
@@ -330,7 +345,7 @@ contract RevenueShareV100UpgradePath is SimpleTaskBase {
                 (
                     address(PROXY_ADMIN),
                     0,
-                    deploymentGasLimit,
+                    UPGRADE_GAS_LIMIT,
                     false,
                     abi.encodeCall(
                         IProxyAdmin.upgrade,
@@ -358,7 +373,7 @@ contract RevenueShareV100UpgradePath is SimpleTaskBase {
         _incrementCallsToPortal(
             abi.encodeCall(
                 IOptimismPortal2.depositTransaction,
-                (address(CREATE2_DEPLOYER), 0, deploymentGasLimit, false, _sequencerFeeVaultCalldata)
+                (address(CREATE2_DEPLOYER), 0, FEE_VAULTS_DEPLOYMENT_GAS_LIMIT, false, _sequencerFeeVaultCalldata)
             )
         );
         _incrementCallsToPortal(
@@ -367,7 +382,7 @@ contract RevenueShareV100UpgradePath is SimpleTaskBase {
                 (
                     address(PROXY_ADMIN),
                     0,
-                    deploymentGasLimit,
+                    UPGRADE_GAS_LIMIT,
                     false,
                     abi.encodeCall(
                         IProxyAdmin.upgrade,
@@ -391,7 +406,7 @@ contract RevenueShareV100UpgradePath is SimpleTaskBase {
         _incrementCallsToPortal(
             abi.encodeCall(
                 IOptimismPortal2.depositTransaction,
-                (address(CREATE2_DEPLOYER), 0, deploymentGasLimit, false, _baseFeeVaultCalldata)
+                (address(CREATE2_DEPLOYER), 0, FEE_VAULTS_DEPLOYMENT_GAS_LIMIT, false, _baseFeeVaultCalldata)
             )
         );
         _incrementCallsToPortal(
@@ -400,7 +415,7 @@ contract RevenueShareV100UpgradePath is SimpleTaskBase {
                 (
                     address(PROXY_ADMIN),
                     0,
-                    deploymentGasLimit,
+                    UPGRADE_GAS_LIMIT,
                     false,
                     abi.encodeCall(
                         IProxyAdmin.upgrade, (payable(BASE_FEE_VAULT), address(_baseFeeVaultPrecalculatedAddress))
@@ -423,7 +438,7 @@ contract RevenueShareV100UpgradePath is SimpleTaskBase {
         _incrementCallsToPortal(
             abi.encodeCall(
                 IOptimismPortal2.depositTransaction,
-                (address(CREATE2_DEPLOYER), 0, deploymentGasLimit, false, _l1FeeVaultCalldata)
+                (address(CREATE2_DEPLOYER), 0, FEE_VAULTS_DEPLOYMENT_GAS_LIMIT, false, _l1FeeVaultCalldata)
             )
         );
         _incrementCallsToPortal(
@@ -432,7 +447,7 @@ contract RevenueShareV100UpgradePath is SimpleTaskBase {
                 (
                     address(PROXY_ADMIN),
                     0,
-                    deploymentGasLimit,
+                    UPGRADE_GAS_LIMIT,
                     false,
                     abi.encodeCall(
                         IProxyAdmin.upgrade, (payable(L1_FEE_VAULT), address(_l1FeeVaultPrecalculatedAddress))
@@ -453,7 +468,7 @@ contract RevenueShareV100UpgradePath is SimpleTaskBase {
         _incrementCallsToPortal(
             abi.encodeCall(
                 IOptimismPortal2.depositTransaction,
-                (address(CREATE2_DEPLOYER), 0, deploymentGasLimit, false, _feeSplitterCalldata)
+                (address(CREATE2_DEPLOYER), 0, FEE_SPLITTER_DEPLOYMENT_GAS_LIMIT, false, _feeSplitterCalldata)
             )
         );
         _incrementCallsToPortal(
@@ -462,7 +477,7 @@ contract RevenueShareV100UpgradePath is SimpleTaskBase {
                 (
                     address(PROXY_ADMIN),
                     0,
-                    deploymentGasLimit,
+                    UPGRADE_GAS_LIMIT,
                     false,
                     abi.encodeCall(
                         IProxyAdmin.upgradeAndCall,
@@ -492,12 +507,16 @@ contract RevenueShareV100UpgradePath is SimpleTaskBase {
         if (optInRevenueShare) {
             // Deploy L1 Withdrawer
             IOptimismPortal2(payable(portal)).depositTransaction(
-                address(CREATE2_DEPLOYER), 0, deploymentGasLimit, false, _l1WithdrawerCalldata
+                address(CREATE2_DEPLOYER), 0, L1_WITHDRAWER_DEPLOYMENT_GAS_LIMIT, false, _l1WithdrawerCalldata
             );
 
             // Deploy SC Rev Share Calculator
             IOptimismPortal2(payable(portal)).depositTransaction(
-                address(CREATE2_DEPLOYER), 0, deploymentGasLimit, false, _scRevShareCalculatorCalldata
+                address(CREATE2_DEPLOYER),
+                0,
+                SC_REV_SHARE_CALCULATOR_DEPLOYMENT_GAS_LIMIT,
+                false,
+                _scRevShareCalculatorCalldata
             );
         }
 
@@ -531,12 +550,12 @@ contract RevenueShareV100UpgradePath is SimpleTaskBase {
         // Deploy the fee vaults
         // Deploy the operator fee vault
         IOptimismPortal2(payable(portal)).depositTransaction(
-            address(CREATE2_DEPLOYER), 0, deploymentGasLimit, false, _operatorFeeVaultCalldata
+            address(CREATE2_DEPLOYER), 0, FEE_VAULTS_DEPLOYMENT_GAS_LIMIT, false, _operatorFeeVaultCalldata
         );
         IOptimismPortal2(payable(portal)).depositTransaction(
             address(PROXY_ADMIN),
             0,
-            deploymentGasLimit,
+            UPGRADE_GAS_LIMIT,
             false,
             abi.encodeCall(
                 IProxyAdmin.upgrade, (payable(OPERATOR_FEE_VAULT), address(_operatorFeeVaultPrecalculatedAddress))
@@ -545,12 +564,12 @@ contract RevenueShareV100UpgradePath is SimpleTaskBase {
 
         // Deploy the sequencer fee vault
         IOptimismPortal2(payable(portal)).depositTransaction(
-            address(CREATE2_DEPLOYER), 0, deploymentGasLimit, false, _sequencerFeeVaultCalldata
+            address(CREATE2_DEPLOYER), 0, FEE_VAULTS_DEPLOYMENT_GAS_LIMIT, false, _sequencerFeeVaultCalldata
         );
         IOptimismPortal2(payable(portal)).depositTransaction(
             address(PROXY_ADMIN),
             0,
-            deploymentGasLimit,
+            UPGRADE_GAS_LIMIT,
             false,
             abi.encodeCall(
                 IProxyAdmin.upgrade, (payable(SEQUENCER_FEE_VAULT), address(_sequencerFeeVaultPrecalculatedAddress))
@@ -559,24 +578,24 @@ contract RevenueShareV100UpgradePath is SimpleTaskBase {
 
         // Deploy the base fee vault
         IOptimismPortal2(payable(portal)).depositTransaction(
-            address(CREATE2_DEPLOYER), 0, deploymentGasLimit, false, _baseFeeVaultCalldata
+            address(CREATE2_DEPLOYER), 0, FEE_VAULTS_DEPLOYMENT_GAS_LIMIT, false, _baseFeeVaultCalldata
         );
         IOptimismPortal2(payable(portal)).depositTransaction(
             address(PROXY_ADMIN),
             0,
-            deploymentGasLimit,
+            UPGRADE_GAS_LIMIT,
             false,
             abi.encodeCall(IProxyAdmin.upgrade, (payable(BASE_FEE_VAULT), address(_baseFeeVaultPrecalculatedAddress)))
         );
 
         // Deploy the l1 fee vault
         IOptimismPortal2(payable(portal)).depositTransaction(
-            address(CREATE2_DEPLOYER), 0, deploymentGasLimit, false, _l1FeeVaultCalldata
+            address(CREATE2_DEPLOYER), 0, FEE_VAULTS_DEPLOYMENT_GAS_LIMIT, false, _l1FeeVaultCalldata
         );
         IOptimismPortal2(payable(portal)).depositTransaction(
             address(PROXY_ADMIN),
             0,
-            deploymentGasLimit,
+            UPGRADE_GAS_LIMIT,
             false,
             abi.encodeCall(IProxyAdmin.upgrade, (payable(L1_FEE_VAULT), address(_l1FeeVaultPrecalculatedAddress)))
         );
@@ -586,13 +605,13 @@ contract RevenueShareV100UpgradePath is SimpleTaskBase {
     function _deployFeeSplitter() private {
         // Deploy Fee Splitter
         IOptimismPortal2(payable(portal)).depositTransaction(
-            address(CREATE2_DEPLOYER), 0, deploymentGasLimit, false, _feeSplitterCalldata
+            address(CREATE2_DEPLOYER), 0, FEE_SPLITTER_DEPLOYMENT_GAS_LIMIT, false, _feeSplitterCalldata
         );
 
         IOptimismPortal2(payable(portal)).depositTransaction(
             address(PROXY_ADMIN),
             0,
-            deploymentGasLimit,
+            UPGRADE_GAS_LIMIT,
             false,
             abi.encodeCall(
                 IProxyAdmin.upgradeAndCall,
