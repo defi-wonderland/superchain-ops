@@ -98,13 +98,18 @@ contract RevenueShareIntegrationTest is Test {
     function _relayAllMessages() internal {
         vm.selectFork(_optimismForkId);
 
+        console2.log("\n");
+        console2.log("================================================================================");
+        console2.log("=== Replaying Deposit Transactions on L2                                    ===");
+        console2.log("=== Each transaction includes Tenderly simulation parameters                ===");
+        console2.log("=== Use these to manually verify transactions on Tenderly before execution  ===");
+        console2.log("================================================================================");
+
         // Get logs from L1 execution
         Vm.Log[] memory logs = vm.getRecordedLogs();
         
         // Filter for TransactionDeposited events
         bytes32 transactionDepositedHash = keccak256("TransactionDeposited(address,address,uint256,bytes)");
-        
-        console2.log("\n=== Deduplicating and Replaying Deposit Transactions on L2 ===");
         
         // First pass: collect unique opaqueData hashes
         bytes32[] memory seenHashes = new bytes32[](logs.length);
@@ -131,8 +136,6 @@ contract RevenueShareIntegrationTest is Test {
                     for (uint256 j = 0; j < uniqueCount; j++) {
                         if (seenHashes[j] == dataHash) {
                             isDuplicate = true;
-                            console2.log("\nSkipping duplicate transaction with hash:");
-                            console2.logBytes32(dataHash);
                             break;
                         }
                     }
@@ -169,23 +172,38 @@ contract RevenueShareIntegrationTest is Test {
                     // Extract data (bytes 73 onwards)
                     bytes memory data = _slice(opaqueData, 73, opaqueData.length - 73);
                     
+                    // Print Tenderly simulation parameters
+                    console2.log("\n=== Transaction #", uniqueCount, "- Tenderly Simulation Parameters ===");
+                    console2.log("To Address (Contract):", to);
+                    console2.log("From Address (Sender):", from);
+                    console2.log("Gas Limit:", uint256(gasLimit));
+                    console2.log("Value (ETH):", value);
+                    console2.log("Raw Input Data (Calldata):");
+                    console2.logBytes(data);
+                    
+                    if (data.length >= 4) {
+                        bytes4 selector;
+                        assembly {
+                            selector := mload(add(data, 32))
+                        }
+                        console2.log("Function Selector:");
+                        console2.logBytes4(selector);
+                    }
+                    
                     // Execute the transaction on L2 as if it came from the aliased address
                     vm.prank(from);
                     (bool success, bytes memory returnData) = to.call{value: value}(data);
                     
                     if (!success) {
-                        console2.log("  Result: FAILED");
+                        console2.log("Result: FAILED");
                         failureCount++;
                         if (returnData.length > 0) {
-                            console2.log("  Error data:");
+                            console2.log("Error data:");
                             console2.logBytes(returnData);
                         }
                     } else {
-                        console2.log("  Result: SUCCESS");
+                        console2.log("Result: SUCCESS");
                         successCount++;
-                        if (returnData.length > 0) {
-                            console2.log("  Return data length:", returnData.length);
-                        }
                     }
                 }
             }
