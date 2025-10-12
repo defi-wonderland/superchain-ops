@@ -144,22 +144,19 @@ contract RevenueShareUpgradePathTest is Test {
             nonceBefore
         );
 
-        // Step 5: Mock the portal to record calls instead of reverting
-        _mockAndExpect(PORTAL, abi.encodeWithSelector(IOptimismPortal2.depositTransaction.selector), abi.encode());
-
-        // Step 6: Manually verify expected portal calls based on known config values
+        // Step 5: Manually verify expected portal calls based on known config values
         _verifyExpectedPortalCalls(actions, true);
 
-        // Step 7: Prank owners to approve the transaction
+        // Step 6: Prank owners to approve the transaction
         for (uint256 i = 0; i < owners.length; i++) {
             vm.prank(owners[i]);
             safe.approveHash(txHash);
         }
 
-        // Step 8: Generate signatures after approval
+        // Step 7: Generate signatures after approval
         bytes memory signatures = Signatures.genPrevalidatedSignatures(owners);
 
-        // Step 9: Execute the transaction
+        // Step 8: Execute the transaction
         bool success = safe.execTransaction(
             template.multicallTarget(),
             0, // value
@@ -176,7 +173,7 @@ contract RevenueShareUpgradePathTest is Test {
         assertTrue(success, "Transaction should execute successfully");
         assertEq(safe.nonce(), nonceBefore + 1, "Safe nonce should increment");
 
-        // Step 10: Verify the portal calls
+        // Step 9: Verify the portal calls
         // For opt-in scenario, we expect:
         // - 7 deployments (L1Withdrawer, SCRevShareCalc, FeeSplitter, 4 vaults)
         // - 5 upgrades (4 vault proxies + 1 FeeSplitter upgrade)
