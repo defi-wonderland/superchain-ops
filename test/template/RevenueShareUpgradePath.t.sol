@@ -24,9 +24,9 @@ interface ICreate2Deployer {
     function deploy(uint256 _value, bytes32 _salt, bytes memory _code) external;
 }
 
-interface IProxy {
-    function upgradeTo(address _implementation) external;
-    function upgradeToAndCall(address _implementation, bytes memory _data) external payable returns (bytes memory);
+interface IProxyAdmin {
+    function upgrade(address _proxy, address _implementation) external;
+    function upgradeAndCall(address _proxy, address _implementation, bytes memory _data) external payable returns (bytes memory);
 }
 
 contract RevenueShareUpgradePathTest is Test {
@@ -50,10 +50,42 @@ contract RevenueShareUpgradePathTest is Test {
     // L2 predeploys
     address internal constant CREATE2_DEPLOYER = 0x13b0D85CcB8bf860b6b79AF3029fCA081AE9beF2;
     address internal constant FEE_SPLITTER = 0x420000000000000000000000000000000000002B;
-    address internal constant SEQUENCER_FEE_VAULT = 0x4200000000000000000000000000000000000011;
-    address internal constant OPERATOR_FEE_VAULT = 0x420000000000000000000000000000000000001b;
-    address internal constant BASE_FEE_VAULT = 0x4200000000000000000000000000000000000019;
-    address internal constant L1_FEE_VAULT = 0x420000000000000000000000000000000000001A;
+    address internal constant PROXY_ADMIN = 0x4200000000000000000000000000000000000018;
+
+    // Gas limits
+    uint64 internal constant SC_REV_SHARE_CALCULATOR_DEPLOYMENT_GAS_LIMIT = 625_000;
+    uint64 internal constant L1_WITHDRAWER_DEPLOYMENT_GAS_LIMIT = 625_000;
+    uint64 internal constant FEE_VAULTS_DEPLOYMENT_GAS_LIMIT = 910_000;
+    uint64 internal constant FEE_SPLITTER_DEPLOYMENT_GAS_LIMIT = 1_235_000;
+    uint64 internal constant UPGRADE_GAS_LIMIT = 150_000;
+
+    uint64[12] internal EXPECTED_GAS_LIMITS_OPT_IN = [
+        L1_WITHDRAWER_DEPLOYMENT_GAS_LIMIT,
+        SC_REV_SHARE_CALCULATOR_DEPLOYMENT_GAS_LIMIT,
+        FEE_SPLITTER_DEPLOYMENT_GAS_LIMIT,
+        UPGRADE_GAS_LIMIT,
+        FEE_VAULTS_DEPLOYMENT_GAS_LIMIT,
+        UPGRADE_GAS_LIMIT,
+        FEE_VAULTS_DEPLOYMENT_GAS_LIMIT,
+        UPGRADE_GAS_LIMIT,
+        FEE_VAULTS_DEPLOYMENT_GAS_LIMIT,
+        UPGRADE_GAS_LIMIT,
+        FEE_VAULTS_DEPLOYMENT_GAS_LIMIT,
+        UPGRADE_GAS_LIMIT
+    ];
+
+    uint64[10] internal EXPECTED_GAS_LIMITS_OPT_OUT = [
+        FEE_SPLITTER_DEPLOYMENT_GAS_LIMIT,
+        UPGRADE_GAS_LIMIT,
+        FEE_VAULTS_DEPLOYMENT_GAS_LIMIT,
+        UPGRADE_GAS_LIMIT,
+        FEE_VAULTS_DEPLOYMENT_GAS_LIMIT,
+        UPGRADE_GAS_LIMIT,
+        FEE_VAULTS_DEPLOYMENT_GAS_LIMIT,
+        UPGRADE_GAS_LIMIT,
+        FEE_VAULTS_DEPLOYMENT_GAS_LIMIT,
+        UPGRADE_GAS_LIMIT
+    ];
 
     uint256 internal constant DEPOSIT_VERSION = 0;
 
@@ -116,7 +148,7 @@ contract RevenueShareUpgradePathTest is Test {
         _mockAndExpect(PORTAL, abi.encodeWithSelector(IOptimismPortal2.depositTransaction.selector), abi.encode());
 
         // Step 6: Manually verify expected portal calls based on known config values
-        _verifyExpectedPortalCalls(actions);
+        _verifyExpectedPortalCalls(actions, true);
 
         // Step 7: Prank owners to approve the transaction
         for (uint256 i = 0; i < owners.length; i++) {
@@ -199,7 +231,7 @@ contract RevenueShareUpgradePathTest is Test {
         );
 
         // Step 5: Manually verify expected portal calls based on known config values
-        _verifyExpectedPortalCalls(actions);
+        _verifyExpectedPortalCalls(actions, false);
 
         // Step 6: Prank owners to approve the transaction
         for (uint256 i = 0; i < owners.length; i++) {
@@ -264,15 +296,17 @@ contract RevenueShareUpgradePathTest is Test {
 
     /// @notice Manually construct and expect portal calls based on known config values
     /// This ensures the template generates correct calldata, not just circular validation
-    function _verifyExpectedPortalCalls(Action[] memory actions) internal {
+    function _verifyExpectedPortalCalls(Action[] memory actions, bool isOptIn) internal {
         string memory config = vm.readFile(configPath);
-        uint64 gasLimit = uint64(vm.parseTomlUint(config, ".deploymentGasLimit"));
+
 
         uint256 deploymentCount;
         uint256 upgradeCount;
 
         for (uint256 i = 0; i < actions.length; i++) {
             bytes memory params = _extractParams(actions[i].arguments);
+            // depending on if is optin or optout, we use the expected gas limits
+            uint64 gasLimit = isOptIn ? EXPECTED_GAS_LIMITS_OPT_IN[i] : EXPECTED_GAS_LIMITS_OPT_OUT[i];
             (address to, uint256 value, uint64 actualGasLimit, bool isCreation, bytes memory data) =
                 abi.decode(params, (address, uint256, uint64, bool, bytes));
 
@@ -329,23 +363,22 @@ contract RevenueShareUpgradePathTest is Test {
     function _verifyUpgradeCall(address to, uint64 gasLimit, bytes memory data) internal {
         vm.expectCall(PORTAL, abi.encodeCall(IOptimismPortal2.depositTransaction, (to, 0, gasLimit, false, data)));
 
-        _assertIsKnownVault(to);
+        _assertIsProxyAdmin(to);
 
         bytes4 selector;
         assembly {
             selector := mload(add(data, 32))
         }
         assertTrue(
-            selector == IProxy.upgradeTo.selector || selector == IProxy.upgradeToAndCall.selector,
+            selector == IProxyAdmin.upgrade.selector || selector == IProxyAdmin.upgradeAndCall.selector,
             "Upgrade should call upgradeTo or upgradeToAndCall"
         );
     }
 
-    function _assertIsKnownVault(address to) internal pure {
+    function _assertIsProxyAdmin(address to) internal pure {
         assertTrue(
-            to == L1_FEE_VAULT || to == SEQUENCER_FEE_VAULT || to == BASE_FEE_VAULT || to == OPERATOR_FEE_VAULT
-                || to == FEE_SPLITTER,
-            "Upgrade should target a known vault or the fee splitter"
+            to == PROXY_ADMIN,
+            "Upgrade should target the proxy admin"
         );
     }
 
