@@ -296,9 +296,6 @@ contract RevenueShareUpgradePathTest is Test {
     /// @notice Manually construct and expect portal calls based on known config values
     /// This ensures the template generates correct calldata, not just circular validation
     function _verifyExpectedPortalCalls(Action[] memory _actions, bool _isOptIn) internal {
-        string memory _config = vm.readFile(configPath);
-
-
         uint256 _deploymentCount;
         uint256 _upgradeCount;
 
