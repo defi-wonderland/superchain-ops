@@ -156,6 +156,8 @@ contract RevenueShareUpgradePathTest is Test {
         // Step 7: Generate signatures after approval
         bytes memory signatures = Signatures.genPrevalidatedSignatures(owners);
 
+        _expectPortalEvents(actions);
+
         // Step 8: Execute the transaction
         bool success = safe.execTransaction(
             template.multicallTarget(),
