@@ -102,84 +102,84 @@ contract RevenueShareUpgradePathTest is Test {
 
     function test_optInRevenueShare_succeeds() public {
         // Step 1: Run simulate to prepare everything and get the actions
-        (, Action[] memory actions,,, address rootSafe) = template.simulate(configPath, new address[](0));
+        (, Action[] memory _actions,,, address _rootSafe) = template.simulate(configPath, new address[](0));
 
         // Verify we got the expected safe
-        assertEq(rootSafe, PROXY_ADMIN_OWNER, "Root safe should be ProxyAdminOwner");
+        assertEq(_rootSafe, PROXY_ADMIN_OWNER, "Root safe should be ProxyAdminOwner");
         assertEq(
-            actions.length,
+            _actions.length,
             EXPECTED_DEPLOYMENTS_OPT_IN + EXPECTED_UPGRADES_OPT_IN,
             "Should have 12 actions for opt-in scenario"
         );
 
         // Step 2: Get the safe's owners
-        IGnosisSafe safe = IGnosisSafe(rootSafe);
-        address[] memory owners = safe.getOwners();
+        IGnosisSafe _safe = IGnosisSafe(_rootSafe);
+        address[] memory _owners = _safe.getOwners();
 
         // Step 3: Get the multicall calldata that will be executed
-        IMulticall3.Call3Value[] memory calls = new IMulticall3.Call3Value[](actions.length);
-        for (uint256 i = 0; i < actions.length; i++) {
-            calls[i] = IMulticall3.Call3Value({
-                target: actions[i].target,
+        IMulticall3.Call3Value[] memory _calls = new IMulticall3.Call3Value[](_actions.length);
+        for (uint256 i; i < _actions.length; i++) {
+            _calls[i] = IMulticall3.Call3Value({
+                target: _actions[i].target,
                 allowFailure: false,
-                value: actions[i].value,
-                callData: actions[i].arguments
+                value: _actions[i].value,
+                callData: _actions[i].arguments
             });
         }
-        bytes memory multicallData = abi.encodeCall(IMulticall3.aggregate3Value, (calls));
+        bytes memory _multicallData = abi.encodeCall(IMulticall3.aggregate3Value, (_calls));
 
         // Step 4: Get the nonce and compute transaction hash before any state changes
-        uint256 nonceBefore = safe.nonce();
+        uint256 _nonceBefore = _safe.nonce();
 
-        bytes32 txHash = safe.getTransactionHash(
+        bytes32 _txHash = _safe.getTransactionHash(
             template.multicallTarget(),
             0, // value
-            multicallData,
+            _multicallData,
             Enum.Operation.DelegateCall,
             0, // safeTxGas
             0, // baseGas
             0, // gasPrice
             address(0), // gasToken
             payable(address(0)), // refundReceiver
-            nonceBefore
+            _nonceBefore
         );
 
         // Step 5: Manually verify expected portal calls based on known config values
-        _verifyExpectedPortalCalls(actions, true);
+        _verifyExpectedPortalCalls(_actions, true);
 
         // Step 6: Prank owners to approve the transaction
-        for (uint256 i = 0; i < owners.length; i++) {
-            vm.prank(owners[i]);
-            safe.approveHash(txHash);
+        for (uint256 i; i < _owners.length; i++) {
+            vm.prank(_owners[i]);
+            _safe.approveHash(_txHash);
         }
 
         // Step 7: Generate signatures after approval
-        bytes memory signatures = Signatures.genPrevalidatedSignatures(owners);
+        bytes memory _signatures = Signatures.genPrevalidatedSignatures(_owners);
 
-        _expectPortalEvents(actions);
+        _expectPortalEvents(_actions);
 
         // Step 8: Execute the transaction
-        bool success = safe.execTransaction(
+        bool _success = _safe.execTransaction(
             template.multicallTarget(),
             0, // value
-            multicallData,
+            _multicallData,
             Enum.Operation.DelegateCall,
             0, // safeTxGas
             0, // baseGas
             0, // gasPrice
             address(0), // gasToken
             payable(address(0)), // refundReceiver
-            signatures
+            _signatures
         );
 
-        assertTrue(success, "Transaction should execute successfully");
-        assertEq(safe.nonce(), nonceBefore + 1, "Safe nonce should increment");
+        assertTrue(_success, "Transaction should execute successfully");
+        assertEq(_safe.nonce(), _nonceBefore + 1, "Safe nonce should increment");
 
         // Step 9: Verify the portal calls
         // For opt-in scenario, we expect:
         // - 7 deployments (L1Withdrawer, SCRevShareCalc, FeeSplitter, 4 vaults)
         // - 5 upgrades (4 vault proxies + 1 FeeSplitter upgrade)
-        _verifyPortalCalls(actions, EXPECTED_DEPLOYMENTS_OPT_IN, EXPECTED_UPGRADES_OPT_IN);
+        _verifyPortalCalls(_actions, EXPECTED_DEPLOYMENTS_OPT_IN, EXPECTED_UPGRADES_OPT_IN);
     }
 
     function test_optOutRevenueShare_succeeds() public {
@@ -187,210 +187,210 @@ contract RevenueShareUpgradePathTest is Test {
         configPath = "test/tasks/example/eth/019-revenueshare-upgrade-opt-out/config.toml";
 
         // Step 1: Run simulate to prepare everything and get the actions
-        (, Action[] memory actions,,, address rootSafe) = template.simulate(configPath, new address[](0));
+        (, Action[] memory _actions,,, address _rootSafe) = template.simulate(configPath, new address[](0));
 
         // Verify we got the expected safe and action count
-        assertEq(rootSafe, PROXY_ADMIN_OWNER, "Root safe should be ProxyAdminOwner");
+        assertEq(_rootSafe, PROXY_ADMIN_OWNER, "Root safe should be ProxyAdminOwner");
         assertEq(
-            actions.length,
+            _actions.length,
             EXPECTED_DEPLOYMENTS_OPT_OUT + EXPECTED_UPGRADES_OPT_OUT,
             "Should have 10 actions for non-opt-in scenario"
         );
 
         // Step 2: Get the safe's owners
-        IGnosisSafe safe = IGnosisSafe(rootSafe);
-        address[] memory owners = safe.getOwners();
+        IGnosisSafe _safe = IGnosisSafe(_rootSafe);
+        address[] memory _owners = _safe.getOwners();
 
         // Step 3: Get the multicall calldata that will be executed
-        IMulticall3.Call3Value[] memory calls = new IMulticall3.Call3Value[](actions.length);
-        for (uint256 i = 0; i < actions.length; i++) {
-            calls[i] = IMulticall3.Call3Value({
-                target: actions[i].target,
+        IMulticall3.Call3Value[] memory _calls = new IMulticall3.Call3Value[](_actions.length);
+        for (uint256 i; i < _actions.length; i++) {
+            _calls[i] = IMulticall3.Call3Value({
+                target: _actions[i].target,
                 allowFailure: false,
-                value: actions[i].value,
-                callData: actions[i].arguments
+                value: _actions[i].value,
+                callData: _actions[i].arguments
             });
         }
-        bytes memory multicallData = abi.encodeCall(IMulticall3.aggregate3Value, (calls));
+        bytes memory _multicallData = abi.encodeCall(IMulticall3.aggregate3Value, (_calls));
 
         // Step 4: Get the nonce and compute transaction hash before any state changes
-        uint256 nonceBefore = safe.nonce();
+        uint256 _nonceBefore = _safe.nonce();
 
-        bytes32 txHash = safe.getTransactionHash(
+        bytes32 _txHash = _safe.getTransactionHash(
             template.multicallTarget(),
             0, // value
-            multicallData,
+            _multicallData,
             Enum.Operation.DelegateCall,
             0, // safeTxGas
             0, // baseGas
             0, // gasPrice
             address(0), // gasToken
             payable(address(0)), // refundReceiver
-            nonceBefore
+            _nonceBefore
         );
 
         // Step 5: Manually verify expected portal calls based on known config values
-        _verifyExpectedPortalCalls(actions, false);
+        _verifyExpectedPortalCalls(_actions, false);
 
         // Step 6: Prank owners to approve the transaction
-        for (uint256 i = 0; i < owners.length; i++) {
-            vm.prank(owners[i]);
-            safe.approveHash(txHash);
+        for (uint256 i; i < _owners.length; i++) {
+            vm.prank(_owners[i]);
+            _safe.approveHash(_txHash);
         }
 
         // Step 7: Generate signatures after approval
-        bytes memory signatures = Signatures.genPrevalidatedSignatures(owners);
+        bytes memory _signatures = Signatures.genPrevalidatedSignatures(_owners);
 
-        _expectPortalEvents(actions);
+        _expectPortalEvents(_actions);
 
         // Step 8: Execute the transaction
-        bool success = safe.execTransaction(
+        bool _success = _safe.execTransaction(
             template.multicallTarget(),
             0, // value
-            multicallData,
+            _multicallData,
             Enum.Operation.DelegateCall,
             0, // safeTxGas
             0, // baseGas
             0, // gasPrice
             address(0), // gasToken
             payable(address(0)), // refundReceiver
-            signatures
+            _signatures
         );
 
-        assertTrue(success, "Transaction should execute successfully");
-        assertEq(safe.nonce(), nonceBefore + 1, "Safe nonce should increment");
+        assertTrue(_success, "Transaction should execute successfully");
+        assertEq(_safe.nonce(), _nonceBefore + 1, "Safe nonce should increment");
 
         // Step 9: Verify the portal calls
         // For non-opt-in scenario:
         // - 5 deployments (FeeSplitter + 4 vaults, no L1Withdrawer/SCRevShareCalc)
         // - 5 upgrades (4 vault proxies + FeeSplitter)
-        _verifyPortalCalls(actions, EXPECTED_DEPLOYMENTS_OPT_OUT, EXPECTED_UPGRADES_OPT_OUT);
+        _verifyPortalCalls(_actions, EXPECTED_DEPLOYMENTS_OPT_OUT, EXPECTED_UPGRADES_OPT_OUT);
     }
 
-    function _verifyPortalCalls(Action[] memory actions, uint256 expectedDeployments, uint256 expectedUpgrades)
+    function _verifyPortalCalls(Action[] memory _actions, uint256 _expectedDeployments, uint256 _expectedUpgrades)
         internal
         pure
     {
-        uint256 deploymentCalls = 0;
-        uint256 upgradeCalls = 0;
+        uint256 _deploymentCalls = 0;
+        uint256 _upgradeCalls = 0;
 
-        for (uint256 i = 0; i < actions.length; i++) {
+        for (uint256 i; i < _actions.length; i++) {
             // Decode the depositTransaction parameters
-            bytes memory params = new bytes(actions[i].arguments.length - 4);
-            for (uint256 j = 0; j < params.length; j++) {
-                params[j] = actions[i].arguments[j + 4];
+            bytes memory _params = new bytes(_actions[i].arguments.length - 4);
+            for (uint256 j; j < _params.length; j++) {
+                _params[j] = _actions[i].arguments[j + 4];
             }
-            (address to,,,,) = abi.decode(params, (address, uint256, uint64, bool, bytes));
+            (address _to,,,,) = abi.decode(_params, (address, uint256, uint64, bool, bytes));
 
-            if (to == CREATE2_DEPLOYER) {
-                deploymentCalls++;
+            if (_to == CREATE2_DEPLOYER) {
+                _deploymentCalls++;
             } else {
-                upgradeCalls++;
+                _upgradeCalls++;
             }
         }
 
-        assertEq(deploymentCalls, expectedDeployments, "Incorrect number of deployment calls");
-        assertEq(upgradeCalls, expectedUpgrades, "Incorrect number of upgrade calls");
+        assertEq(_deploymentCalls, _expectedDeployments, "Incorrect number of deployment calls");
+        assertEq(_upgradeCalls, _expectedUpgrades, "Incorrect number of upgrade calls");
     }
 
     /// @notice Manually construct and expect portal calls based on known config values
     /// This ensures the template generates correct calldata, not just circular validation
-    function _verifyExpectedPortalCalls(Action[] memory actions, bool isOptIn) internal {
-        string memory config = vm.readFile(configPath);
+    function _verifyExpectedPortalCalls(Action[] memory _actions, bool _isOptIn) internal {
+        string memory _config = vm.readFile(configPath);
 
 
-        uint256 deploymentCount;
-        uint256 upgradeCount;
+        uint256 _deploymentCount;
+        uint256 _upgradeCount;
 
-        for (uint256 i = 0; i < actions.length; i++) {
-            bytes memory params = _extractParams(actions[i].arguments);
+        for (uint256 i; i < _actions.length; i++) {
+            bytes memory _params = _extractParams(_actions[i].arguments);
             // depending on if is optin or optout, we use the expected gas limits
-            uint64 gasLimit = isOptIn ? EXPECTED_GAS_LIMITS_OPT_IN[i] : EXPECTED_GAS_LIMITS_OPT_OUT[i];
-            (address to, uint256 value, uint64 actualGasLimit, bool isCreation, bytes memory data) =
-                abi.decode(params, (address, uint256, uint64, bool, bytes));
+            uint64 _gasLimit = _isOptIn ? EXPECTED_GAS_LIMITS_OPT_IN[i] : EXPECTED_GAS_LIMITS_OPT_OUT[i];
+            (address _to, uint256 _value, uint64 _actualGasLimit, bool _isCreation, bytes memory _data) =
+                abi.decode(_params, (address, uint256, uint64, bool, bytes));
 
-            assertEq(actions[i].target, PORTAL, "All actions should target the portal");
-            _verifyCommonParams(value, actualGasLimit, gasLimit, isCreation, data);
+            assertEq(_actions[i].target, PORTAL, "All actions should target the portal");
+            _verifyCommonParams(_value, _actualGasLimit, _gasLimit, _isCreation, _data);
 
-            if (to == CREATE2_DEPLOYER) {
-                deploymentCount++;
-                _verifyDeploymentCall(to, gasLimit, data);
+            if (_to == CREATE2_DEPLOYER) {
+                _deploymentCount++;
+                _verifyDeploymentCall(_to, _gasLimit, _data);
             } else {
-                upgradeCount++;
-                _verifyUpgradeCall(to, gasLimit, data);
+                _upgradeCount++;
+                _verifyUpgradeCall(_to, _gasLimit, _data);
             }
         }
 
-        assertGt(deploymentCount, 0, "Should have at least one deployment");
-        assertGt(upgradeCount, 0, "Should have at least one upgrade");
-        assertEq(deploymentCount + upgradeCount, actions.length, "All actions should be accounted for");
+        assertGt(_deploymentCount, 0, "Should have at least one deployment");
+        assertGt(_upgradeCount, 0, "Should have at least one upgrade");
+        assertEq(_deploymentCount + _upgradeCount, _actions.length, "All actions should be accounted for");
     }
 
-    function _extractParams(bytes memory arguments) internal pure returns (bytes memory) {
-        bytes memory params = new bytes(arguments.length - 4);
-        for (uint256 j = 0; j < params.length; j++) {
-            params[j] = arguments[j + 4];
+    function _extractParams(bytes memory _arguments) internal pure returns (bytes memory) {
+        bytes memory _params = new bytes(_arguments.length - 4);
+        for (uint256 j; j < _params.length; j++) {
+            _params[j] = _arguments[j + 4];
         }
-        return params;
+        return _params;
     }
 
     function _verifyCommonParams(
-        uint256 value,
-        uint64 actualGasLimit,
-        uint64 expectedGasLimit,
-        bool isCreation,
-        bytes memory data
+        uint256 _value,
+        uint64 _actualGasLimit,
+        uint64 _expectedGasLimit,
+        bool _isCreation,
+        bytes memory _data
     ) internal pure {
-        require(value == 0, "All calls should have 0 value");
-        require(actualGasLimit == expectedGasLimit, "Gas limit should match config");
-        require(!isCreation, "Should not use creation flag");
-        require(data.length > 0, "Should have calldata");
+        require(_value == 0, "All calls should have 0 value");
+        require(_actualGasLimit == _expectedGasLimit, "Gas limit should match config");
+        require(!_isCreation, "Should not use creation flag");
+        require(_data.length > 0, "Should have calldata");
     }
 
-    function _verifyDeploymentCall(address to, uint64 gasLimit, bytes memory data) internal {
+    function _verifyDeploymentCall(address _to, uint64 _gasLimit, bytes memory _data) internal {
         vm.expectCall(
-            PORTAL, abi.encodeCall(IOptimismPortal2.depositTransaction, (CREATE2_DEPLOYER, 0, gasLimit, false, data))
+            PORTAL, abi.encodeCall(IOptimismPortal2.depositTransaction, (CREATE2_DEPLOYER, 0, _gasLimit, false, _data))
         );
 
-        bytes4 actualSelector;
+        bytes4 _actualSelector;
         assembly {
-            actualSelector := mload(add(data, 32))
+            _actualSelector := mload(add(_data, 32))
         }
-        assertEq(actualSelector, ICreate2Deployer.deploy.selector, "Deployment should call CREATE2 deploy");
+        assertEq(_actualSelector, ICreate2Deployer.deploy.selector, "Deployment should call CREATE2 deploy");
     }
 
-    function _verifyUpgradeCall(address to, uint64 gasLimit, bytes memory data) internal {
-        vm.expectCall(PORTAL, abi.encodeCall(IOptimismPortal2.depositTransaction, (to, 0, gasLimit, false, data)));
+    function _verifyUpgradeCall(address _to, uint64 _gasLimit, bytes memory _data) internal {
+        vm.expectCall(PORTAL, abi.encodeCall(IOptimismPortal2.depositTransaction, (_to, 0, _gasLimit, false, _data)));
 
-        _assertIsProxyAdmin(to);
+        _assertIsProxyAdmin(_to);
 
-        bytes4 selector;
+        bytes4 _selector;
         assembly {
-            selector := mload(add(data, 32))
+            _selector := mload(add(_data, 32))
         }
         assertTrue(
-            selector == IProxyAdmin.upgrade.selector || selector == IProxyAdmin.upgradeAndCall.selector,
+            _selector == IProxyAdmin.upgrade.selector || _selector == IProxyAdmin.upgradeAndCall.selector,
             "Upgrade should call upgradeTo or upgradeToAndCall"
         );
     }
 
-    function _assertIsProxyAdmin(address to) internal pure {
+    function _assertIsProxyAdmin(address _to) internal pure {
         assertTrue(
-            to == PROXY_ADMIN,
+            _to == PROXY_ADMIN,
             "Upgrade should target the proxy admin"
         );
     }
 
-    function _expectPortalEvents(Action[] memory actions) internal {
-        for (uint256 i = 0; i < actions.length; i++) {
-            bytes memory params = _extractParams(actions[i].arguments);
-            (address to, uint256 value, uint64 actualGasLimit, bool isCreation, bytes memory data) =
-                abi.decode(params, (address, uint256, uint64, bool, bytes));
+    function _expectPortalEvents(Action[] memory _actions) internal {
+        for (uint256 i; i < _actions.length; i++) {
+            bytes memory _params = _extractParams(_actions[i].arguments);
+            (address _to, uint256 _value, uint64 _actualGasLimit, bool _isCreation, bytes memory _data) =
+                abi.decode(_params, (address, uint256, uint64, bool, bytes));
 
-            bytes memory opaqueData = abi.encodePacked(uint256(0), uint256(0), actualGasLimit, isCreation, data);
+            bytes memory _opaqueData = abi.encodePacked(uint256(0), uint256(0), _actualGasLimit, _isCreation, _data);
 
             vm.expectEmit(true, true, true, true, PORTAL);
-            emit TransactionDeposited(AddressAliasHelper.applyL1ToL2Alias(PROXY_ADMIN_OWNER), to, DEPOSIT_VERSION, opaqueData);
+            emit TransactionDeposited(AddressAliasHelper.applyL1ToL2Alias(PROXY_ADMIN_OWNER), _to, DEPOSIT_VERSION, _opaqueData);
         }
     }
 }
