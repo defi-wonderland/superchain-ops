@@ -21,22 +21,22 @@ contract RevenueShareIntegrationTest is IntegrationBase {
     }
 
     function test_optInRevenueShare_integration() public {
-        string memory configPath = "test/tasks/example/eth/015-revenue-share-upgrade/config.toml";
+        string memory _configPath = "test/tasks/example/eth/015-revenue-share-upgrade/config.toml";
 
         // Step 1: Execute L1 transaction recording logs
         vm.recordLogs();
-        template.simulate(configPath, new address[](0));
+        template.simulate(_configPath, new address[](0));
 
         // Step 2: Relay messages from L1 to L2
         _relayAllMessages(_optimismForkId);
     }
 
     function test_optOutRevenueShare_integration() public {
-        string memory configPath = "test/tasks/example/eth/019-revenueshare-upgrade-opt-out/config.toml";
+        string memory _configPath = "test/tasks/example/eth/019-revenueshare-upgrade-opt-out/config.toml";
 
         // Step 1: Execute L1 transaction recording logs
         vm.recordLogs();
-        template.simulate(configPath, new address[](0));
+        template.simulate(_configPath, new address[](0));
 
         // Step 2: Relay messages from L1 to L2
         _relayAllMessages(_optimismForkId);
