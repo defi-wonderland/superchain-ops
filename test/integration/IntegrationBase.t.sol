@@ -44,8 +44,7 @@ abstract contract IntegrationBase is Test {
                 bytes32 _dataHash = keccak256(_opaqueData);
                 
                 // Check if we've seen this exact transaction before
-                bool _isDuplicate = _isDuplicate(_seenHashes, _uniqueCount, _dataHash);
-                if (_isDuplicate) continue;
+                if (_isDuplicate(_seenHashes, _uniqueCount, _dataHash)) continue;
                 
                 // Mark as seen
                 _seenHashes[_uniqueCount] = _dataHash;
@@ -103,7 +102,7 @@ abstract contract IntegrationBase is Test {
         
         // Execute the transaction on L2 as if it came from the aliased address
         vm.prank(_from);
-        (bool _success, ) = _to.call{value: _value}(_data);
+        (bool _success, ) = _to.call{value: _value, gas: _gasLimit}(_data);
         
         return _success;
     }
