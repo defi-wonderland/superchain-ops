@@ -9,17 +9,6 @@ import {IntegrationBase} from "./IntegrationBase.t.sol";
 contract RevenueShareIntegrationTest is IntegrationBase {
     RevenueShareV100UpgradePath public template;
 
-    // Constants
-    address public constant PORTAL = 0xbEb5Fc579115071764c7423A4f12eDde41f106Ed;
-    address public constant CREATE2_DEPLOYER = 0x13b0D85CcB8bf860b6b79AF3029fCA081AE9beF2;
-
-    // L2 predeploys
-    address internal constant FEE_SPLITTER = 0x420000000000000000000000000000000000002B;
-    address internal constant SEQUENCER_FEE_VAULT = 0x4200000000000000000000000000000000000011;
-    address internal constant OPERATOR_FEE_VAULT = 0x420000000000000000000000000000000000001b;
-    address internal constant BASE_FEE_VAULT = 0x4200000000000000000000000000000000000019;
-    address internal constant L1_FEE_VAULT = 0x420000000000000000000000000000000000001A;
-
     // Fork IDs
     uint256 internal _mainnetForkId;
     uint256 internal _optimismForkId;
