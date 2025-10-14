@@ -331,7 +331,7 @@ contract RevenueShareUpgradePathTest is Test {
         return _params;
     }
 
-    function _verifyCommonParams(
+    function _`Params(
         uint256 _value,
         uint64 _actualGasLimit,
         uint64 _expectedGasLimit,
@@ -341,7 +341,7 @@ contract RevenueShareUpgradePathTest is Test {
         require(_value == 0, "All calls should have 0 value");
         require(_actualGasLimit == _expectedGasLimit, "Gas limit should match config");
         require(!_isCreation, "Should not use creation flag");
-        require(_data.length > 0, "Should have calldata");
+        require(_data.length > 0, "Should have calldata"); // Calldata is better tested in RevenueShareUpgradePath.sol::_validate
     }
 
     function _verifyDeploymentCall(address _to, uint64 _gasLimit, bytes memory _data) internal {
