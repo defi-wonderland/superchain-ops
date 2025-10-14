@@ -10,7 +10,12 @@ import {AddressAliasHelper} from "@eth-optimism-bedrock/src/vendor/AddressAliasH
 /// @notice Base contract for integration tests with L1->L2 deposit transaction replay functionality
 abstract contract IntegrationBase is Test {
     /// @notice Replay all deposit transactions from L1 to L2
-    function _relayAllMessages(uint256 _forkId) internal {
+    /// @param _forkId The fork ID to switch to for L2 execution
+    /// @param _isSimulate If true, only process the second half of logs to avoid duplicates.
+    ///                    Task simulations emit events twice: once during the initial dry-run
+    ///                    and once during the actual simulation. Taking the second half ensures
+    ///                    we only process the final simulation results.
+    function _relayAllMessages(uint256 _forkId, bool _isSimulate) internal {
         vm.selectFork(_forkId);
 
         console2.log("\n");
@@ -21,14 +26,22 @@ abstract contract IntegrationBase is Test {
         console2.log("================================================================================");
 
         // Get logs from L1 execution
-        Vm.Log[] memory _logs = vm.getRecordedLogs();
+        Vm.Log[] memory _allLogs = vm.getRecordedLogs();
+        
+        // If this is a simulation, only take the second half of logs to avoid processing duplicates
+        // Simulations emit events twice, so we skip the first half
+        uint256 _startIndex = _isSimulate ? _allLogs.length / 2 : 0;
+        uint256 _logsCount = _isSimulate ? _allLogs.length - _startIndex : _allLogs.length;
+        
+        Vm.Log[] memory _logs = new Vm.Log[](_logsCount);
+        for (uint256 _i = 0; _i < _logsCount; _i++) {
+            _logs[_i] = _allLogs[_startIndex + _i];
+        }
         
         // Filter for TransactionDeposited events
         bytes32 _transactionDepositedHash = keccak256("TransactionDeposited(address,address,uint256,bytes)");
         
-        // First pass: collect unique opaqueData hashes
-        bytes32[] memory _seenHashes = new bytes32[](_logs.length);
-        uint256 _uniqueCount;
+        uint256 _transactionCount;
         uint256 _successCount;
         uint256 _failureCount;
         
@@ -39,19 +52,13 @@ abstract contract IntegrationBase is Test {
                 address _from = address(uint160(uint256(_logs[_i].topics[1])));
                 address _to = address(uint160(uint256(_logs[_i].topics[2])));
                 
-                // Decode the opaqueData to check for duplicates
+                // Decode the opaqueData
                 bytes memory _opaqueData = abi.decode(_logs[_i].data, (bytes));
-                bytes32 _dataHash = keccak256(_opaqueData);
                 
-                // Check if we've seen this exact transaction before
-                if (_isDuplicate(_seenHashes, _uniqueCount, _dataHash)) continue;
-                
-                // Mark as seen
-                _seenHashes[_uniqueCount] = _dataHash;
-                _uniqueCount++;
+                _transactionCount++;
                 
                 // Process and execute the transaction
-                bool _success = _processDepositTransaction(_from, _to, _opaqueData, _uniqueCount);
+                bool _success = _processDepositTransaction(_from, _to, _opaqueData, _transactionCount);
                 
                 if (_success) {
                     _successCount++;
@@ -62,23 +69,13 @@ abstract contract IntegrationBase is Test {
         }
         
         console2.log("\n=== Summary ===");
-        console2.log("Unique transactions:", _uniqueCount);
+        console2.log("Total transactions:", _transactionCount);
         console2.log("Successful transactions:", _successCount);
         console2.log("Failed transactions:", _failureCount);
         
         // Assert all transactions succeeded
         assertEq(_failureCount, 0, "All deposit transactions should succeed");
-        assertEq(_successCount, _uniqueCount, "All unique transactions should succeed");
-    }
-
-    /// @notice Check if transaction is a duplicate
-    function _isDuplicate(bytes32[] memory _seenHashes, uint256 _count, bytes32 _hash) internal pure returns (bool) {
-        for (uint256 _j = 0; _j < _count; _j++) {
-            if (_seenHashes[_j] == _hash) {
-                return true;
-            }
-        }
-        return false;
+        assertEq(_successCount, _transactionCount, "All transactions should succeed");
     }
 
     /// @notice Process and execute a deposit transaction

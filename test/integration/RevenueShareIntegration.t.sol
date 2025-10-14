@@ -28,7 +28,8 @@ contract RevenueShareIntegrationTest is IntegrationBase {
         template.simulate(_configPath, new address[](0));
 
         // Step 2: Relay messages from L1 to L2
-        _relayAllMessages(_optimismForkId);
+        // Pass true for _isSimulate since simulate() emits events twice
+        _relayAllMessages(_optimismForkId, true);
     }
 
     function test_optOutRevenueShare_integration() public {
@@ -39,7 +40,8 @@ contract RevenueShareIntegrationTest is IntegrationBase {
         template.simulate(_configPath, new address[](0));
 
         // Step 2: Relay messages from L1 to L2
-        _relayAllMessages(_optimismForkId);
+        // Pass true for _isSimulate since simulate() emits events twice
+        _relayAllMessages(_optimismForkId, true);
     }
 
 }
