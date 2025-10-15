@@ -52,7 +52,7 @@ contract RevenueShareUpgradePathTest is Test {
     address internal constant FEE_SPLITTER = 0x420000000000000000000000000000000000002B;
     address internal constant PROXY_ADMIN = 0x4200000000000000000000000000000000000018;
 
-    // Gas limits
+    // Gas limits, defined in the template based on the transaction simulations
     uint64 internal constant SC_REV_SHARE_CALCULATOR_DEPLOYMENT_GAS_LIMIT = 625_000;
     uint64 internal constant L1_WITHDRAWER_DEPLOYMENT_GAS_LIMIT = 625_000;
     uint64 internal constant FEE_VAULTS_DEPLOYMENT_GAS_LIMIT = 910_000;
