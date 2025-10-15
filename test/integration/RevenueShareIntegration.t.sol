@@ -36,7 +36,7 @@ interface ISuperchainRevSharesCalculator {
     function remainderRecipient() external view returns (address payable);
 }
 
-contract RevenueShareIntegrationTest is IntegrationBase  {
+contract RevenueShareIntegrationTest is IntegrationBase {
     RevenueShareV100UpgradePath public template;
 
     // Fork IDs
@@ -83,13 +83,19 @@ contract RevenueShareIntegrationTest is IntegrationBase  {
         string memory _config = vm.readFile(_configPath);
 
         // L1Withdrawer: check withdrawal threshold and fees depositor
-        assertEq(IL1Withdrawer(L1_WITHDRAWER).minWithdrawalAmount(), vm.parseTomlUint(_config, ".l1WithdrawerMinWithdrawalAmount"));
+        assertEq(
+            IL1Withdrawer(L1_WITHDRAWER).minWithdrawalAmount(),
+            vm.parseTomlUint(_config, ".l1WithdrawerMinWithdrawalAmount")
+        );
         assertEq(IL1Withdrawer(L1_WITHDRAWER).recipient(), vm.parseTomlAddress(_config, ".l1WithdrawerRecipient"));
         assertEq(IL1Withdrawer(L1_WITHDRAWER).withdrawalGasLimit(), vm.parseTomlUint(_config, ".l1WithdrawerGasLimit"));
-        
+
         // Rev Share Calculator: check chain fees recipient and remainder recipient
         assertEq(ISuperchainRevSharesCalculator(REV_SHARE_CALCULATOR).shareRecipient(), L1_WITHDRAWER);
-        assertEq(ISuperchainRevSharesCalculator(REV_SHARE_CALCULATOR).remainderRecipient(), vm.parseTomlAddress(_config, ".scRevShareCalcChainFeesRecipient")); 
+        assertEq(
+            ISuperchainRevSharesCalculator(REV_SHARE_CALCULATOR).remainderRecipient(),
+            vm.parseTomlAddress(_config, ".scRevShareCalcChainFeesRecipient")
+        );
 
         // Fee Splitter: check calculator is set
         assertNotEq(IFeeSplitter(FEE_SPLITTER).sharesCalculator(), address(0));
@@ -121,7 +127,6 @@ contract RevenueShareIntegrationTest is IntegrationBase  {
         _assertFeeVaultsState(false, _config);
     }
 
-
     function _assertFeeVaultsState(bool _isOptIn, string memory _config) internal {
         if (_isOptIn) {
             _assertVaultGetters(SEQUENCER_FEE_VAULT, FEE_SPLITTER, WithdrawalNetwork.L2, 0);
@@ -129,20 +134,45 @@ contract RevenueShareIntegrationTest is IntegrationBase  {
             _assertVaultGetters(BASE_FEE_VAULT, FEE_SPLITTER, WithdrawalNetwork.L2, 0);
             _assertVaultGetters(L1_FEE_VAULT, FEE_SPLITTER, WithdrawalNetwork.L2, 0);
         } else {
-            _assertVaultGetters(SEQUENCER_FEE_VAULT, vm.parseTomlAddress(_config, ".sequencerFeeVaultRecipient"), WithdrawalNetwork(vm.parseTomlUint(_config, ".sequencerFeeVaultWithdrawalNetwork")), vm.parseTomlUint(_config, ".sequencerFeeVaultMinWithdrawalAmount"));
-            _assertVaultGetters(OPERATOR_FEE_VAULT, vm.parseTomlAddress(_config, ".operatorFeeVaultRecipient"), WithdrawalNetwork(vm.parseTomlUint(_config, ".operatorFeeVaultWithdrawalNetwork")), vm.parseTomlUint(_config, ".operatorFeeVaultMinWithdrawalAmount"));
-            _assertVaultGetters(BASE_FEE_VAULT, vm.parseTomlAddress(_config, ".baseFeeVaultRecipient"), WithdrawalNetwork(vm.parseTomlUint(_config, ".baseFeeVaultWithdrawalNetwork")), vm.parseTomlUint(_config, ".baseFeeVaultMinWithdrawalAmount"));
-            _assertVaultGetters(L1_FEE_VAULT, vm.parseTomlAddress(_config, ".l1FeeVaultRecipient"), WithdrawalNetwork(vm.parseTomlUint(_config, ".l1FeeVaultWithdrawalNetwork")), vm.parseTomlUint(_config, ".l1FeeVaultMinWithdrawalAmount"));
+            _assertVaultGetters(
+                SEQUENCER_FEE_VAULT,
+                vm.parseTomlAddress(_config, ".sequencerFeeVaultRecipient"),
+                WithdrawalNetwork(vm.parseTomlUint(_config, ".sequencerFeeVaultWithdrawalNetwork")),
+                vm.parseTomlUint(_config, ".sequencerFeeVaultMinWithdrawalAmount")
+            );
+            _assertVaultGetters(
+                OPERATOR_FEE_VAULT,
+                vm.parseTomlAddress(_config, ".operatorFeeVaultRecipient"),
+                WithdrawalNetwork(vm.parseTomlUint(_config, ".operatorFeeVaultWithdrawalNetwork")),
+                vm.parseTomlUint(_config, ".operatorFeeVaultMinWithdrawalAmount")
+            );
+            _assertVaultGetters(
+                BASE_FEE_VAULT,
+                vm.parseTomlAddress(_config, ".baseFeeVaultRecipient"),
+                WithdrawalNetwork(vm.parseTomlUint(_config, ".baseFeeVaultWithdrawalNetwork")),
+                vm.parseTomlUint(_config, ".baseFeeVaultMinWithdrawalAmount")
+            );
+            _assertVaultGetters(
+                L1_FEE_VAULT,
+                vm.parseTomlAddress(_config, ".l1FeeVaultRecipient"),
+                WithdrawalNetwork(vm.parseTomlUint(_config, ".l1FeeVaultWithdrawalNetwork")),
+                vm.parseTomlUint(_config, ".l1FeeVaultMinWithdrawalAmount")
+            );
         }
     }
-        
+
     /// @notice Assert the configuration of a fee vault
     /// @param _vault The address of the fee vault
     /// @param _recipient The recipient of the fee vault
     /// @param _withdrawalNetwork The withdrawal network of the fee vault
     /// @param _minWithdrawalAmount The minimum withdrawal amount of the fee vault
     /// @dev Ensures both the legacy and the new getters return the same value
-    function _assertVaultGetters(address _vault, address _recipient, WithdrawalNetwork _withdrawalNetwork, uint256 _minWithdrawalAmount) internal {
+    function _assertVaultGetters(
+        address _vault,
+        address _recipient,
+        WithdrawalNetwork _withdrawalNetwork,
+        uint256 _minWithdrawalAmount
+    ) internal {
         assertEq(IFeeVault(_vault).recipient(), _recipient);
         assertEq(uint256(IFeeVault(_vault).withdrawalNetwork()), uint256(_withdrawalNetwork));
         assertEq(IFeeVault(_vault).minWithdrawalAmount(), _minWithdrawalAmount);

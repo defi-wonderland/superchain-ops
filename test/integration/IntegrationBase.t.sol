@@ -27,39 +27,39 @@ abstract contract IntegrationBase is Test {
 
         // Get logs from L1 execution
         Vm.Log[] memory _allLogs = vm.getRecordedLogs();
-        
+
         // If this is a simulation, only take the second half of logs to avoid processing duplicates
         // Simulations emit events twice, so we skip the first half
         uint256 _startIndex = _isSimulate ? _allLogs.length / 2 : 0;
         uint256 _logsCount = _isSimulate ? _allLogs.length - _startIndex : _allLogs.length;
-        
+
         Vm.Log[] memory _logs = new Vm.Log[](_logsCount);
         for (uint256 _i = 0; _i < _logsCount; _i++) {
             _logs[_i] = _allLogs[_startIndex + _i];
         }
-        
+
         // Filter for TransactionDeposited events
         bytes32 _transactionDepositedHash = keccak256("TransactionDeposited(address,address,uint256,bytes)");
-        
+
         uint256 _transactionCount;
         uint256 _successCount;
         uint256 _failureCount;
-        
+
         for (uint256 _i = 0; _i < _logs.length; _i++) {
             // Check if this is a TransactionDeposited event
             if (_logs[_i].topics[0] == _transactionDepositedHash) {
                 // Decode indexed parameters
                 address _from = address(uint160(uint256(_logs[_i].topics[1])));
                 address _to = address(uint160(uint256(_logs[_i].topics[2])));
-                
+
                 // Decode the opaqueData
                 bytes memory _opaqueData = abi.decode(_logs[_i].data, (bytes));
-                
+
                 _transactionCount++;
-                
+
                 // Process and execute the transaction
                 bool _success = _processDepositTransaction(_from, _to, _opaqueData, _transactionCount);
-                
+
                 if (_success) {
                     _successCount++;
                 } else {
@@ -67,40 +67,38 @@ abstract contract IntegrationBase is Test {
                 }
             }
         }
-        
+
         console2.log("\n=== Summary ===");
         console2.log("Total transactions:", _transactionCount);
         console2.log("Successful transactions:", _successCount);
         console2.log("Failed transactions:", _failureCount);
-        
+
         // Assert all transactions succeeded
         assertEq(_failureCount, 0, "All deposit transactions should succeed");
         assertEq(_successCount, _transactionCount, "All transactions should succeed");
     }
 
     /// @notice Process and execute a deposit transaction
-    function _processDepositTransaction(
-        address _from,
-        address _to,
-        bytes memory _opaqueData,
-        uint256 _txNumber
-    ) internal returns (bool) {
+    function _processDepositTransaction(address _from, address _to, bytes memory _opaqueData, uint256 _txNumber)
+        internal
+        returns (bool)
+    {
         // Extract value (bytes 0-31)
         uint256 _value = uint256(bytes32(_slice(_opaqueData, 0, 32)));
-        
+
         // Extract gasLimit (bytes 64-71)
         uint64 _gasLimit = uint64(bytes8(_slice(_opaqueData, 64, 8)));
-        
+
         // Extract data (bytes 73 onwards)
         bytes memory _data = _slice(_opaqueData, 73, _opaqueData.length - 73);
-        
+
         // Print Tenderly simulation parameters
         _logTransactionDetails(_from, _to, _value, _gasLimit, _data, _txNumber);
-        
+
         // Execute the transaction on L2 as if it came from the aliased address
         vm.prank(_from);
-        (bool _success, ) = _to.call{value: _value, gas: _gasLimit}(_data);
-        
+        (bool _success,) = _to.call{value: _value, gas: _gasLimit}(_data);
+
         return _success;
     }
 
@@ -119,7 +117,7 @@ abstract contract IntegrationBase is Test {
                 _selector := mload(add(_data, 32))
             }
         }
-        
+
         // Generate Tenderly simulation link
         string memory _tenderlyLink = _generateTenderlyLink(_to, _from, uint256(_gasLimit), _value, _data);
         console2.log("\nTenderly Simulation Link for transaction #", _txNumber);
@@ -145,17 +143,22 @@ abstract contract IntegrationBase is Test {
     ) internal pure returns (string memory) {
         // Convert bytes to hex string
         string memory _calldataHex = _bytesToHexString(_rawFunctionInput);
-        
+
         // Build the Tenderly URL
         // network=10 for OP Mainnet (change if testing on different L2)
         return string.concat(
             "https://dashboard.tenderly.co/TENDERLY_USERNAME/TENDERLY_PROJECT/simulator/new",
             "?network=10",
-            "&contractAddress=0x", _toAsciiString(_contractAddress),
-            "&from=0x", _toAsciiString(_from),
-            "&gas=", vm.toString(_gas),
-            "&value=", vm.toString(_value),
-            "&rawFunctionInput=0x", _calldataHex
+            "&contractAddress=0x",
+            _toAsciiString(_contractAddress),
+            "&from=0x",
+            _toAsciiString(_from),
+            "&gas=",
+            vm.toString(_gas),
+            "&value=",
+            vm.toString(_value),
+            "&rawFunctionInput=0x",
+            _calldataHex
         );
     }
 
@@ -163,11 +166,11 @@ abstract contract IntegrationBase is Test {
     function _toAsciiString(address _addr) internal pure returns (string memory) {
         bytes memory _s = new bytes(40);
         for (uint256 _i = 0; _i < 20; _i++) {
-            bytes1 _b = bytes1(uint8(uint256(uint160(_addr)) / (2**(8*(19 - _i)))));
+            bytes1 _b = bytes1(uint8(uint256(uint160(_addr)) / (2 ** (8 * (19 - _i)))));
             bytes1 _hi = bytes1(uint8(_b) / 16);
             bytes1 _lo = bytes1(uint8(_b) - 16 * uint8(_hi));
-            _s[2*_i] = _char(_hi);
-            _s[2*_i+1] = _char(_lo);
+            _s[2 * _i] = _char(_hi);
+            _s[2 * _i + 1] = _char(_lo);
         }
         return string(_s);
     }
@@ -189,4 +192,3 @@ abstract contract IntegrationBase is Test {
         else return bytes1(uint8(_b) + 0x57);
     }
 }
-
