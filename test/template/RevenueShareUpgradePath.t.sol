@@ -311,7 +311,7 @@ contract RevenueShareUpgradePathTest is Test {
 
             if (_to == CREATE2_DEPLOYER) {
                 _deploymentCount++;
-                _verifyDeploymentCall(_to, _gasLimit, _data);
+                _verifyDeploymentCall(_gasLimit, _data);
             } else {
                 _upgradeCount++;
                 _verifyUpgradeCall(_to, _gasLimit, _data);
@@ -331,7 +331,7 @@ contract RevenueShareUpgradePathTest is Test {
         return _params;
     }
 
-    function _`Params(
+    function _verifyCommonParams(
         uint256 _value,
         uint64 _actualGasLimit,
         uint64 _expectedGasLimit,
@@ -344,7 +344,7 @@ contract RevenueShareUpgradePathTest is Test {
         require(_data.length > 0, "Should have calldata"); // Calldata is better tested in RevenueShareUpgradePath.sol::_validate
     }
 
-    function _verifyDeploymentCall(address _to, uint64 _gasLimit, bytes memory _data) internal {
+    function _verifyDeploymentCall(uint64 _gasLimit, bytes memory _data) internal {
         vm.expectCall(
             PORTAL, abi.encodeCall(IOptimismPortal2.depositTransaction, (CREATE2_DEPLOYER, 0, _gasLimit, false, _data))
         );
@@ -381,7 +381,7 @@ contract RevenueShareUpgradePathTest is Test {
     function _expectPortalEvents(Action[] memory _actions) internal {
         for (uint256 i; i < _actions.length; i++) {
             bytes memory _params = _extractParams(_actions[i].arguments);
-            (address _to, uint256 _value, uint64 _actualGasLimit, bool _isCreation, bytes memory _data) =
+            (address _to,, uint64 _actualGasLimit, bool _isCreation, bytes memory _data) =
                 abi.decode(_params, (address, uint256, uint64, bool, bytes));
 
             bytes memory _opaqueData = abi.encodePacked(uint256(0), uint256(0), _actualGasLimit, _isCreation, _data);
