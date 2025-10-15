@@ -210,6 +210,10 @@ contract RevenueShareUpgradePathTest is Test {
         _verifyPortalCalls(_actions, _expectedDeployments, _expectedUpgrades);
     }
 
+    /// @notice Verify the portal calls based on the expected deployments and upgrades
+    /// @param _actions The actions to verify
+    /// @param _expectedDeployments The expected number of deployments
+    /// @param _expectedUpgrades The expected number of upgrades
     function _verifyPortalCalls(Action[] memory _actions, uint256 _expectedDeployments, uint256 _expectedUpgrades)
         internal
         pure
@@ -266,6 +270,9 @@ contract RevenueShareUpgradePathTest is Test {
         assertEq(_deploymentCount + _upgradeCount, _actions.length, "All actions should be accounted for");
     }
 
+    /// @notice Extract the parameters from the arguments
+    /// @param _arguments The arguments to extract the parameters from
+    /// @return The parameters
     function _extractParams(bytes memory _arguments) internal pure returns (bytes memory) {
         bytes memory _params = new bytes(_arguments.length - 4);
         for (uint256 j; j < _params.length; j++) {
@@ -274,6 +281,13 @@ contract RevenueShareUpgradePathTest is Test {
         return _params;
     }
 
+    /// @notice Verify the parameters on the expected portal calls
+    /// @param _value The value
+    /// @param _actualGasLimit The actual gas limit
+    /// @param _expectedGasLimit The expected gas limit
+    /// @param _isCreation The is creation
+    /// @param _data The data, only checking calldata length
+    /// it is better tested in RevenueShareUpgradePath.sol::_validate
     function _verifyCommonParams(
         uint256 _value,
         uint64 _actualGasLimit,
@@ -284,9 +298,12 @@ contract RevenueShareUpgradePathTest is Test {
         require(_value == 0, "All calls should have 0 value");
         require(_actualGasLimit == _expectedGasLimit, "Gas limit should match config");
         require(!_isCreation, "Should not use creation flag");
-        require(_data.length > 0, "Should have calldata"); // Calldata is better tested in RevenueShareUpgradePath.sol::_validate
+        require(_data.length > 0, "Should have calldata");
     }
 
+    /// @notice Verify the deployment call
+    /// @param _gasLimit The expected gas limit
+    /// @param _data The expected data
     function _verifyDeploymentCall(uint64 _gasLimit, bytes memory _data) internal {
         vm.expectCall(
             PORTAL, abi.encodeCall(IOptimismPortal2.depositTransaction, (CREATE2_DEPLOYER, 0, _gasLimit, false, _data))
@@ -299,6 +316,10 @@ contract RevenueShareUpgradePathTest is Test {
         assertEq(_actualSelector, ICreate2Deployer.deploy.selector, "Deployment should call CREATE2 deploy");
     }
 
+    /// @notice Verify the upgrade call
+    /// @param _to The target address, it MUST be the proxy admin
+    /// @param _gasLimit The expected gas limit
+    /// @param _data The expected data
     function _verifyUpgradeCall(address _to, uint64 _gasLimit, bytes memory _data) internal {
         vm.expectCall(PORTAL, abi.encodeCall(IOptimismPortal2.depositTransaction, (_to, 0, _gasLimit, false, _data)));
 
@@ -314,6 +335,8 @@ contract RevenueShareUpgradePathTest is Test {
         );
     }
 
+    /// @notice Verify the target address is the proxy admin
+    /// @param _to The target address
     function _assertIsProxyAdmin(address _to) internal pure {
         assertTrue(
             _to == PROXY_ADMIN,
@@ -321,6 +344,8 @@ contract RevenueShareUpgradePathTest is Test {
         );
     }
 
+    /// @notice Expect the portal events
+    /// @param _actions The actions to expect the events for
     function _expectPortalEvents(Action[] memory _actions) internal {
         for (uint256 i; i < _actions.length; i++) {
             bytes memory _params = _extractParams(_actions[i].arguments);
