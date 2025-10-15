@@ -35,7 +35,6 @@ contract RevenueShareUpgradePathTest is Test {
     event TransactionDeposited(address indexed from, address indexed to, uint256 indexed version, bytes opaqueData);
 
     RevenueShareV100UpgradePath public template;
-    string public configPath = "test/tasks/example/eth/015-revenue-share-upgrade/config.toml";
 
     // Expected addresses from config
     address public constant PORTAL = 0xbEb5Fc579115071764c7423A4f12eDde41f106Ed;
@@ -101,101 +100,48 @@ contract RevenueShareUpgradePathTest is Test {
     }
 
     function test_optInRevenueShare_succeeds() public {
-        // Step 1: Run simulate to prepare everything and get the actions
-        (, Action[] memory _actions,,, address _rootSafe) = template.simulate(configPath, new address[](0));
-
-        // Verify we got the expected safe
-        assertEq(_rootSafe, PROXY_ADMIN_OWNER, "Root safe should be ProxyAdminOwner");
-        assertEq(
-            _actions.length,
+        _testRevenueShareUpgrade(
+            "test/tasks/example/eth/015-revenue-share-upgrade/config.toml",
+            true, // isOptIn
             EXPECTED_DEPLOYMENTS_OPT_IN + EXPECTED_UPGRADES_OPT_IN,
+            EXPECTED_DEPLOYMENTS_OPT_IN,
+            EXPECTED_UPGRADES_OPT_IN,
             "Should have 12 actions for opt-in scenario"
         );
-
-        // Step 2: Get the safe's owners
-        IGnosisSafe _safe = IGnosisSafe(_rootSafe);
-        address[] memory _owners = _safe.getOwners();
-
-        // Step 3: Get the multicall calldata that will be executed
-        IMulticall3.Call3Value[] memory _calls = new IMulticall3.Call3Value[](_actions.length);
-        for (uint256 i; i < _actions.length; i++) {
-            _calls[i] = IMulticall3.Call3Value({
-                target: _actions[i].target,
-                allowFailure: false,
-                value: _actions[i].value,
-                callData: _actions[i].arguments
-            });
-        }
-        bytes memory _multicallData = abi.encodeCall(IMulticall3.aggregate3Value, (_calls));
-
-        // Step 4: Get the nonce and compute transaction hash before any state changes
-        uint256 _nonceBefore = _safe.nonce();
-
-        bytes32 _txHash = _safe.getTransactionHash(
-            template.multicallTarget(),
-            0, // value
-            _multicallData,
-            Enum.Operation.DelegateCall,
-            0, // safeTxGas
-            0, // baseGas
-            0, // gasPrice
-            address(0), // gasToken
-            payable(address(0)), // refundReceiver
-            _nonceBefore
-        );
-
-        // Step 5: Manually verify expected portal calls based on known config values
-        _verifyExpectedPortalCalls(_actions, true);
-
-        // Step 6: Prank owners to approve the transaction
-        for (uint256 i; i < _owners.length; i++) {
-            vm.prank(_owners[i]);
-            _safe.approveHash(_txHash);
-        }
-
-        // Step 7: Generate signatures after approval
-        bytes memory _signatures = Signatures.genPrevalidatedSignatures(_owners);
-
-        _expectPortalEvents(_actions);
-
-        // Step 8: Execute the transaction
-        bool _success = _safe.execTransaction(
-            template.multicallTarget(),
-            0, // value
-            _multicallData,
-            Enum.Operation.DelegateCall,
-            0, // safeTxGas
-            0, // baseGas
-            0, // gasPrice
-            address(0), // gasToken
-            payable(address(0)), // refundReceiver
-            _signatures
-        );
-
-        assertTrue(_success, "Transaction should execute successfully");
-        assertEq(_safe.nonce(), _nonceBefore + 1, "Safe nonce should increment");
-
-        // Step 9: Verify the portal calls
-        // For opt-in scenario, we expect:
-        // - 7 deployments (L1Withdrawer, SCRevShareCalc, FeeSplitter, 4 vaults)
-        // - 5 upgrades (4 vault proxies + 1 FeeSplitter upgrade)
-        _verifyPortalCalls(_actions, EXPECTED_DEPLOYMENTS_OPT_IN, EXPECTED_UPGRADES_OPT_IN);
     }
 
     function test_optOutRevenueShare_succeeds() public {
-        // Define the config path
-        configPath = "test/tasks/example/eth/019-revenueshare-upgrade-opt-out/config.toml";
+        _testRevenueShareUpgrade(
+            "test/tasks/example/eth/019-revenueshare-upgrade-opt-out/config.toml",
+            false, // isOptIn
+            EXPECTED_DEPLOYMENTS_OPT_OUT + EXPECTED_UPGRADES_OPT_OUT,
+            EXPECTED_DEPLOYMENTS_OPT_OUT,
+            EXPECTED_UPGRADES_OPT_OUT,
+            "Should have 10 actions for non-opt-in scenario"
+        );
+    }
 
+    /// @notice Helper function to test revenue share upgrade scenarios
+    /// @param _configPath Path to the config file
+    /// @param _isOptIn Whether this is an opt-in or opt-out scenario
+    /// @param _expectedTotalActions Expected total number of actions
+    /// @param _expectedDeployments Expected number of deployment actions
+    /// @param _expectedUpgrades Expected number of upgrade actions
+    /// @param _actionCountMessage Assertion message for action count verification
+    function _testRevenueShareUpgrade(
+        string memory _configPath,
+        bool _isOptIn,
+        uint256 _expectedTotalActions,
+        uint256 _expectedDeployments,
+        uint256 _expectedUpgrades,
+        string memory _actionCountMessage
+    ) internal {
         // Step 1: Run simulate to prepare everything and get the actions
-        (, Action[] memory _actions,,, address _rootSafe) = template.simulate(configPath, new address[](0));
+        (, Action[] memory _actions,,, address _rootSafe) = template.simulate(_configPath, new address[](0));
 
         // Verify we got the expected safe and action count
         assertEq(_rootSafe, PROXY_ADMIN_OWNER, "Root safe should be ProxyAdminOwner");
-        assertEq(
-            _actions.length,
-            EXPECTED_DEPLOYMENTS_OPT_OUT + EXPECTED_UPGRADES_OPT_OUT,
-            "Should have 10 actions for non-opt-in scenario"
-        );
+        assertEq(_actions.length, _expectedTotalActions, _actionCountMessage);
 
         // Step 2: Get the safe's owners
         IGnosisSafe _safe = IGnosisSafe(_rootSafe);
@@ -230,7 +176,7 @@ contract RevenueShareUpgradePathTest is Test {
         );
 
         // Step 5: Manually verify expected portal calls based on known config values
-        _verifyExpectedPortalCalls(_actions, false);
+        _verifyExpectedPortalCalls(_actions, _isOptIn);
 
         // Step 6: Prank owners to approve the transaction
         for (uint256 i; i < _owners.length; i++) {
@@ -261,10 +207,7 @@ contract RevenueShareUpgradePathTest is Test {
         assertEq(_safe.nonce(), _nonceBefore + 1, "Safe nonce should increment");
 
         // Step 9: Verify the portal calls
-        // For non-opt-in scenario:
-        // - 5 deployments (FeeSplitter + 4 vaults, no L1Withdrawer/SCRevShareCalc)
-        // - 5 upgrades (4 vault proxies + FeeSplitter)
-        _verifyPortalCalls(_actions, EXPECTED_DEPLOYMENTS_OPT_OUT, EXPECTED_UPGRADES_OPT_OUT);
+        _verifyPortalCalls(_actions, _expectedDeployments, _expectedUpgrades);
     }
 
     function _verifyPortalCalls(Action[] memory _actions, uint256 _expectedDeployments, uint256 _expectedUpgrades)
