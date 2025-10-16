@@ -15,6 +15,9 @@ import {Create2} from "@openzeppelin/contracts/utils/Create2.sol";
 interface IFeesDepositor {
     function initialize(uint96 _minDepositAmount, address _l2Recipient, address _messenger, uint32 _gasLimit)
         external;
+    function minDepositAmount() external view returns (uint96);
+    function l2Recipient() external view returns (address);
+    function gasLimit() external view returns (uint32);
 }
 
 /// @notice Interface for the CREATE2 deployer contract.
@@ -67,7 +70,7 @@ contract DeployFeesDepositor is SimpleTaskBase {
 
     /// @notice Sets up the template with implementation configurations from a TOML file.
     /// State overrides are not applied yet. Keep this in mind when performing various pre-simulation assertions in this function.
-    function _templateSetup(string memory _taskConfigFilePath, address _rootSafe) internal override {
+    function _templateSetup(string memory _taskConfigFilePath, address) internal override {
         string memory tomlContent = vm.readFile(_taskConfigFilePath);
         salt = tomlContent.readString(".salt");
         require(bytes(salt).length > 0, "salt must be set");
@@ -106,8 +109,7 @@ contract DeployFeesDepositor is SimpleTaskBase {
     ///      implicitly because if the calculated address of the Proxy would differ from the one we
     ///      calculated, the task would fail on the check for code to be present, since the changes
     ///      in build function revert and the parent contract validates that accessed accounts have code.
-    /// @param _rootSafe The address of the root safe (unused in this implementation).
-    function _build(address _rootSafe) internal override {
+    function _build(address) internal override {
         // Deploy the FeesDepositor implementation contract using CREATE2
         ICreate2Deployer(CREATE2_DEPLOYER).deploy(0, bytes32(bytes(salt)), RevShareCodeRepo.feesDepositorCreationCode);
 
@@ -122,7 +124,14 @@ contract DeployFeesDepositor is SimpleTaskBase {
     }
 
     /// @notice This method performs all validations and assertions that verify the calls executed as expected.
-    function _validate(VmSafe.AccountAccess[] memory, Action[] memory, address) internal pure override {}
+    function _validate(VmSafe.AccountAccess[] memory, Action[] memory, address) internal view override {
+        require(
+            IFeesDepositor(payable(_proxyCalculatedAddress)).minDepositAmount() == minDepositAmount,
+            "minDepositAmount mismatch"
+        );
+        require(IFeesDepositor(payable(_proxyCalculatedAddress)).l2Recipient() == l2Recipient, "l2Recipient mismatch");
+        require(IFeesDepositor(payable(_proxyCalculatedAddress)).gasLimit() == gasLimit, "gasLimit mismatch");
+    }
 
     /// @notice Override to return a list of addresses that should not be checked for code length.
     function _getCodeExceptions() internal view virtual override returns (address[] memory) {

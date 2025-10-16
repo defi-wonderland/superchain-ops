@@ -255,7 +255,7 @@ contract RevenueShareIntegrationTest is IntegrationBase {
     /// @param _isOptIn Whether the chain is opting in to use the Fee Splitter
     /// @param _config The configuration of the fee vaults
     /// @dev Ensures both the legacy and the new getters return the same value
-    function _assertFeeVaultsState(bool _isOptIn, string memory _config) internal {
+    function _assertFeeVaultsState(bool _isOptIn, string memory _config) internal view {
         if (_isOptIn) {
             _assertVaultGetters(SEQUENCER_FEE_VAULT, FEE_SPLITTER, WithdrawalNetwork.L2, 0);
             _assertVaultGetters(OPERATOR_FEE_VAULT, FEE_SPLITTER, WithdrawalNetwork.L2, 0);
@@ -300,7 +300,7 @@ contract RevenueShareIntegrationTest is IntegrationBase {
         address _recipient,
         WithdrawalNetwork _withdrawalNetwork,
         uint256 _minWithdrawalAmount
-    ) internal {
+    ) internal view {
         assertEq(IFeeVault(_vault).recipient(), _recipient);
         assertEq(uint256(IFeeVault(_vault).withdrawalNetwork()), uint256(_withdrawalNetwork));
         assertEq(IFeeVault(_vault).minWithdrawalAmount(), _minWithdrawalAmount);

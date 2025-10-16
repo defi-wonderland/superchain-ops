@@ -110,7 +110,7 @@ abstract contract IntegrationBase is Test {
         uint64 _gasLimit,
         bytes memory _data,
         uint256 _txNumber
-    ) internal view {
+    ) internal pure {
         if (_data.length >= 4) {
             bytes4 _selector;
             assembly {
