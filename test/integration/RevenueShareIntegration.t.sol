@@ -177,7 +177,7 @@ contract RevenueShareIntegrationTest is IntegrationBase {
         address _recipient,
         WithdrawalNetwork _withdrawalNetwork,
         uint256 _minWithdrawalAmount
-    ) internal {
+    ) internal view {
         assertEq(IFeeVault(_vault).recipient(), _recipient);
         assertEq(uint256(IFeeVault(_vault).withdrawalNetwork()), uint256(_withdrawalNetwork));
         assertEq(IFeeVault(_vault).minWithdrawalAmount(), _minWithdrawalAmount);
