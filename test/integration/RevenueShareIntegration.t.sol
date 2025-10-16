@@ -1,7 +1,6 @@
 // SPDX-License-Identifier: MIT
 pragma solidity 0.8.15;
 
-import {console2} from "forge-std/console2.sol";
 import {RevenueShareV100UpgradePath} from "src/template/RevenueShareUpgradePath.sol";
 import {Action} from "src/libraries/MultisigTypes.sol";
 import {IntegrationBase} from "./IntegrationBase.t.sol";
