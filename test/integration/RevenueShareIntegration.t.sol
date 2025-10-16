@@ -98,7 +98,7 @@ contract RevenueShareIntegrationTest is IntegrationBase {
         );
 
         // Fee Splitter: check calculator is set
-        assertNotEq(IFeeSplitter(FEE_SPLITTER).sharesCalculator(), address(0));
+        assertEq(IFeeSplitter(FEE_SPLITTER).sharesCalculator(), REV_SHARE_CALCULATOR);
 
         // Vaults: recipient should be fee splitter, withdrawal network should be L2, min withdrawal amount 0
         // getters for legacy and the new values should be the same
