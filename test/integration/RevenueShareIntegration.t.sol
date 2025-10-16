@@ -41,7 +41,7 @@ contract RevenueShareIntegrationTest is IntegrationBase {
 
     // Fork IDs
     uint256 internal _mainnetForkId;
-    uint256 internal _optimismForkId;
+    uint256 internal _l2ForkId;
 
     // L2 predeploys
     /// @notice Address of the Sequencer Fee Vault Predeploy on L2.
@@ -63,7 +63,7 @@ contract RevenueShareIntegrationTest is IntegrationBase {
 
     function setUp() public {
         _mainnetForkId = vm.createFork("http://127.0.0.1:8545");
-        _optimismForkId = vm.createFork("http://127.0.0.1:9545");
+        _l2ForkId = vm.createFork("http://127.0.0.1:9545");
         vm.selectFork(_mainnetForkId);
         template = new RevenueShareV100UpgradePath();
     }
@@ -77,7 +77,7 @@ contract RevenueShareIntegrationTest is IntegrationBase {
 
         // Step 2: Relay messages from L1 to L2
         // Pass true for _isSimulate since simulate() emits events twice
-        _relayAllMessages(_optimismForkId, true);
+        _relayAllMessages(_l2ForkId, true);
 
         // Step 3: Assert the state of the L2 contracts
         string memory _config = vm.readFile(_configPath);
@@ -114,7 +114,7 @@ contract RevenueShareIntegrationTest is IntegrationBase {
 
         // Step 2: Relay messages from L1 to L2
         // Pass true for _isSimulate since simulate() emits events twice
-        _relayAllMessages(_optimismForkId, true);
+        _relayAllMessages(_l2ForkId, true);
 
         // Step 3: Assert the state of the L2 contracts
         string memory _config = vm.readFile(_configPath);
