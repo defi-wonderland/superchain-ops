@@ -67,6 +67,7 @@ contract RevenueShareIntegrationTest is IntegrationBase {
         template = new RevenueShareV100UpgradePath();
     }
 
+    /// @notice Test the integration of the revenue share system when the chain is opting in
     function test_optInRevenueShare_integration() public {
         string memory _configPath = "test/tasks/example/eth/015-revenue-share-upgrade/config.toml";
 
@@ -104,6 +105,7 @@ contract RevenueShareIntegrationTest is IntegrationBase {
         _assertFeeVaultsState(true, _config);
     }
 
+    /// @notice Test the integration of the revenue share system when the chain is opting out
     function test_optOutRevenueShare_integration() public {
         string memory _configPath = "test/tasks/example/eth/019-revenueshare-upgrade-opt-out/config.toml";
 
@@ -126,6 +128,10 @@ contract RevenueShareIntegrationTest is IntegrationBase {
         _assertFeeVaultsState(false, _config);
     }
 
+    /// @notice Assert the configuration of the fee vaults
+    /// @param _isOptIn Whether the chain is opting in to use the Fee Splitter
+    /// @param _config The configuration of the fee vaults
+    /// @dev Ensures both the legacy and the new getters return the same value
     function _assertFeeVaultsState(bool _isOptIn, string memory _config) internal {
         if (_isOptIn) {
             _assertVaultGetters(SEQUENCER_FEE_VAULT, FEE_SPLITTER, WithdrawalNetwork.L2, 0);
