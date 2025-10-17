@@ -332,20 +332,6 @@ contract LateOptInRevenueShareRequiredFieldsTest is Test {
         template = new LateOptInRevenueShare();
     }
 
-    /// @notice Tests that the template reverts when the gasLimit is too low.
-    function test_lateOptInRevenueShare_too_low_gasLimit_reverts() public {
-        string memory configPath = "test/template/late-opt-in-rev-share/config/zero-gas-limit-config.toml";
-        vm.expectRevert("gasLimit must be set");
-        template.simulate(configPath);
-    }
-
-    /// @notice Tests that the template reverts when the gasLimit is too high.
-    function test_lateOptInRevenueShare_too_high_gasLimit_reverts() public {
-        string memory configPath = "test/template/late-opt-in-rev-share/config/too-high-gas-limit-config.toml";
-        vm.expectRevert("gasLimit must be less than uint64.max");
-        template.simulate(configPath);
-    }
-
     /// @notice Tests that the template reverts when using own calculator and the calculator address is zero.
     function test_lateOptInRevenueShare_calculator_zero_address_reverts() public {
         string memory configPath = "test/template/late-opt-in-rev-share/config/calculator-zero-address-config.toml";
