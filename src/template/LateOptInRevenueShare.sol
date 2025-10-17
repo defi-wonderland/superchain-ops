@@ -10,6 +10,7 @@ import {Action} from "src/libraries/MultisigTypes.sol";
 import {RevShareCodeRepo} from "src/libraries/RevShareCodeRepo.sol";
 import {Utils} from "src/libraries/Utils.sol";
 import {MultisigTaskPrinter} from "src/libraries/MultisigTaskPrinter.sol";
+import {RevShareGasLimits} from "src/libraries/RevShareGasLimits.sol";
 
 /// @notice Interface for the OptimismPortal2 in L1. This is the main interaction point for the template.
 interface IOptimismPortal2 {
@@ -63,18 +64,6 @@ contract LateOptInRevenueShare is SimpleTaskBase {
     uint8 public constant FEE_VAULT_WITHDRAWAL_NETWORK = 1;
     /// @notice The default recipient for the FeeVault once part of the Revenue Share system.
     address public constant FEE_VAULT_RECIPIENT = FEE_SPLITTER;
-
-    /// @notice Based on deployment tests, these are the average gas costs for each of the L2 operations:
-    ///         - L1Withdrawer deployment: 497,812
-    ///         - SC Rev Share Calculator deployment: 518,168
-    ///         - Setter calls for Fee Vaults and Fee Splitter: 50,000 TODO: change after tenderly simulations
-
-    /// @notice The gas limit for the SC Rev Share Calculator deployment.
-    uint64 internal constant SC_REV_SHARE_CALCULATOR_DEPLOYMENT_GAS_LIMIT = 625_000;
-    /// @notice The gas limit for the L1 Withdrawer deployment.
-    uint64 internal constant L1_WITHDRAWER_DEPLOYMENT_GAS_LIMIT = 625_000;
-    /// @notice The gas limit for the Fee Vaults deployment.
-    uint64 internal constant SETTERS_GAS_LIMIT = 50_000;
 
     /// @notice The portal we are targeting for L2 calls.
     address public portal;
@@ -157,7 +146,7 @@ contract LateOptInRevenueShare is SimpleTaskBase {
                     (
                         address(FEE_SPLITTER),
                         0,
-                        SETTERS_GAS_LIMIT,
+                        RevShareGasLimits.SETTERS_GAS_LIMIT,
                         false,
                         abi.encodeCall(IFeeSplitter.setSharesCalculator, (calculator))
                     )
@@ -190,7 +179,7 @@ contract LateOptInRevenueShare is SimpleTaskBase {
             _incrementCallsToPortal(
                 abi.encodeCall(
                     IOptimismPortal2.depositTransaction,
-                    (address(CREATE2_DEPLOYER), 0, L1_WITHDRAWER_DEPLOYMENT_GAS_LIMIT, false, _l1WithdrawerCalldata)
+                    (address(CREATE2_DEPLOYER), 0, RevShareGasLimits.L1_WITHDRAWER_DEPLOYMENT_GAS_LIMIT, false, _l1WithdrawerCalldata)
                 )
             );
 
@@ -215,7 +204,7 @@ contract LateOptInRevenueShare is SimpleTaskBase {
                     (
                         address(CREATE2_DEPLOYER),
                         0,
-                        SC_REV_SHARE_CALCULATOR_DEPLOYMENT_GAS_LIMIT,
+                        RevShareGasLimits.SC_REV_SHARE_CALCULATOR_DEPLOYMENT_GAS_LIMIT,
                         false,
                         _scRevShareCalculatorCalldata
                     )
@@ -236,7 +225,7 @@ contract LateOptInRevenueShare is SimpleTaskBase {
                 (
                     address(FEE_SPLITTER),
                     0,
-                    SETTERS_GAS_LIMIT,
+                    RevShareGasLimits.SETTERS_GAS_LIMIT,
                     false,
                     abi.encodeCall(IFeeSplitter.setSharesCalculator, (calculator))
                 )
@@ -248,14 +237,14 @@ contract LateOptInRevenueShare is SimpleTaskBase {
         if (!useOwnCalculator) {
             // Deploy L1 Withdrawer
             IOptimismPortal2(payable(portal)).depositTransaction(
-                address(CREATE2_DEPLOYER), 0, L1_WITHDRAWER_DEPLOYMENT_GAS_LIMIT, false, _l1WithdrawerCalldata
+                address(CREATE2_DEPLOYER), 0, RevShareGasLimits.L1_WITHDRAWER_DEPLOYMENT_GAS_LIMIT, false, _l1WithdrawerCalldata
             );
 
             // Deploy SC Rev Share Calculator
             IOptimismPortal2(payable(portal)).depositTransaction(
                 address(CREATE2_DEPLOYER),
                 0,
-                SC_REV_SHARE_CALCULATOR_DEPLOYMENT_GAS_LIMIT,
+                RevShareGasLimits.SC_REV_SHARE_CALCULATOR_DEPLOYMENT_GAS_LIMIT,
                 false,
                 _scRevShareCalculatorCalldata
             );
@@ -282,7 +271,7 @@ contract LateOptInRevenueShare is SimpleTaskBase {
         bytes memory _feeSplitterSetCalculatorCalldata = abi.encodeCall(IFeeSplitter.setSharesCalculator, (calculator));
 
         IOptimismPortal2(payable(portal)).depositTransaction(
-            address(FEE_SPLITTER), 0, SETTERS_GAS_LIMIT, false, _feeSplitterSetCalculatorCalldata
+            address(FEE_SPLITTER), 0, RevShareGasLimits.SETTERS_GAS_LIMIT, false, _feeSplitterSetCalculatorCalldata
         );
     }
 
@@ -323,21 +312,21 @@ contract LateOptInRevenueShare is SimpleTaskBase {
             abi.encodeCall(IFeeVault.setMinWithdrawalAmount, (_minWithdrawalAmount));
 
         IOptimismPortal2(payable(portal)).depositTransaction(
-            _vaultAddress, 0, SETTERS_GAS_LIMIT, false, _minWithdrawalAmountCalldata
+            _vaultAddress, 0, RevShareGasLimits.SETTERS_GAS_LIMIT, false, _minWithdrawalAmountCalldata
         );
 
         // Set the recipient calldata
         bytes memory _recipientCalldata = abi.encodeCall(IFeeVault.setRecipient, (_recipient));
 
         IOptimismPortal2(payable(portal)).depositTransaction(
-            _vaultAddress, 0, SETTERS_GAS_LIMIT, false, _recipientCalldata
+            _vaultAddress, 0, RevShareGasLimits.SETTERS_GAS_LIMIT, false, _recipientCalldata
         );
 
         // Set the withdrawal network calldata
         bytes memory _withdrawalNetworkCalldata = abi.encodeCall(IFeeVault.setWithdrawalNetwork, (_withdrawalNetwork));
 
         IOptimismPortal2(payable(portal)).depositTransaction(
-            _vaultAddress, 0, SETTERS_GAS_LIMIT, false, _withdrawalNetworkCalldata
+            _vaultAddress, 0, RevShareGasLimits.SETTERS_GAS_LIMIT, false, _withdrawalNetworkCalldata
         );
     }
 
@@ -350,7 +339,7 @@ contract LateOptInRevenueShare is SimpleTaskBase {
                 (
                     _vaultAddress,
                     0,
-                    SETTERS_GAS_LIMIT,
+                    RevShareGasLimits.SETTERS_GAS_LIMIT,
                     false,
                     abi.encodeCall(IFeeVault.setMinWithdrawalAmount, (FEE_VAULT_MIN_WITHDRAWAL_AMOUNT))
                 )
@@ -362,7 +351,7 @@ contract LateOptInRevenueShare is SimpleTaskBase {
                 (
                     _vaultAddress,
                     0,
-                    SETTERS_GAS_LIMIT,
+                    RevShareGasLimits.SETTERS_GAS_LIMIT,
                     false,
                     abi.encodeCall(IFeeVault.setRecipient, (FEE_VAULT_RECIPIENT))
                 )
@@ -374,7 +363,7 @@ contract LateOptInRevenueShare is SimpleTaskBase {
                 (
                     _vaultAddress,
                     0,
-                    SETTERS_GAS_LIMIT,
+                    RevShareGasLimits.SETTERS_GAS_LIMIT,
                     false,
                     abi.encodeCall(IFeeVault.setWithdrawalNetwork, (FEE_VAULT_WITHDRAWAL_NETWORK))
                 )
