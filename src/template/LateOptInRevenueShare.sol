@@ -179,7 +179,13 @@ contract LateOptInRevenueShare is SimpleTaskBase {
             _incrementCallsToPortal(
                 abi.encodeCall(
                     IOptimismPortal2.depositTransaction,
-                    (address(CREATE2_DEPLOYER), 0, RevShareGasLimits.L1_WITHDRAWER_DEPLOYMENT_GAS_LIMIT, false, _l1WithdrawerCalldata)
+                    (
+                        address(CREATE2_DEPLOYER),
+                        0,
+                        RevShareGasLimits.L1_WITHDRAWER_DEPLOYMENT_GAS_LIMIT,
+                        false,
+                        _l1WithdrawerCalldata
+                    )
                 )
             );
 
@@ -237,7 +243,11 @@ contract LateOptInRevenueShare is SimpleTaskBase {
         if (!useOwnCalculator) {
             // Deploy L1 Withdrawer
             IOptimismPortal2(payable(portal)).depositTransaction(
-                address(CREATE2_DEPLOYER), 0, RevShareGasLimits.L1_WITHDRAWER_DEPLOYMENT_GAS_LIMIT, false, _l1WithdrawerCalldata
+                address(CREATE2_DEPLOYER),
+                0,
+                RevShareGasLimits.L1_WITHDRAWER_DEPLOYMENT_GAS_LIMIT,
+                false,
+                _l1WithdrawerCalldata
             );
 
             // Deploy SC Rev Share Calculator

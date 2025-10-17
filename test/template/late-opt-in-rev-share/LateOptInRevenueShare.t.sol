@@ -202,7 +202,13 @@ contract LateOptInRevenueShareTest is Test {
 
         bytes memory setCalculatorCalldata = abi.encodeCall(
             IOptimismPortal2.depositTransaction,
-            (FEE_SPLITTER, 0, RevShareGasLimits.SETTERS_GAS_LIMIT, false, abi.encodeCall(IFeeSplitter.setSharesCalculator, (calculator)))
+            (
+                FEE_SPLITTER,
+                0,
+                RevShareGasLimits.SETTERS_GAS_LIMIT,
+                false,
+                abi.encodeCall(IFeeSplitter.setSharesCalculator, (calculator))
+            )
         );
         vm.expectCall(PORTAL, setCalculatorCalldata);
     }
