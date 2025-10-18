@@ -9,6 +9,7 @@ library RevShareGasLimits {
     /// - Fee Vaults deployment: ~831,000
     /// - Fee Splitter deployment: 1,121,747
     /// - upgrade: ~48,000
+    /// - setters: ~50,000
     /// The gas limits below include a buffer to ensure successful execution.
 
     /// @notice The gas limit for the SC Rev Share Calculator deployment.
