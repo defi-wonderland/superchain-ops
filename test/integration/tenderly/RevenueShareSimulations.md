@@ -26,3 +26,6 @@ A list of tenderly simulations are provided based on the formatting of the `Tran
 8. [Base Fee Vault Upgrade](https://www.tdly.co/shared/simulation/04d8de5e-89bc-419d-bbcf-ee0448d0e813) Gas: 48,782/150,000 (33%)
 9. [L1 Fee Vault Deploy](https://www.tdly.co/shared/simulation/bcee51db-b549-4c05-811f-be831e6a1aa0) Gas: 890,704/1,200,000 (74%)
 10. [L1 Fee Vault Upgrade](https://www.tdly.co/shared/simulation/20dbe19b-cea7-4542-a73b-71934394153e) Gas: 48,782/150,000 (33%)
+
+### Revenue Share Late Opt In
+Given that this transactions depend on the Fee Vault upgrades to after that call the Fee Vault setters, and that Tenderly simulations can't keep the state of previously simulated transactions. No simulations are provided for this flow, for more info check the [Simulate L2 Deposit Transactions](src/doc/simulate-l2-deposit-transactions.md) doc
