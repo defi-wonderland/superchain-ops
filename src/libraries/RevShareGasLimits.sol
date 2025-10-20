@@ -5,7 +5,7 @@ pragma solidity 0.8.15;
 library RevShareGasLimits {
     /// @notice Based on Tenderly simulations, these are the actual gas costs for each of the L2 operations:
     /// - L1Withdrawer deployment: 558,056
-    /// - SC Rev Share Calculator deployment: 579,688 
+    /// - SC Rev Share Calculator deployment: 579,688
     /// - Fee Vaults deployment: ~831,000
     /// - Fee Splitter deployment: 1,121,747
     /// - upgrade: ~48,000
