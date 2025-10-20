@@ -15,6 +15,8 @@ A list of tenderly simulations are provided based on the formatting of the `Tran
 11. [L1 Fee Vault Deploy](https://www.tdly.co/shared/simulation/bcee51db-b549-4c05-811f-be831e6a1aa0) Gas: 890,704/1,200,000 (74%)
 12. [L1 Fee Vault Upgrade](https://www.tdly.co/shared/simulation/20dbe19b-cea7-4542-a73b-71934394153e) Gas: 48,782/150,000 (33%)
 
+**Disclaimer**: The contracts addresses sent in the implementation contracts when calling upgrades, do not match with the addresses deployed in the transaction before. This is because given the simulations are done in an isolated environment (instead of being bundled), the nonce of the POA isn't the expected. To verify that it is working propertly, the integration tests with Supersim *do* work. As a todo, we are currently researching how to implement [Tenderly's Bundled Simulations](https://docs.tenderly.co/simulations/bundled-simulations)
+
 ### Revenue Share Upgrade Opt Out
 1. [Fee Splitter Deploy](https://www.tdly.co/shared/simulation/93b43e8d-e64c-4ce5-ad2c-7047e91e4a4c) Gas: 1,121,747/1,319,702 (85%)
 2. [Fee Splitter Upgrade](https://www.tdly.co/shared/simulation/ac7c91dc-9c1b-4b56-bfd4-bad52fd0b2aa) Gas: 65,138/150,000 (43%)
