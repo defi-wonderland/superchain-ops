@@ -25,6 +25,11 @@ interface ICreate2Deployer {
     function deploy(uint256 value, bytes32 salt, bytes memory code) external;
 }
 
+/// @notice Interface for the ProxyAdmin contract.
+interface IProxyAdmin {
+    function upgradeAndCall(address payable _proxy, address _implementation, bytes memory _data) external;
+}
+
 /// @notice A template contract for deploying and initializing the FeesDepositor contract.
 contract DeployFeesDepositor is SimpleTaskBase {
     using LibString for string;
@@ -117,8 +122,9 @@ contract DeployFeesDepositor is SimpleTaskBase {
         // Deploy the proxy contract using CREATE2 with the calculated initialization code
         ICreate2Deployer(CREATE2_DEPLOYER).deploy(0, bytes32(bytes(salt)), _proxyInitCode);
 
-        // Initialize the proxy by upgrading to the implementation and calling initialize
-        Proxy(payable(_proxyCalculatedAddress)).upgradeToAndCall(
+        // Initialize the proxy by upgrading to the implementation and calling initialize via ProxyAdmin
+        IProxyAdmin(proxyAdmin).upgradeAndCall(
+            payable(_proxyCalculatedAddress),
             _implCalculatedAddress,
             abi.encodeCall(IFeesDepositor.initialize, (minDepositAmount, l2Recipient, portal, gasLimit))
         );
