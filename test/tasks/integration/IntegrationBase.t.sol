@@ -94,13 +94,13 @@ abstract contract IntegrationBase is Test {
         // Extract data (bytes 73 onwards)
         bytes memory _data = LibBytes.slice(_opaqueData, 73);
 
-        (, address _msgSender,) = vm.readCallers();
         // Print Tenderly simulation parameters
-        string memory _tenderlyLink = _generateTenderlyLink(_to, _msgSender, uint256(_gasLimit), _value, _data);
+        string memory _tenderlyLink = _generateTenderlyLink(_to, _from, uint256(_gasLimit), _value, _data);
         console2.log("\nTenderly Simulation Link for transaction #", _txNumber);
         console2.log(_tenderlyLink);
 
         // Execute the transaction on L2 as if it came from the aliased address
+        vm.prank(_from);
         (bool _success,) = _to.call{value: _value, gas: _gasLimit}(_data);
 
         return _success;
