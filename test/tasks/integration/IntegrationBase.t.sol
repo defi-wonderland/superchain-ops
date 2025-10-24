@@ -8,15 +8,30 @@ import {AddressAliasHelper} from "@eth-optimism-bedrock/src/vendor/AddressAliasH
 import {LibString} from "@solady/utils/LibString.sol";
 import {LibBytes} from "solady/utils/LibBytes.sol";
 
+/// @notice Storage slot override for Tenderly simulation
+struct StorageOverride {
+    bytes32 key;
+    bytes32 value;
+}
+
+/// @notice State override for a contract in Tenderly simulation
+struct StateOverride {
+    address contractAddress;
+    StorageOverride[] storage_;
+}
+
 /// @title IntegrationBase
 /// @notice Base contract for integration tests with L1->L2 deposit transaction replay functionality
 abstract contract IntegrationBase is Test {
+    // State overrides for Tenderly simulation
+    StateOverride[] internal _stateOverrides;
     /// @notice Replay all deposit transactions from L1 to L2
     /// @param _forkId The fork ID to switch to for L2 execution
     /// @param _isSimulate If true, only process the second half of logs to avoid duplicates.
     ///                    Task simulations emit events twice: once during the initial dry-run
     ///                    and once during the actual simulation. Taking the second half ensures
     ///                    we only process the final simulation results.
+
     function _relayAllMessages(uint256 _forkId, bool _isSimulate) internal {
         vm.selectFork(_forkId);
 
@@ -113,10 +128,9 @@ abstract contract IntegrationBase is Test {
         uint256 _gas,
         uint256 _value,
         bytes memory _rawFunctionInput
-    ) internal pure returns (string memory) {
-        // Build the Tenderly URL
-        // network=10 for OP Mainnet (change if testing on different L2)
-        return string.concat(
+    ) internal view returns (string memory) {
+        // Build the base Tenderly URL with standard parameters
+        string memory _baseUrl = string.concat(
             "https://dashboard.tenderly.co/TENDERLY_USERNAME/TENDERLY_PROJECT/simulator/new",
             "?network=10",
             "&contractAddress=",
@@ -130,5 +144,86 @@ abstract contract IntegrationBase is Test {
             "&rawFunctionInput=",
             LibString.toHexString(_rawFunctionInput)
         );
+
+        // If no state overrides, return base URL
+        if (_stateOverrides.length == 0) {
+            return _baseUrl;
+        }
+
+        // Build state overrides JSON and URL encode it
+        string memory _stateOverridesJson = _buildStateOverridesJson();
+        string memory _encodedOverrides = _urlEncode(_stateOverridesJson);
+
+        return string.concat(_baseUrl, "&stateOverrides=", _encodedOverrides);
+    }
+
+    /// @notice Build JSON string for state overrides
+    function _buildStateOverridesJson() internal view returns (string memory) {
+        string memory _json = "[";
+
+        for (uint256 i = 0; i < _stateOverrides.length; i++) {
+            if (i > 0) {
+                _json = string.concat(_json, ",");
+            }
+
+            _json = string.concat(
+                _json,
+                "{",
+                '"contractAddress":"',
+                LibString.toHexString(_stateOverrides[i].contractAddress),
+                '","storage":['
+            );
+
+            for (uint256 j = 0; j < _stateOverrides[i].storage_.length; j++) {
+                if (j > 0) {
+                    _json = string.concat(_json, ",");
+                }
+
+                _json = string.concat(
+                    _json,
+                    '{"key":"0x',
+                    LibString.toHexStringNoPrefix(uint256(_stateOverrides[i].storage_[j].key), 32),
+                    '","value":"0x',
+                    LibString.toHexStringNoPrefix(uint256(_stateOverrides[i].storage_[j].value), 32),
+                    '"}'
+                );
+            }
+
+            _json = string.concat(_json, "]}");
+        }
+
+        _json = string.concat(_json, "]");
+        return _json;
+    }
+
+    /// @notice URL encode a string (basic implementation for JSON)
+    function _urlEncode(string memory _str) internal pure returns (string memory) {
+        bytes memory _strBytes = bytes(_str);
+        string memory _encoded = "";
+
+        for (uint256 i = 0; i < _strBytes.length; i++) {
+            bytes1 _char = _strBytes[i];
+
+            // Encode special characters
+            if (_char == '"') {
+                _encoded = string.concat(_encoded, "%22");
+            } else if (_char == "[") {
+                _encoded = string.concat(_encoded, "%5B");
+            } else if (_char == "]") {
+                _encoded = string.concat(_encoded, "%5D");
+            } else if (_char == "{") {
+                _encoded = string.concat(_encoded, "%7B");
+            } else if (_char == "}") {
+                _encoded = string.concat(_encoded, "%7D");
+            } else if (_char == ":") {
+                _encoded = string.concat(_encoded, "%3A");
+            } else if (_char == ",") {
+                _encoded = string.concat(_encoded, "%2C");
+            } else {
+                _encoded = string.concat(_encoded, string(abi.encodePacked(_char)));
+            }
+        }
+
+        return _encoded;
     }
 }

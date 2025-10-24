@@ -2,17 +2,11 @@
 pragma solidity 0.8.15;
 
 import {L1PortalExecuteL2Call} from "src/template/L1PortalExecuteL2Call.sol";
-import {IntegrationBase} from "test/tasks/integration/IntegrationBase.t.sol";
+import {IntegrationBase, StorageOverride, StateOverride} from "test/tasks/integration/IntegrationBase.t.sol";
 import {Test} from "forge-std/Test.sol";
 import {console2} from "forge-std/console2.sol";
-import {stdStorage, StdStorage} from "forge-std/StdStorage.sol";
 import {IProxyAdmin} from "@eth-optimism-bedrock/interfaces/universal/IProxyAdmin.sol";
 import {ITransparentUpgradeableProxy} from "@openzeppelin/contracts/proxy/transparent/TransparentUpgradeableProxy.sol";
-
-/// @notice Mock implementation contract for testing upgrades
-contract MockGovernorImplementation {
-// Empty implementation - just needs to exist as a contract
-}
 
 /// @title RehearsalGovUpgradeIntegrationTest
 /// @notice Integration test for Rehearsal Governor Upgrade
@@ -74,6 +68,15 @@ contract RehearsalGovUpgradeIntegrationTest is IntegrationBase {
 
         // Step 4: Relay messages from L1 to L2
         console2.log("\n=== Step 3: Relaying Messages to L2 ===");
+
+        // Build state overrides for the governor proxy admin change
+        StorageOverride[] memory _storage = new StorageOverride[](1);
+        _storage[0] = StorageOverride({key: ADMIN_SLOT, value: bytes32(uint256(uint160(L2_PROXY_ADMIN)))});
+
+        _stateOverrides.push();
+        _stateOverrides[0].contractAddress = GOVERNOR_PROXY;
+        _stateOverrides[0].storage_.push(_storage[0]);
+
         _relayAllMessages(_opMainnetForkId, true);
 
         // Step 5: Verify the upgrade was successful
