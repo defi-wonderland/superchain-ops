@@ -36,3 +36,5 @@ test-config-files/
 
 # lcov.info files from 'forge coverage --report lcov'
 lcov.info
+
+.env
