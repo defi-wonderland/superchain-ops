@@ -48,10 +48,10 @@ contract DeployFeesDepositorRequiredFieldsTest is Test {
         template.simulate(configPath);
     }
 
-    /// @notice Tests that the template reverts when the proxyAdminOwner is a zero address.
-    function test_deployFeesDepositor_proxyAdminOwner_zero_address_reverts() public {
-        string memory configPath = "test/template/deploy-fees-depositor/config/proxyAdminOwner-zero-address-config.toml";
-        vm.expectRevert("SimpleAddressRegistry: zero address for ProxyAdminOwner");
+    /// @notice Tests that the template reverts when the ProxyAdmin is a zero address.
+    function test_deployFeesDepositor_proxyAdmin_zero_address_reverts() public {
+        string memory configPath = "test/template/deploy-fees-depositor/config/proxyAdmin-zero-address-config.toml";
+        vm.expectRevert("proxyAdmin must be set");
         template.simulate(configPath);
     }
 }

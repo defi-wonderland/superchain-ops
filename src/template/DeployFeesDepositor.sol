@@ -44,8 +44,8 @@ contract DeployFeesDepositor is SimpleTaskBase {
     address public portal;
     /// @notice The gas limit for the deposit.
     uint32 public gasLimit;
-    /// @notice The address of the proxy admin owner.
-    address public proxyAdminOwner;
+    /// @notice The address of the proxy admin.
+    address public proxyAdmin;
 
     /// @notice The initialization code for the proxy contract. Sent to the CREATE2 deployer.
     bytes internal _proxyInitCode;
@@ -89,9 +89,10 @@ contract DeployFeesDepositor is SimpleTaskBase {
         require(_gasLimitRaw <= type(uint32).max, "gasLimit must be less than uint32.max");
         gasLimit = uint32(_gasLimitRaw);
 
-        proxyAdminOwner = simpleAddrRegistry.get("ProxyAdminOwner");
+        proxyAdmin = tomlContent.readAddress(".proxyAdmin");
+        require(proxyAdmin != address(0), "proxyAdmin must be set");
 
-        _proxyInitCode = bytes.concat(type(Proxy).creationCode, abi.encode(proxyAdminOwner));
+        _proxyInitCode = bytes.concat(type(Proxy).creationCode, abi.encode(proxyAdmin));
 
         _proxyCalculatedAddress =
             Create2.computeAddress(bytes32(bytes(salt)), keccak256(_proxyInitCode), CREATE2_DEPLOYER);
