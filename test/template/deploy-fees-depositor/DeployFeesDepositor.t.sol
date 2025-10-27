@@ -91,7 +91,7 @@ contract DeployFeesDepositorSuccessTest is Test {
         assertEq(rootSafe, PROXY_ADMIN_OWNER, "Root safe should be ProxyAdminOwner");
 
         // Verify actions were created (should have 3: deploy impl, deploy proxy, upgradeAndCall)
-        assertGt(actions.length, 0, "Should have at least one action");
+        assertEq(actions.length, 3, "Should have exactly 3 actions");
 
         // Calculate expected deployed addresses using the same logic as the template
         bytes memory proxyInitCode = bytes.concat(type(Proxy).creationCode, abi.encode(PROXY_ADMIN));
@@ -99,6 +99,21 @@ contract DeployFeesDepositorSuccessTest is Test {
         address implAddress = Create2.computeAddress(
             bytes32(bytes(SALT)), keccak256(RevShareCodeRepo.feesDepositorCreationCode), CREATE2_DEPLOYER
         );
+
+        // Verify action 0: Deploy implementation
+        assertEq(actions[0].target, CREATE2_DEPLOYER, "Action 0 should target CREATE2_DEPLOYER");
+        assertEq(actions[0].value, 0, "Action 0 should have no value");
+        assertGt(actions[0].arguments.length, 0, "Action 0 should have calldata");
+
+        // Verify action 1: Deploy proxy
+        assertEq(actions[1].target, CREATE2_DEPLOYER, "Action 1 should target CREATE2_DEPLOYER");
+        assertEq(actions[1].value, 0, "Action 1 should have no value");
+        assertGt(actions[1].arguments.length, 0, "Action 1 should have calldata");
+
+        // Verify action 2: UpgradeAndCall
+        assertEq(actions[2].target, PROXY_ADMIN, "Action 2 should target ProxyAdmin");
+        assertEq(actions[2].value, 0, "Action 2 should have no value");
+        assertGt(actions[2].arguments.length, 0, "Action 2 should have calldata");
 
         // Verify both contracts were deployed
         assertTrue(proxyAddress.code.length > 0, "Proxy should be deployed");
