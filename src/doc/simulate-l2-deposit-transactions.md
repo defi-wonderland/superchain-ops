@@ -114,8 +114,7 @@ assertEq(
 
 See [RevenueShareIntegration.t.sol](../../test/integration/RevenueShareIntegration.t.sol) for a complete example that:
 
-- Tests both opt-in and opt-out scenarios
-- Tests late opt-in scenarios
+- Tests opt-in scenarios
 - Validates multiple L2 contracts (L1Withdrawer, RevShareCalculator, FeeSplitter, FeeVaults)
 - Asserts complex state relationships between contracts
 
