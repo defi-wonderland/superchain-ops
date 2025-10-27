@@ -143,6 +143,7 @@ contract RevenueShareIntegrationTest is IntegrationBase {
             vm.skip(true);
         }
 
+        vm.selectFork(_l2ForkId);
         _assertL2StateOptInRevenueShare();
     }
 
