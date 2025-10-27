@@ -45,16 +45,16 @@ contract RevenueShareUpgradePathTest is Test {
     address public constant PROXY_ADMIN_OWNER = 0x5a0Aae59D09fccBdDb6C6CcEB07B7279367C3d2A;
 
     // Expected number of actions
-    uint256 public constant EXPECTED_DEPLOYMENTS_OPT_IN = 7;
-    uint256 public constant EXPECTED_UPGRADES_OPT_IN = 5;
-    uint256 public constant EXPECTED_DEPLOYMENTS_OPT_OUT = 5;
-    uint256 public constant EXPECTED_UPGRADES_OPT_OUT = 5;
+    uint256 public constant EXPECTED_DEPLOYMENTS_DEFAULT_CALC = 7;
+    uint256 public constant EXPECTED_UPGRADES_DEFAULT_CALC = 5;
+    uint256 public constant EXPECTED_DEPLOYMENTS_CUSTOM_CALC = 5;
+    uint256 public constant EXPECTED_UPGRADES_CUSTOM_CALC = 5;
 
     // L2 predeploys
     address internal constant CREATE2_DEPLOYER = 0x13b0D85CcB8bf860b6b79AF3029fCA081AE9beF2;
     address internal constant FEE_SPLITTER = 0x420000000000000000000000000000000000002B;
     address internal constant PROXY_ADMIN = 0x4200000000000000000000000000000000000018;
-    uint64[12] internal EXPECTED_GAS_LIMITS_OPT_IN = [
+    uint64[12] internal EXPECTED_GAS_LIMITS_DEFAULT_CALC = [
         RevShareGasLimits.L1_WITHDRAWER_DEPLOYMENT_GAS_LIMIT,
         RevShareGasLimits.SC_REV_SHARE_CALCULATOR_DEPLOYMENT_GAS_LIMIT,
         RevShareGasLimits.FEE_SPLITTER_DEPLOYMENT_GAS_LIMIT,
@@ -69,7 +69,7 @@ contract RevenueShareUpgradePathTest is Test {
         RevShareGasLimits.UPGRADE_GAS_LIMIT
     ];
 
-    uint64[10] internal EXPECTED_GAS_LIMITS_OPT_OUT = [
+    uint64[10] internal EXPECTED_GAS_LIMITS_CUSTOM_CALC = [
         RevShareGasLimits.FEE_SPLITTER_DEPLOYMENT_GAS_LIMIT,
         RevShareGasLimits.UPGRADE_GAS_LIMIT,
         RevShareGasLimits.FEE_VAULTS_DEPLOYMENT_GAS_LIMIT,
@@ -95,38 +95,38 @@ contract RevenueShareUpgradePathTest is Test {
         template = new RevenueShareV100UpgradePath();
     }
 
-    function test_optInRevenueShare_succeeds() public {
+    function test_defaultCalculator_succeeds() public {
         _testRevenueShareUpgrade(
             "test/tasks/example/eth/015-revenue-share-upgrade/config.toml",
-            true, // isOptIn
-            EXPECTED_DEPLOYMENTS_OPT_IN + EXPECTED_UPGRADES_OPT_IN,
-            EXPECTED_DEPLOYMENTS_OPT_IN,
-            EXPECTED_UPGRADES_OPT_IN,
-            "Should have 12 actions for opt-in scenario"
+            true, // isDefaultCalculator
+            EXPECTED_DEPLOYMENTS_DEFAULT_CALC + EXPECTED_UPGRADES_DEFAULT_CALC,
+            EXPECTED_DEPLOYMENTS_DEFAULT_CALC,
+            EXPECTED_UPGRADES_DEFAULT_CALC,
+            "Should have 12 actions for default calculator scenario"
         );
     }
 
-    function test_optOutRevenueShare_succeeds() public {
+    function test_customCalculator_succeeds() public {
         _testRevenueShareUpgrade(
-            "test/tasks/example/eth/019-revenueshare-upgrade-opt-out/config.toml",
-            false, // isOptIn
-            EXPECTED_DEPLOYMENTS_OPT_OUT + EXPECTED_UPGRADES_OPT_OUT,
-            EXPECTED_DEPLOYMENTS_OPT_OUT,
-            EXPECTED_UPGRADES_OPT_OUT,
-            "Should have 10 actions for non-opt-in scenario"
+            "test/tasks/example/eth/017-revenue-share-upgrade-custom-calc/config.toml",
+            false, // isDefaultCalculator
+            EXPECTED_DEPLOYMENTS_CUSTOM_CALC + EXPECTED_UPGRADES_CUSTOM_CALC,
+            EXPECTED_DEPLOYMENTS_CUSTOM_CALC,
+            EXPECTED_UPGRADES_CUSTOM_CALC,
+            "Should have 10 actions for custom calculator scenario"
         );
     }
 
     /// @notice Helper function to test revenue share upgrade scenarios
     /// @param _configPath Path to the config file
-    /// @param _isOptIn Whether this is an opt-in or opt-out scenario
+    /// @param _isDefaultCalculator Whether this uses the default calculator (true) or custom calculator (false)
     /// @param _expectedTotalActions Expected total number of actions
     /// @param _expectedDeployments Expected number of deployment actions
     /// @param _expectedUpgrades Expected number of upgrade actions
     /// @param _actionCountMessage Assertion message for action count verification
     function _testRevenueShareUpgrade(
         string memory _configPath,
-        bool _isOptIn,
+        bool _isDefaultCalculator,
         uint256 _expectedTotalActions,
         uint256 _expectedDeployments,
         uint256 _expectedUpgrades,
@@ -172,7 +172,7 @@ contract RevenueShareUpgradePathTest is Test {
         );
 
         // Step 5: Manually verify expected portal calls based on known config values
-        _verifyExpectedPortalCalls(_actions, _isOptIn);
+        _verifyExpectedPortalCalls(_actions, _isDefaultCalculator);
 
         // Step 6: Prank owners to approve the transaction
         for (uint256 i; i < _owners.length; i++) {
@@ -238,14 +238,14 @@ contract RevenueShareUpgradePathTest is Test {
 
     /// @notice Manually construct and expect portal calls based on known config values
     /// This ensures the template generates correct calldata, not just circular validation
-    function _verifyExpectedPortalCalls(Action[] memory _actions, bool _isOptIn) internal {
+    function _verifyExpectedPortalCalls(Action[] memory _actions, bool _isDefaultCalculator) internal {
         uint256 _deploymentCount;
         uint256 _upgradeCount;
 
         for (uint256 i; i < _actions.length; i++) {
             bytes memory _params = _extractParams(_actions[i].arguments);
-            // depending on if is optin or optout, we use the expected gas limits
-            uint64 _gasLimit = _isOptIn ? EXPECTED_GAS_LIMITS_OPT_IN[i] : EXPECTED_GAS_LIMITS_OPT_OUT[i];
+            // depending on if using default calculator or custom calculator, we use the expected gas limits
+            uint64 _gasLimit = _isDefaultCalculator ? EXPECTED_GAS_LIMITS_DEFAULT_CALC[i] : EXPECTED_GAS_LIMITS_CUSTOM_CALC[i];
             (address _to, uint256 _value, uint64 _actualGasLimit, bool _isCreation, bytes memory _data) =
                 abi.decode(_params, (address, uint256, uint64, bool, bytes));
 

@@ -4,7 +4,7 @@ templateName = "RevenueShareUpgradePath"
 portal = "0xbEb5Fc579115071764c7423A4f12eDde41f106Ed"
 saltSeed = "test-salt"
 deploymentGasLimit = 1000000
-optInRevenueShare = true
+customCalculator = "0x0000000000000000000000000000000000000000"
 
 l1WithdrawerMinWithdrawalAmount = 1000000000000000000
 l1WithdrawerRecipient = "0xdeadbeef1234567890abcdef1234567890abcdef"

@@ -4,6 +4,10 @@ templateName = "RevenueShareV100UpgradePath"
 portal = "0xbEb5Fc579115071764c7423A4f12eDde41f106Ed"  # OptimismPortal address
 saltSeed = "DeploymentSalt"  # Deployment salt
 
+# Custom Calculator Configuration
+# Set to address(0) to deploy the default SC Rev Share Calculator and L1Withdrawer
+customCalculator = "0x0000000000000000000000000000000000000000"
+
 # L1 Withdrawer Configuration
 l1WithdrawerMinWithdrawalAmount = 350000
 # TODO(17505): This address MUST be updated once the appropriate FeesDepositor is deployed

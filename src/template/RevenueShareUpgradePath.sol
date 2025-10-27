@@ -77,6 +77,10 @@ contract RevenueShareV100UpgradePath is SimpleTaskBase, RevSharePredeploys {
     /// @notice The configuration for sc rev share calculator.
     address public scRevShareCalcChainFeesRecipient;
 
+    /// @notice Custom calculator address. If address(0), deploy the default SC Rev Share Calculator and L1Withdrawer.
+    /// If not address(0), use this custom calculator and skip deploying the default calculator and L1Withdrawer.
+    address public customCalculator;
+
     /// @notice The address of the OptimismPortal through which we are making the deposit txns
     address public portal;
 
@@ -151,7 +155,10 @@ contract RevenueShareV100UpgradePath is SimpleTaskBase, RevSharePredeploys {
         saltSeed = _toml.readString(".saltSeed");
         require(bytes(saltSeed).length != 0, "saltSeed must be set in the config");
 
-        // Use the Fee Splitter predeploy, L2 Withdrawal Network and 0 for all the vaults
+        // Read custom calculator address (address(0) means deploy default calculator)
+        customCalculator = _toml.readAddress(".customCalculator");
+
+        // Always use the Fee Splitter predeploy, L2 Withdrawal Network and 0 for all the vaults
 
         // BaseFeeVault
         baseFeeVaultWithdrawalNetwork = 1;
@@ -173,70 +180,76 @@ contract RevenueShareV100UpgradePath is SimpleTaskBase, RevSharePredeploys {
         operatorFeeVaultRecipient = FEE_SPLITTER;
         operatorFeeVaultMinWithdrawalAmount = 0;
 
-        l1WithdrawerMinWithdrawalAmount = _toml.readUint(".l1WithdrawerMinWithdrawalAmount");
+        // If customCalculator is address(0), deploy the default calculator and L1Withdrawer
+        if (customCalculator == address(0)) {
+            l1WithdrawerMinWithdrawalAmount = _toml.readUint(".l1WithdrawerMinWithdrawalAmount");
 
-        l1WithdrawerRecipient = _toml.readAddress(".l1WithdrawerRecipient");
-        require(l1WithdrawerRecipient != address(0), "l1WithdrawerRecipient must be set in config");
+            l1WithdrawerRecipient = _toml.readAddress(".l1WithdrawerRecipient");
+            require(l1WithdrawerRecipient != address(0), "l1WithdrawerRecipient must be set in config");
 
-        uint256 _l1WithdrawerGasLimitRaw = _toml.readUint(".l1WithdrawerGasLimit");
-        require(_l1WithdrawerGasLimitRaw > 0, "l1WithdrawerGasLimit must be greater than 0");
-        require(_l1WithdrawerGasLimitRaw <= type(uint32).max, "l1WithdrawerGasLimit must be less than uint32.max");
-        l1WithdrawerGasLimit = uint32(_l1WithdrawerGasLimitRaw);
+            uint256 _l1WithdrawerGasLimitRaw = _toml.readUint(".l1WithdrawerGasLimit");
+            require(_l1WithdrawerGasLimitRaw > 0, "l1WithdrawerGasLimit must be greater than 0");
+            require(_l1WithdrawerGasLimitRaw <= type(uint32).max, "l1WithdrawerGasLimit must be less than uint32.max");
+            l1WithdrawerGasLimit = uint32(_l1WithdrawerGasLimitRaw);
 
-        // Calculate addresses and data to deploy L1 Withdrawer
-        bytes memory _l1WithdrawerInitCode = bytes.concat(
-            RevShareCodeRepo.l1WithdrawerCreationCode,
-            abi.encode(l1WithdrawerMinWithdrawalAmount, l1WithdrawerRecipient, l1WithdrawerGasLimit)
-        );
-        _l1WithdrawerCalldata =
-            abi.encodeCall(ICreate2Deployer.deploy, (0, _getSalt(saltSeed, "L1Withdrawer"), _l1WithdrawerInitCode));
-        _l1WithdrawerPrecalculatedAddress =
-            Utils.getCreate2Address(_getSalt(saltSeed, "L1Withdrawer"), _l1WithdrawerInitCode, CREATE2_DEPLOYER);
-        // Expected calls for L1 Withdrawer: 1 (deploy)
-        _incrementCallsToPortal(
-            abi.encodeCall(
-                IOptimismPortal2.depositTransaction,
-                (
-                    address(CREATE2_DEPLOYER),
-                    0,
-                    RevShareGasLimits.L1_WITHDRAWER_DEPLOYMENT_GAS_LIMIT,
-                    false,
-                    _l1WithdrawerCalldata
+            // Calculate addresses and data to deploy L1 Withdrawer
+            bytes memory _l1WithdrawerInitCode = bytes.concat(
+                RevShareCodeRepo.l1WithdrawerCreationCode,
+                abi.encode(l1WithdrawerMinWithdrawalAmount, l1WithdrawerRecipient, l1WithdrawerGasLimit)
+            );
+            _l1WithdrawerCalldata =
+                abi.encodeCall(ICreate2Deployer.deploy, (0, _getSalt(saltSeed, "L1Withdrawer"), _l1WithdrawerInitCode));
+            _l1WithdrawerPrecalculatedAddress =
+                Utils.getCreate2Address(_getSalt(saltSeed, "L1Withdrawer"), _l1WithdrawerInitCode, CREATE2_DEPLOYER);
+            // Expected calls for L1 Withdrawer: 1 (deploy)
+            _incrementCallsToPortal(
+                abi.encodeCall(
+                    IOptimismPortal2.depositTransaction,
+                    (
+                        address(CREATE2_DEPLOYER),
+                        0,
+                        RevShareGasLimits.L1_WITHDRAWER_DEPLOYMENT_GAS_LIMIT,
+                        false,
+                        _l1WithdrawerCalldata
+                    )
                 )
-            )
-        );
+            );
 
-        // Calculate addresses and data to deploy SC Rev Share Calculator
-        scRevShareCalcChainFeesRecipient = _toml.readAddress(".scRevShareCalcChainFeesRecipient");
-        require(
-            scRevShareCalcChainFeesRecipient != address(0), "scRevShareCalcChainFeesRecipient must be set in config"
-        );
+            // Calculate addresses and data to deploy SC Rev Share Calculator
+            scRevShareCalcChainFeesRecipient = _toml.readAddress(".scRevShareCalcChainFeesRecipient");
+            require(
+                scRevShareCalcChainFeesRecipient != address(0), "scRevShareCalcChainFeesRecipient must be set in config"
+            );
 
-        bytes memory _scRevShareCalculatorInitCode = bytes.concat(
-            RevShareCodeRepo.scRevShareCalculatorCreationCode,
-            abi.encode(_l1WithdrawerPrecalculatedAddress, scRevShareCalcChainFeesRecipient)
-        );
-        _scRevShareCalculatorCalldata = abi.encodeCall(
-            ICreate2Deployer.deploy, (0, _getSalt(saltSeed, "SCRevShareCalculator"), _scRevShareCalculatorInitCode)
-        );
+            bytes memory _scRevShareCalculatorInitCode = bytes.concat(
+                RevShareCodeRepo.scRevShareCalculatorCreationCode,
+                abi.encode(_l1WithdrawerPrecalculatedAddress, scRevShareCalcChainFeesRecipient)
+            );
+            _scRevShareCalculatorCalldata = abi.encodeCall(
+                ICreate2Deployer.deploy, (0, _getSalt(saltSeed, "SCRevShareCalculator"), _scRevShareCalculatorInitCode)
+            );
 
-        _scRevShareCalculatorPrecalculatedAddress = Utils.getCreate2Address(
-            _getSalt(saltSeed, "SCRevShareCalculator"), _scRevShareCalculatorInitCode, CREATE2_DEPLOYER
-        );
+            _scRevShareCalculatorPrecalculatedAddress = Utils.getCreate2Address(
+                _getSalt(saltSeed, "SCRevShareCalculator"), _scRevShareCalculatorInitCode, CREATE2_DEPLOYER
+            );
 
-        // Expected calls for SC Rev Shares Calculator: 1 (deploy)
-        _incrementCallsToPortal(
-            abi.encodeCall(
-                IOptimismPortal2.depositTransaction,
-                (
-                    address(CREATE2_DEPLOYER),
-                    0,
-                    RevShareGasLimits.SC_REV_SHARE_CALCULATOR_DEPLOYMENT_GAS_LIMIT,
-                    false,
-                    _scRevShareCalculatorCalldata
+            // Expected calls for SC Rev Shares Calculator: 1 (deploy)
+            _incrementCallsToPortal(
+                abi.encodeCall(
+                    IOptimismPortal2.depositTransaction,
+                    (
+                        address(CREATE2_DEPLOYER),
+                        0,
+                        RevShareGasLimits.SC_REV_SHARE_CALCULATOR_DEPLOYMENT_GAS_LIMIT,
+                        false,
+                        _scRevShareCalculatorCalldata
+                    )
                 )
-            )
-        );
+            );
+        } else {
+            // Use custom calculator, set it as the calculator address for the fee splitter
+            _scRevShareCalculatorPrecalculatedAddress = customCalculator;
+        }
 
         // Calculate addresses and data to deploy vaults
         // Calculate addresses and data to deploy OperatorFeeVault
@@ -476,23 +489,26 @@ contract RevenueShareV100UpgradePath is SimpleTaskBase, RevSharePredeploys {
     /// WARNING: Any state written to in this function will be reverted after the build function has been run.
     /// Do not rely on setting global variables in this function.
     function _build(address) internal override {
-        // Deploy L1 Withdrawer
-        IOptimismPortal2(payable(portal)).depositTransaction(
-            address(CREATE2_DEPLOYER),
-            0,
-            RevShareGasLimits.L1_WITHDRAWER_DEPLOYMENT_GAS_LIMIT,
-            false,
-            _l1WithdrawerCalldata
-        );
+        // Only deploy L1 Withdrawer and SC Rev Share Calculator if using default calculator
+        if (customCalculator == address(0)) {
+            // Deploy L1 Withdrawer
+            IOptimismPortal2(payable(portal)).depositTransaction(
+                address(CREATE2_DEPLOYER),
+                0,
+                RevShareGasLimits.L1_WITHDRAWER_DEPLOYMENT_GAS_LIMIT,
+                false,
+                _l1WithdrawerCalldata
+            );
 
-        // Deploy SC Rev Share Calculator
-        IOptimismPortal2(payable(portal)).depositTransaction(
-            address(CREATE2_DEPLOYER),
-            0,
-            RevShareGasLimits.SC_REV_SHARE_CALCULATOR_DEPLOYMENT_GAS_LIMIT,
-            false,
-            _scRevShareCalculatorCalldata
-        );
+            // Deploy SC Rev Share Calculator
+            IOptimismPortal2(payable(portal)).depositTransaction(
+                address(CREATE2_DEPLOYER),
+                0,
+                RevShareGasLimits.SC_REV_SHARE_CALCULATOR_DEPLOYMENT_GAS_LIMIT,
+                false,
+                _scRevShareCalculatorCalldata
+            );
+        }
 
         _deployFeeSplitter();
         _deployFeeVaults();
@@ -501,8 +517,10 @@ contract RevenueShareV100UpgradePath is SimpleTaskBase, RevSharePredeploys {
     /// @notice This method performs all validations and assertions that verify the calls executed as expected.
     function _validate(VmSafe.AccountAccess[] memory, Action[] memory _actions, address) internal override {
         MultisigTaskPrinter.printTitle("Validating calls to portal");
-        // Expected portal calls: 12 (base vault operations + fee splitter + revenue share: L1 withdrawer + calculator)
-        uint256 _expectedCallsToPortal = 12;
+        // Expected portal calls:
+        // - 10 (base vault operations + fee splitter)
+        // - 12 if using default calculator (+ L1 withdrawer + calculator)
+        uint256 _expectedCallsToPortal = customCalculator == address(0) ? 12 : 10;
         uint256 _actualCallsToPortal = 0;
         for (uint256 i = 0; i < _actions.length; i++) {
             Action memory action = _actions[i];
