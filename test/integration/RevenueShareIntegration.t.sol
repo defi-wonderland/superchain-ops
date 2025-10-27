@@ -95,19 +95,8 @@ contract RevenueShareIntegrationTest is IntegrationBase {
         lateOptInTemplate = new LateOptInRevenueShare();
     }
 
-    /// @notice Test the integration of the revenue share system when the chain is opting in
-    function test_optInRevenueShare_integration() public skipIfNoRpcs {
+    function _assertL2StateOptInRevenueShare() internal {
         string memory _configPath = "test/tasks/example/eth/015-revenue-share-upgrade/config.toml";
-
-        // Step 1: Execute L1 transaction recording logs
-        vm.recordLogs();
-        revenueShareTemplate.simulate(_configPath, new address[](0));
-
-        // Step 2: Relay messages from L1 to L2
-        // Pass true for _isSimulate since simulate() emits events twice
-        _relayAllMessages(_l2ForkId, true);
-
-        // Step 3: Assert the state of the L2 contracts
         string memory _config = vm.readFile(_configPath);
 
         // L1Withdrawer: check withdrawal threshold and fees depositor
@@ -131,6 +120,30 @@ contract RevenueShareIntegrationTest is IntegrationBase {
         // Vaults: recipient should be fee splitter, withdrawal network should be L2, min withdrawal amount 0
         // getters for legacy and the new values should be the same
         _assertFeeVaultsState(true, ""); // No need to send the config since the chain is opting in
+    }
+
+    /// @notice Test the integration of the revenue share system when the chain is opting in
+    function test_optInRevenueShare_integration() public skipIfNoRpcs {
+        string memory _configPath = "test/tasks/example/eth/015-revenue-share-upgrade/config.toml";
+
+        // Step 1: Execute L1 transaction recording logs
+        vm.recordLogs();
+        revenueShareTemplate.simulate(_configPath, new address[](0));
+
+        // Step 2: Relay messages from L1 to L2
+        // Pass true for _isSimulate since simulate() emits events twice
+        _relayAllMessages(_l2ForkId, true);
+
+        // Step 3: Assert the state of the L2 contracts
+        _assertL2StateOptInRevenueShare();
+    }
+
+    function test_optInRevenueShare_assertL2State() public {
+        if (bytes(_l2RpcUrl).length == 0 || !vm.envBool("ASSERT_L2_STATE")) {
+            vm.skip(true);
+        }
+
+        _assertL2StateOptInRevenueShare();
     }
 
     /// @notice Test the integration of the revenue share system when the chain is opting out
