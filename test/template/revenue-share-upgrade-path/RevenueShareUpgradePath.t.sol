@@ -36,56 +36,151 @@ interface IProxyAdmin {
 /// @notice Test contract for the RevenueShareUpgradePath that expect reverts on misconfiguration of required fields.
 contract RevenueShareUpgradePathRequiredFieldsTest is Test {
     RevenueShareV100UpgradePath public template;
+    string internal constant TEMP_CONFIG_DIR = "test/template/revenue-share-upgrade-path/";
+
+    // Default valid values for tests
+    string internal constant DEFAULT_PORTAL = "0xbEb5Fc579115071764c7423A4f12eDde41f106Ed";
+    string internal constant DEFAULT_SALT_SEED = "test-salt";
+    string internal constant DEFAULT_CUSTOM_CALCULATOR = "0x1111111111111111111111111111111111111111";
+    string internal constant DEFAULT_L1_WITHDRAWER_RECIPIENT = "0x742d35Cc6634C0532925a3b8D0C0C8b8B0c0C8b8";
+    uint256 internal constant DEFAULT_L1_WITHDRAWER_GAS_LIMIT = 800000;
+    string internal constant DEFAULT_SC_REV_SHARE_CALC_CHAIN_FEES_RECIPIENT = "0x8B0c0C8b8B0c0C8b8B0c0C8b8B0c0C8b8B0c0C8b";
+
+    // Invalid values for tests
+    string internal constant ZERO_ADDRESS = "0x0000000000000000000000000000000000000000";
+    string internal constant EMPTY_STRING = "";
+    uint256 internal constant UINT32_MAX_PLUS_ONE = 4294967296;
 
     function setUp() public {
         vm.createSelectFork("mainnet", 23197819);
         template = new RevenueShareV100UpgradePath();
     }
 
+    /// @notice Helper to write a minimal config for testing validation
+    /// @param _portal Portal address
+    /// @param _saltSeed Salt seed for deployment
+    /// @param _customCalculator Custom calculator address (if not address(0), skips default calculator deployment)
+    /// @param _l1WithdrawerRecipient L1 withdrawer recipient (only needed if using default calculator)
+    /// @param _l1WithdrawerGasLimit L1 withdrawer gas limit (only needed if using default calculator)
+    /// @param _scRevShareCalcChainFeesRecipient Chain fees recipient (only needed if using default calculator)
+    /// @return Path to the created config file
+    function _writeTestConfig(
+        string memory _portal,
+        string memory _saltSeed,
+        string memory _customCalculator,
+        string memory _l1WithdrawerRecipient,
+        uint256 _l1WithdrawerGasLimit,
+        string memory _scRevShareCalcChainFeesRecipient
+    ) internal returns (string memory) {
+        string memory config = string.concat(
+            'templateName = "RevenueShareV100UpgradePath"\n\nportal = "',
+            _portal,
+            '"\nsaltSeed = "',
+            _saltSeed,
+            '"\ncustomCalculator = "',
+            _customCalculator,
+            '"\n\nl1WithdrawerMinWithdrawalAmount = 350000\nl1WithdrawerRecipient = "',
+            _l1WithdrawerRecipient,
+            '"\nl1WithdrawerGasLimit = ',
+            vm.toString(_l1WithdrawerGasLimit),
+            '\n\nscRevShareCalcChainFeesRecipient = "',
+            _scRevShareCalcChainFeesRecipient,
+            '"\n\n[addresses]\nProxyAdminOwner = "0x5a0Aae59D09fccBdDb6C6CcEB07B7279367C3d2A"\n',
+            'OptimismPortal = "0xbEb5Fc579115071764c7423A4f12eDde41f106Ed"'
+        );
+        string memory configPath = string.concat(TEMP_CONFIG_DIR, "temp-config-", vm.toString(uint256(uint32(msg.sig))), ".toml");
+        vm.writeFile(configPath, config);
+        return configPath;
+    }
+
     /// @notice Tests that the template reverts when the portal is a zero address.
     function test_revenueShareUpgradePath_portal_zero_address_reverts() public {
-        string memory configPath = "test/template/revenue-share-upgrade-path/config/portal-zero-address-config.toml";
+        string memory configPath = _writeTestConfig(
+            ZERO_ADDRESS, // INVALID - portal is zero address
+            DEFAULT_SALT_SEED,
+            DEFAULT_CUSTOM_CALCULATOR,
+            ZERO_ADDRESS,
+            0,
+            ZERO_ADDRESS
+        );
         vm.expectRevert("portal must be set in config");
         template.simulate(configPath);
+        vm.removeFile(configPath);
     }
 
     /// @notice Tests that the template reverts when the salt seed is an empty string.
     function test_revenueShareUpgradePath_saltSeed_empty_string_reverts() public {
-        string memory configPath = "test/template/revenue-share-upgrade-path/config/saltSeed-empty-string-config.toml";
+        string memory configPath = _writeTestConfig(
+            DEFAULT_PORTAL,
+            EMPTY_STRING, // INVALID - saltSeed is empty
+            DEFAULT_CUSTOM_CALCULATOR,
+            ZERO_ADDRESS,
+            0,
+            ZERO_ADDRESS
+        );
         vm.expectRevert("saltSeed must be set in the config");
         template.simulate(configPath);
+        vm.removeFile(configPath);
     }
 
     /// @notice Tests that the template reverts when the l1 withdrawer recipient is a zero address.
     function test_revenueShareUpgradePath_l1WithdrawerRecipient_zero_address_reverts() public {
-        string memory configPath =
-            "test/template/revenue-share-upgrade-path/config/l1WithdrawerRecipient-zero-address-config.toml";
+        string memory configPath = _writeTestConfig(
+            DEFAULT_PORTAL,
+            DEFAULT_SALT_SEED,
+            ZERO_ADDRESS, // use default calculator (zero address means default)
+            ZERO_ADDRESS, // INVALID - l1WithdrawerRecipient is zero address
+            DEFAULT_L1_WITHDRAWER_GAS_LIMIT,
+            DEFAULT_SC_REV_SHARE_CALC_CHAIN_FEES_RECIPIENT
+        );
         vm.expectRevert("l1WithdrawerRecipient must be set in config");
         template.simulate(configPath);
+        vm.removeFile(configPath);
     }
 
     /// @notice Tests that the template reverts when the l1 withdrawer gas limit is zero.
     function test_revenueShareUpgradePath_l1WithdrawerGasLimit_zero_reverts() public {
-        string memory configPath =
-            "test/template/revenue-share-upgrade-path/config/l1WithdrawerGasLimit-zero-config.toml";
+        string memory configPath = _writeTestConfig(
+            DEFAULT_PORTAL,
+            DEFAULT_SALT_SEED,
+            ZERO_ADDRESS, // use default calculator (zero address means default)
+            DEFAULT_L1_WITHDRAWER_RECIPIENT,
+            0, // INVALID - l1WithdrawerGasLimit is zero
+            DEFAULT_SC_REV_SHARE_CALC_CHAIN_FEES_RECIPIENT
+        );
         vm.expectRevert("l1WithdrawerGasLimit must be greater than 0");
         template.simulate(configPath);
+        vm.removeFile(configPath);
     }
 
     /// @notice Tests that the template reverts when the l1 withdrawer gas limit is too high.
     function test_revenueShareUpgradePath_l1WithdrawerGasLimit_too_high_reverts() public {
-        string memory configPath =
-            "test/template/revenue-share-upgrade-path/config/l1WithdrawerGasLimit-too-high-config.toml";
+        string memory configPath = _writeTestConfig(
+            DEFAULT_PORTAL,
+            DEFAULT_SALT_SEED,
+            ZERO_ADDRESS, // use default calculator (zero address means default)
+            DEFAULT_L1_WITHDRAWER_RECIPIENT,
+            UINT32_MAX_PLUS_ONE, // INVALID - l1WithdrawerGasLimit exceeds uint32.max
+            DEFAULT_SC_REV_SHARE_CALC_CHAIN_FEES_RECIPIENT
+        );
         vm.expectRevert("l1WithdrawerGasLimit must be less than uint32.max");
         template.simulate(configPath);
+        vm.removeFile(configPath);
     }
 
     /// @notice Tests that the template reverts when the chain fees recipient is a zero address.
     function test_revenueShareUpgradePath_scRevShareCalcChainFeesRecipient_zero_address_reverts() public {
-        string memory configPath =
-            "test/template/revenue-share-upgrade-path/config/scRevShareCalcChainFeesRecipient-zero-address-config.toml";
+        string memory configPath = _writeTestConfig(
+            DEFAULT_PORTAL,
+            DEFAULT_SALT_SEED,
+            ZERO_ADDRESS, // use default calculator (zero address means default)
+            DEFAULT_L1_WITHDRAWER_RECIPIENT,
+            DEFAULT_L1_WITHDRAWER_GAS_LIMIT,
+            ZERO_ADDRESS // INVALID - scRevShareCalcChainFeesRecipient is zero address
+        );
         vm.expectRevert("scRevShareCalcChainFeesRecipient must be set in config");
         template.simulate(configPath);
+        vm.removeFile(configPath);
     }
 }
 
