@@ -44,6 +44,10 @@ contract RevenueShareIntegrationTest is IntegrationBase {
     uint256 internal _mainnetForkId;
     uint256 internal _l2ForkId;
 
+    // RPC URLs from environment
+    string internal _mainnetRpcUrl;
+    string internal _l2RpcUrl;
+
     // L2 predeploys
     /// @notice Address of the Sequencer Fee Vault Predeploy on L2.
     address internal constant SEQUENCER_FEE_VAULT = 0x4200000000000000000000000000000000000011;
@@ -66,16 +70,33 @@ contract RevenueShareIntegrationTest is IntegrationBase {
     /// @notice Address of the Rev Share Calculator Predeploy on L2 for late opt in.
     address internal constant REV_SHARE_CALCULATOR_LATE_OPT_IN = 0x28cC7ed36D4788B7248aE2a7a70efC7011DbA7c2;
 
+    /// @notice Modifier to skip test if RPC URLs are not provided
+    modifier skipIfNoRpcs() {
+        if (bytes(_mainnetRpcUrl).length == 0 || bytes(_l2RpcUrl).length == 0) {
+            vm.skip(true);
+        }
+        _;
+    }
+
     function setUp() public {
-        _mainnetForkId = vm.createFork("http://127.0.0.1:8545");
-        _l2ForkId = vm.createFork("http://127.0.0.1:9545");
+        // Read RPC URLs from environment variables
+        _mainnetRpcUrl = vm.envOr("MAINNET_RPC_URL", string(""));
+        _l2RpcUrl = vm.envOr("L2_RPC_URL", string(""));
+
+        // Skip setup if RPCs are not provided
+        if (bytes(_mainnetRpcUrl).length == 0 || bytes(_l2RpcUrl).length == 0) {
+            return;
+        }
+
+        _mainnetForkId = vm.createFork(_mainnetRpcUrl);
+        _l2ForkId = vm.createFork(_l2RpcUrl);
         vm.selectFork(_mainnetForkId);
         revenueShareTemplate = new RevenueShareV100UpgradePath();
         lateOptInTemplate = new LateOptInRevenueShare();
     }
 
     /// @notice Test the integration of the revenue share system when the chain is opting in
-    function test_optInRevenueShare_integration() public {
+    function test_optInRevenueShare_integration() public skipIfNoRpcs {
         string memory _configPath = "test/tasks/example/eth/015-revenue-share-upgrade/config.toml";
 
         // Step 1: Execute L1 transaction recording logs
@@ -113,7 +134,7 @@ contract RevenueShareIntegrationTest is IntegrationBase {
     }
 
     /// @notice Test the integration of the revenue share system when the chain is opting out
-    function test_optOutRevenueShare_integration() public {
+    function test_optOutRevenueShare_integration() public skipIfNoRpcs {
         string memory _configPath = "test/tasks/example/eth/019-revenueshare-upgrade-opt-out/config.toml";
 
         // Step 1: Execute L1 transaction recording logs
@@ -137,7 +158,7 @@ contract RevenueShareIntegrationTest is IntegrationBase {
 
     /// @notice Test the integration of the revenue share system when the chain is opting out,
     /// then running the late opt in revenue share task with the custom calculator.
-    function test_lateOptInRevenueShareCustomCalculator_integration() public {
+    function test_lateOptInRevenueShareCustomCalculator_integration() public skipIfNoRpcs {
         string memory _configPath = "test/tasks/example/eth/019-revenueshare-upgrade-opt-out/config.toml";
 
         // Step 1: Execute L1 transaction recording logs
@@ -184,7 +205,7 @@ contract RevenueShareIntegrationTest is IntegrationBase {
 
     /// @notice Test the integration of the revenue share system when the chain is opting out,
     /// then running the late opt in revenue share task with the default calculator.
-    function test_lateOptInRevenueShareDefaultCalculator_integration() public {
+    function test_lateOptInRevenueShareDefaultCalculator_integration() public skipIfNoRpcs {
         string memory _configPath = "test/tasks/example/eth/019-revenueshare-upgrade-opt-out/config.toml";
 
         // Step 1: Execute L1 transaction recording logs
