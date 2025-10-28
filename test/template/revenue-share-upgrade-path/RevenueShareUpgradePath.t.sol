@@ -247,9 +247,11 @@ contract RevenueShareUpgradePathTest is Test {
     }
 
     function test_defaultCalculator_succeeds() public {
+        bool _isDefaultCalculator = true;
+
         _testRevenueShareUpgrade(
             "test/tasks/example/eth/015-revenue-share-upgrade/config.toml",
-            true, // isDefaultCalculator
+            _isDefaultCalculator,
             EXPECTED_DEPLOYMENTS_DEFAULT_CALC + EXPECTED_UPGRADES_DEFAULT_CALC,
             EXPECTED_DEPLOYMENTS_DEFAULT_CALC,
             EXPECTED_UPGRADES_DEFAULT_CALC,
@@ -258,9 +260,11 @@ contract RevenueShareUpgradePathTest is Test {
     }
 
     function test_customCalculator_succeeds() public {
+        bool _isDefaultCalculator = false;
+
         _testRevenueShareUpgrade(
             "test/tasks/example/eth/017-revenue-share-upgrade-custom-calc/config.toml",
-            false, // isDefaultCalculator
+            _isDefaultCalculator,
             EXPECTED_DEPLOYMENTS_CUSTOM_CALC + EXPECTED_UPGRADES_CUSTOM_CALC,
             EXPECTED_DEPLOYMENTS_CUSTOM_CALC,
             EXPECTED_UPGRADES_CUSTOM_CALC,
