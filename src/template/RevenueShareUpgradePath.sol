@@ -65,8 +65,11 @@ contract RevenueShareV100UpgradePath is SimpleTaskBase, RevSharePredeploys {
     /// @notice The configuration for sc rev share calculator.
     address public scRevShareCalcChainFeesRecipient;
 
-    /// @notice Custom calculator address. If address(0), deploy the default SC Rev Share Calculator and L1Withdrawer.
-    /// If not address(0), use this custom calculator and skip deploying the default calculator and L1Withdrawer.
+    /// @notice Whether to use the default calculator. If true, deploy the default SC Rev Share Calculator and L1Withdrawer.
+    /// If false, use the custom calculator and skip deploying the default calculator and L1Withdrawer.
+    bool public useDefaultCalculator;
+
+    /// @notice Custom calculator address.
     address public customCalculator;
 
     /// @notice The address of the OptimismPortal through which we are making the deposit txns
@@ -143,11 +146,11 @@ contract RevenueShareV100UpgradePath is SimpleTaskBase, RevSharePredeploys {
         saltSeed = _toml.readString(".saltSeed");
         require(bytes(saltSeed).length != 0, "saltSeed must be set in the config");
 
-        // Read custom calculator address (address(0) means deploy default calculator)
-        customCalculator = _toml.readAddress(".customCalculator");
+        // Read whether to use the default calculator
+        useDefaultCalculator = _toml.readBool(".useDefaultCalculator");
 
-        // If customCalculator is address(0), deploy the default calculator and L1Withdrawer
-        if (customCalculator == address(0)) {
+        // If useDefaultCalculator is true, deploy the default calculator and L1Withdrawer
+        if (useDefaultCalculator) {
             l1WithdrawerMinWithdrawalAmount = _toml.readUint(".l1WithdrawerMinWithdrawalAmount");
 
             l1WithdrawerRecipient = _toml.readAddress(".l1WithdrawerRecipient");
@@ -213,7 +216,9 @@ contract RevenueShareV100UpgradePath is SimpleTaskBase, RevSharePredeploys {
                 )
             );
         } else {
-            // Use custom calculator, set it as the calculator address for the fee splitter
+            // Use custom calculator, read it from config and set it as the calculator address for the fee splitter
+            customCalculator = _toml.readAddress(".customCalculator");
+            require(customCalculator != address(0), "customCalculator must be set when useDefaultCalculator is false");
             _scRevShareCalculatorPrecalculatedAddress = customCalculator;
         }
 
@@ -456,7 +461,7 @@ contract RevenueShareV100UpgradePath is SimpleTaskBase, RevSharePredeploys {
     /// Do not rely on setting global variables in this function.
     function _build(address) internal override {
         // Only deploy L1 Withdrawer and SC Rev Share Calculator if using default calculator
-        if (customCalculator == address(0)) {
+        if (useDefaultCalculator) {
             // Deploy L1 Withdrawer
             IOptimismPortal2(payable(portal)).depositTransaction(
                 address(CREATE2_DEPLOYER),
@@ -486,7 +491,7 @@ contract RevenueShareV100UpgradePath is SimpleTaskBase, RevSharePredeploys {
         // Expected portal calls:
         // - 10 (base vault operations + fee splitter)
         // - 12 if using default calculator (+ L1 withdrawer + calculator)
-        uint256 _expectedCallsToPortal = customCalculator == address(0) ? 12 : 10;
+        uint256 _expectedCallsToPortal = useDefaultCalculator ? 12 : 10;
         uint256 _actualCallsToPortal = 0;
         for (uint256 i = 0; i < _actions.length; i++) {
             Action memory action = _actions[i];
