@@ -49,13 +49,10 @@ contract RevenueShareV100UpgradePath is SimpleTaskBase, RevSharePredeploys {
     mapping(bytes32 => uint8) internal _callsToPortal;
 
     /// @notice The withdrawal network configuration for the fee vaults.
-    uint8 feeVaultsWithdrawalNetwork;
-
-    /// @notice The recipient configuration for the fee vaults.
-    address feeVaultsRecipient;
+    uint8 public constant FEE_VAULT_WITHDRAWAL_NETWORK = 1;
 
     /// @notice The minimum withdrawal amount configuration for the fee vaults.
-    uint256 feeVaultsMinWithdrawalAmount;
+    uint256 public constant FEE_VAULT_MIN_WITHDRAWAL_AMOUNT = 0;
 
     /// @notice The configuration for the l1 withdrawer
     uint256 public l1WithdrawerMinWithdrawalAmount;
@@ -148,11 +145,6 @@ contract RevenueShareV100UpgradePath is SimpleTaskBase, RevSharePredeploys {
 
         // Read custom calculator address (address(0) means deploy default calculator)
         customCalculator = _toml.readAddress(".customCalculator");
-
-        // Always use the Fee Splitter predeploy, L2 Withdrawal Network and 0 min withdrawal amount for all the vaults
-        feeVaultsWithdrawalNetwork = 1;
-        feeVaultsRecipient = FEE_SPLITTER;
-        feeVaultsMinWithdrawalAmount = 0;
 
         // If customCalculator is address(0), deploy the default calculator and L1Withdrawer
         if (customCalculator == address(0)) {
@@ -263,9 +255,9 @@ contract RevenueShareV100UpgradePath is SimpleTaskBase, RevSharePredeploys {
                             abi.encodeCall(
                                 IFeeVault.initialize,
                                 (
-                                    feeVaultsRecipient,
-                                    feeVaultsMinWithdrawalAmount,
-                                    feeVaultsWithdrawalNetwork
+                                    FEE_VAULT_RECIPIENT,
+                                    FEE_VAULT_MIN_WITHDRAWAL_AMOUNT,
+                                    FEE_VAULT_WITHDRAWAL_NETWORK
                                 )
                             )
                         )
@@ -312,9 +304,9 @@ contract RevenueShareV100UpgradePath is SimpleTaskBase, RevSharePredeploys {
                             abi.encodeCall(
                                 IFeeVault.initialize,
                                 (
-                                    feeVaultsRecipient,
-                                    feeVaultsMinWithdrawalAmount,
-                                    feeVaultsWithdrawalNetwork
+                                    FEE_VAULT_RECIPIENT,
+                                    FEE_VAULT_MIN_WITHDRAWAL_AMOUNT,
+                                    FEE_VAULT_WITHDRAWAL_NETWORK
                                 )
                             )
                         )
@@ -358,7 +350,7 @@ contract RevenueShareV100UpgradePath is SimpleTaskBase, RevSharePredeploys {
                             address(_baseFeeVaultPrecalculatedAddress),
                             abi.encodeCall(
                                 IFeeVault.initialize,
-                                (feeVaultsRecipient, feeVaultsMinWithdrawalAmount, feeVaultsWithdrawalNetwork)
+                                (FEE_VAULT_RECIPIENT, FEE_VAULT_MIN_WITHDRAWAL_AMOUNT, FEE_VAULT_WITHDRAWAL_NETWORK)
                             )
                         )
                     )
@@ -401,7 +393,7 @@ contract RevenueShareV100UpgradePath is SimpleTaskBase, RevSharePredeploys {
                             address(_l1FeeVaultPrecalculatedAddress),
                             abi.encodeCall(
                                 IFeeVault.initialize,
-                                (feeVaultsRecipient, feeVaultsMinWithdrawalAmount, feeVaultsWithdrawalNetwork)
+                                (FEE_VAULT_RECIPIENT, FEE_VAULT_MIN_WITHDRAWAL_AMOUNT, FEE_VAULT_WITHDRAWAL_NETWORK)
                             )
                         )
                     )
@@ -534,9 +526,9 @@ contract RevenueShareV100UpgradePath is SimpleTaskBase, RevSharePredeploys {
                     abi.encodeCall(
                         IFeeVault.initialize,
                         (
-                            feeVaultsRecipient,
-                            feeVaultsMinWithdrawalAmount,
-                            feeVaultsWithdrawalNetwork
+                            FEE_VAULT_RECIPIENT,
+                            FEE_VAULT_MIN_WITHDRAWAL_AMOUNT,
+                            FEE_VAULT_WITHDRAWAL_NETWORK
                         )
                     )
                 )
@@ -564,9 +556,9 @@ contract RevenueShareV100UpgradePath is SimpleTaskBase, RevSharePredeploys {
                     abi.encodeCall(
                         IFeeVault.initialize,
                         (
-                            feeVaultsRecipient,
-                            feeVaultsMinWithdrawalAmount,
-                            feeVaultsWithdrawalNetwork
+                            FEE_VAULT_RECIPIENT,
+                            FEE_VAULT_MIN_WITHDRAWAL_AMOUNT,
+                            FEE_VAULT_WITHDRAWAL_NETWORK
                         )
                     )
                 )
@@ -593,7 +585,7 @@ contract RevenueShareV100UpgradePath is SimpleTaskBase, RevSharePredeploys {
                     address(_baseFeeVaultPrecalculatedAddress),
                     abi.encodeCall(
                         IFeeVault.initialize,
-                        (feeVaultsRecipient, feeVaultsMinWithdrawalAmount, feeVaultsWithdrawalNetwork)
+                        (FEE_VAULT_RECIPIENT, FEE_VAULT_MIN_WITHDRAWAL_AMOUNT, FEE_VAULT_WITHDRAWAL_NETWORK)
                     )
                 )
             )
@@ -615,7 +607,7 @@ contract RevenueShareV100UpgradePath is SimpleTaskBase, RevSharePredeploys {
                     address(_l1FeeVaultPrecalculatedAddress),
                     abi.encodeCall(
                         IFeeVault.initialize,
-                        (feeVaultsRecipient, feeVaultsMinWithdrawalAmount, feeVaultsWithdrawalNetwork)
+                        (FEE_VAULT_RECIPIENT, FEE_VAULT_MIN_WITHDRAWAL_AMOUNT, FEE_VAULT_WITHDRAWAL_NETWORK)
                     )
                 )
             )
