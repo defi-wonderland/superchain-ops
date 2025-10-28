@@ -68,7 +68,7 @@ contract RevenueShareIntegrationTest is IntegrationBase {
     }
 
     /// @notice Test the integration of the revenue share system when the chain is opting in
-    function test_optInRevenueShare_integration() public {
+    function test_revenueShare_defaultCalculator_integration() public {
         string memory _configPath = "test/tasks/example/eth/015-revenue-share-upgrade/config.toml";
 
         // Step 1: Execute L1 transaction recording logs
@@ -105,6 +105,34 @@ contract RevenueShareIntegrationTest is IntegrationBase {
         _assertFeeVaultsState();
     }
 
+    /// @notice Test the integration of the revenue share system when the chain is opting in with a custom calculator
+    function test_revenueShare_customCalculator_integration() public {
+        string memory _configPath = "test/tasks/example/eth/017-revenue-share-upgrade-custom-calc/config.toml";
+
+        // Step 1: Execute L1 transaction recording logs
+        vm.recordLogs();
+        revenueShareTemplate.simulate(_configPath, new address[](0));
+
+        // Step 2: Relay messages from L1 to L2
+        // Pass true for _isSimulate since simulate() emits events twice
+        _relayAllMessages(_l2ForkId, true);
+
+        // Step 3: Assert the state of the L2 contracts
+        string memory _config = vm.readFile(_configPath);
+
+        // L1Withdrawer: check it wasn't deployed
+        assertEq(L1_WITHDRAWER.code.length, 0);
+
+        // Rev Share Calculator: check it wasn't deployed
+        assertEq(REV_SHARE_CALCULATOR.code.length, 0);
+
+        // Fee Splitter: check calculator is set
+        assertEq(IFeeSplitter(FEE_SPLITTER).sharesCalculator(), vm.parseTomlAddress(_config, ".customCalculator"));
+
+        // Vaults: recipient should be fee splitter, withdrawal network should be L2, min withdrawal amount 0
+        // getters for legacy and the new values should be the same
+        _assertFeeVaultsState();
+    }
 
     /// @notice Assert the configuration of the fee vaults
     /// @dev Ensures both the legacy and the new getters return the same value
