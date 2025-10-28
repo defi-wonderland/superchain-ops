@@ -158,7 +158,7 @@ contract RevenueShareV100UpgradePath is SimpleTaskBase, RevSharePredeploys {
         // Read custom calculator address (address(0) means deploy default calculator)
         customCalculator = _toml.readAddress(".customCalculator");
 
-        // Always use the Fee Splitter predeploy, L2 Withdrawal Network and 0 for all the vaults
+        // Always use the Fee Splitter predeploy, L2 Withdrawal Network and 0 min withdrawal amount for all the vaults
 
         // BaseFeeVault
         baseFeeVaultWithdrawalNetwork = 1;
