@@ -59,7 +59,8 @@ contract RevenueShareUpgradePathRequiredFieldsTest is Test {
     /// @notice Helper to write a minimal config for testing validation
     /// @param _portal Portal address
     /// @param _saltSeed Salt seed for deployment
-    /// @param _customCalculator Custom calculator address (if not address(0), skips default calculator deployment)
+    /// @param _useDefaultCalculator Whether to use default calculator (true) or custom calculator (false)
+    /// @param _customCalculator Custom calculator address (only needed if _useDefaultCalculator is false)
     /// @param _l1WithdrawerRecipient L1 withdrawer recipient (only needed if using default calculator)
     /// @param _l1WithdrawerGasLimit L1 withdrawer gas limit (only needed if using default calculator)
     /// @param _scRevShareCalcChainFeesRecipient Chain fees recipient (only needed if using default calculator)
@@ -67,6 +68,7 @@ contract RevenueShareUpgradePathRequiredFieldsTest is Test {
     function _writeTestConfig(
         string memory _portal,
         string memory _saltSeed,
+        bool _useDefaultCalculator,
         string memory _customCalculator,
         string memory _l1WithdrawerRecipient,
         uint256 _l1WithdrawerGasLimit,
@@ -77,17 +79,38 @@ contract RevenueShareUpgradePathRequiredFieldsTest is Test {
             _portal,
             '"\nsaltSeed = "',
             _saltSeed,
-            '"\ncustomCalculator = "',
-            _customCalculator,
-            '"\n\nl1WithdrawerMinWithdrawalAmount = 350000\nl1WithdrawerRecipient = "',
-            _l1WithdrawerRecipient,
-            '"\nl1WithdrawerGasLimit = ',
-            vm.toString(_l1WithdrawerGasLimit),
-            '\n\nscRevShareCalcChainFeesRecipient = "',
-            _scRevShareCalcChainFeesRecipient,
-            '"\n\n[addresses]\nProxyAdminOwner = "0x5a0Aae59D09fccBdDb6C6CcEB07B7279367C3d2A"\n',
+            '"\nuseDefaultCalculator = ',
+            _useDefaultCalculator ? 'true' : 'false',
+            '\n\n'
+        );
+
+        // Add calculator-specific fields based on useDefaultCalculator
+        if (_useDefaultCalculator) {
+            config = string.concat(
+                config,
+                'l1WithdrawerMinWithdrawalAmount = 350000\nl1WithdrawerRecipient = "',
+                _l1WithdrawerRecipient,
+                '"\nl1WithdrawerGasLimit = ',
+                vm.toString(_l1WithdrawerGasLimit),
+                '\n\nscRevShareCalcChainFeesRecipient = "',
+                _scRevShareCalcChainFeesRecipient,
+                '"\n\n'
+            );
+        } else {
+            config = string.concat(
+                config,
+                'customCalculator = "',
+                _customCalculator,
+                '"\n\n'
+            );
+        }
+
+        config = string.concat(
+            config,
+            '[addresses]\nProxyAdminOwner = "0x5a0Aae59D09fccBdDb6C6CcEB07B7279367C3d2A"\n',
             'OptimismPortal = "0xbEb5Fc579115071764c7423A4f12eDde41f106Ed"'
         );
+
         string memory configPath = string.concat(TEMP_CONFIG_DIR, "temp-config-", vm.toString(uint256(uint32(msg.sig))), ".toml");
         vm.writeFile(configPath, config);
         return configPath;
@@ -95,13 +118,16 @@ contract RevenueShareUpgradePathRequiredFieldsTest is Test {
 
     /// @notice Tests that the template reverts when the portal is a zero address.
     function test_revenueShareUpgradePath_portal_zero_address_reverts() public {
+        bool useDefaultCalculator = true;
+
         string memory configPath = _writeTestConfig(
             ZERO_ADDRESS, // INVALID - portal is zero address
             DEFAULT_SALT_SEED,
-            DEFAULT_CUSTOM_CALCULATOR,
-            ZERO_ADDRESS,
-            0,
-            ZERO_ADDRESS
+            useDefaultCalculator,
+            ZERO_ADDRESS, // customCalculator (not used when useDefaultCalculator=true)
+            DEFAULT_L1_WITHDRAWER_RECIPIENT,
+            DEFAULT_L1_WITHDRAWER_GAS_LIMIT,
+            DEFAULT_SC_REV_SHARE_CALC_CHAIN_FEES_RECIPIENT
         );
         vm.expectRevert("portal must be set in config");
         template.simulate(configPath);
@@ -110,13 +136,16 @@ contract RevenueShareUpgradePathRequiredFieldsTest is Test {
 
     /// @notice Tests that the template reverts when the salt seed is an empty string.
     function test_revenueShareUpgradePath_saltSeed_empty_string_reverts() public {
+        bool useDefaultCalculator = true;
+
         string memory configPath = _writeTestConfig(
             DEFAULT_PORTAL,
             EMPTY_STRING, // INVALID - saltSeed is empty
-            DEFAULT_CUSTOM_CALCULATOR,
-            ZERO_ADDRESS,
-            0,
-            ZERO_ADDRESS
+            useDefaultCalculator,
+            ZERO_ADDRESS, // customCalculator (not used when useDefaultCalculator=true)
+            DEFAULT_L1_WITHDRAWER_RECIPIENT,
+            DEFAULT_L1_WITHDRAWER_GAS_LIMIT,
+            DEFAULT_SC_REV_SHARE_CALC_CHAIN_FEES_RECIPIENT
         );
         vm.expectRevert("saltSeed must be set in the config");
         template.simulate(configPath);
@@ -125,10 +154,13 @@ contract RevenueShareUpgradePathRequiredFieldsTest is Test {
 
     /// @notice Tests that the template reverts when the l1 withdrawer recipient is a zero address.
     function test_revenueShareUpgradePath_l1WithdrawerRecipient_zero_address_reverts() public {
+        bool useDefaultCalculator = true;
+
         string memory configPath = _writeTestConfig(
             DEFAULT_PORTAL,
             DEFAULT_SALT_SEED,
-            ZERO_ADDRESS, // use default calculator (zero address means default)
+            useDefaultCalculator,
+            ZERO_ADDRESS, // customCalculator (not used when useDefaultCalculator=true)
             ZERO_ADDRESS, // INVALID - l1WithdrawerRecipient is zero address
             DEFAULT_L1_WITHDRAWER_GAS_LIMIT,
             DEFAULT_SC_REV_SHARE_CALC_CHAIN_FEES_RECIPIENT
@@ -140,10 +172,13 @@ contract RevenueShareUpgradePathRequiredFieldsTest is Test {
 
     /// @notice Tests that the template reverts when the l1 withdrawer gas limit is zero.
     function test_revenueShareUpgradePath_l1WithdrawerGasLimit_zero_reverts() public {
+        bool useDefaultCalculator = true;
+
         string memory configPath = _writeTestConfig(
             DEFAULT_PORTAL,
             DEFAULT_SALT_SEED,
-            ZERO_ADDRESS, // use default calculator (zero address means default)
+            useDefaultCalculator,
+            ZERO_ADDRESS, // customCalculator (not used when useDefaultCalculator=true)
             DEFAULT_L1_WITHDRAWER_RECIPIENT,
             0, // INVALID - l1WithdrawerGasLimit is zero
             DEFAULT_SC_REV_SHARE_CALC_CHAIN_FEES_RECIPIENT
@@ -155,10 +190,13 @@ contract RevenueShareUpgradePathRequiredFieldsTest is Test {
 
     /// @notice Tests that the template reverts when the l1 withdrawer gas limit is too high.
     function test_revenueShareUpgradePath_l1WithdrawerGasLimit_too_high_reverts() public {
+        bool useDefaultCalculator = true;
+
         string memory configPath = _writeTestConfig(
             DEFAULT_PORTAL,
             DEFAULT_SALT_SEED,
-            ZERO_ADDRESS, // use default calculator (zero address means default)
+            useDefaultCalculator,
+            ZERO_ADDRESS, // customCalculator (not used when useDefaultCalculator=true)
             DEFAULT_L1_WITHDRAWER_RECIPIENT,
             UINT32_MAX_PLUS_ONE, // INVALID - l1WithdrawerGasLimit exceeds uint32.max
             DEFAULT_SC_REV_SHARE_CALC_CHAIN_FEES_RECIPIENT
@@ -170,15 +208,36 @@ contract RevenueShareUpgradePathRequiredFieldsTest is Test {
 
     /// @notice Tests that the template reverts when the chain fees recipient is a zero address.
     function test_revenueShareUpgradePath_scRevShareCalcChainFeesRecipient_zero_address_reverts() public {
+        bool useDefaultCalculator = true;
+
         string memory configPath = _writeTestConfig(
             DEFAULT_PORTAL,
             DEFAULT_SALT_SEED,
-            ZERO_ADDRESS, // use default calculator (zero address means default)
+            useDefaultCalculator,
+            ZERO_ADDRESS, // customCalculator (not used when useDefaultCalculator=true)
             DEFAULT_L1_WITHDRAWER_RECIPIENT,
             DEFAULT_L1_WITHDRAWER_GAS_LIMIT,
             ZERO_ADDRESS // INVALID - scRevShareCalcChainFeesRecipient is zero address
         );
         vm.expectRevert("scRevShareCalcChainFeesRecipient must be set in config");
+        template.simulate(configPath);
+        vm.removeFile(configPath);
+    }
+
+    /// @notice Tests that the template reverts when using custom calculator with zero address.
+    function test_revenueShareUpgradePath_customCalculator_zero_address_reverts() public {
+        bool useDefaultCalculator = false;
+
+        string memory configPath = _writeTestConfig(
+            DEFAULT_PORTAL,
+            DEFAULT_SALT_SEED,
+            useDefaultCalculator,
+            ZERO_ADDRESS, // INVALID - customCalculator is zero address when useDefaultCalculator=false
+            ZERO_ADDRESS, // Not used when useDefaultCalculator=false
+            0, // Not used when useDefaultCalculator=false
+            ZERO_ADDRESS // Not used when useDefaultCalculator=false
+        );
+        vm.expectRevert("customCalculator must be set when useDefaultCalculator is false");
         template.simulate(configPath);
         vm.removeFile(configPath);
     }
