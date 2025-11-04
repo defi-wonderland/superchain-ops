@@ -28,62 +28,153 @@ interface IFeeSplitter {
     function initialize(address _sharesCalculator) external;
 }
 
-/// @notice Interface for the vaults in L2.
+/// @notice Interface for the vaults in L2 (initialization).
 interface IFeeVault {
     function initialize(address _recipient, uint256 _minWithdrawalAmount, uint8 _withdrawalNetwork) external;
 }
 
+/// @notice Interface for vault setters (RevShare vaults have mutable storage).
+interface IFeeVaultSetters {
+    function setRecipient(address _recipient) external;
+    function setMinWithdrawalAmount(uint256 _minWithdrawalAmount) external;
+    function setWithdrawalNetwork(uint8 _withdrawalNetwork) external;
+}
+
+/// @notice Interface for FeeSplitter setter.
+interface IFeeSplitterSetter {
+    function setSharesCalculator(address _calculator) external;
+}
+
 /// @title RevShareContractsManager
-/// @notice Upgrader contract that deploys fee vaults and fee splitter via delegatecall.
-///         The fee splitter is initialized with address(0) calculator (disabled state).
+/// @notice Upgrader contract that manages RevShare deployments and configuration via delegatecall.
+///         Supports three main operations:
+///         1. Upgrade vault and splitter contracts
+///         2. Setup revenue sharing with default calculator
+///         3. Setup revenue sharing with custom calculator
 contract RevShareContractsManager is RevSharePredeploys {
-    /// @notice The address of the OptimismPortal2 through which we make deposit transactions.
-    address public immutable portal;
+    /// @notice Struct for vault configuration.
+    struct VaultConfig {
+        address proxy; // Vault proxy address
+        address recipient; // Withdrawal recipient
+        uint256 minWithdrawal; // Minimum withdrawal amount
+        uint8 withdrawalNetwork; // Network for withdrawals (0=L1, 1=L2)
+    }
 
-    /// @notice The salt seed to be used for the L2 deployments.
-    string public saltSeed;
+    /// @notice Struct for L1Withdrawer configuration.
+    struct L1WithdrawerConfig {
+        uint256 minWithdrawalAmount;
+        address recipient;
+        uint32 gasLimit;
+    }
 
-    /// @notice The withdrawal network configuration for the fee vaults.
-    uint8 public constant FEE_VAULT_WITHDRAWAL_NETWORK = 1;
+    /// @notice Struct for SuperchainRevenueShareCalculator configuration.
+    struct CalculatorConfig {
+        address chainFeesRecipient;
+    }
 
-    /// @notice The minimum withdrawal amount configuration for the fee vaults.
-    uint256 public constant FEE_VAULT_MIN_WITHDRAWAL_AMOUNT = 0;
+    /// @notice Tracks which portals have been upgraded.
+    mapping(address => bool) public upgradedPortals;
 
-    /// @notice Constructor sets the portal and saltSeed.
-    /// @param _portal The address of the OptimismPortal2.
+    /// @notice Upgrades vault and fee splitter contracts.
+    /// @param _portal The OptimismPortal2 address for the target L2.
     /// @param _saltSeed The salt seed for CREATE2 deployments.
-    constructor(address _portal, string memory _saltSeed) {
-        require(_portal != address(0), "portal must be set");
-        require(bytes(_saltSeed).length != 0, "saltSeed must be set");
+    /// @param _vaults Array of vault configurations to upgrade.
+    function upgradeContracts(address _portal, string memory _saltSeed, VaultConfig[] memory _vaults) external {
+        require(_portal != address(0), "portal cannot be zero address");
+        require(bytes(_saltSeed).length != 0, "saltSeed cannot be empty");
 
-        portal = _portal;
-        saltSeed = _saltSeed;
+        // Deploy and upgrade each vault
+        for (uint256 i = 0; i < _vaults.length; i++) {
+            _upgradeVault(_portal, _saltSeed, _vaults[i]);
+        }
+
+        // Deploy and upgrade fee splitter with address(0) calculator (disabled)
+        _deployAndUpgradeFeeSplitter(_portal, _saltSeed);
+
+        // Mark this portal as upgraded
+        upgradedPortals[_portal] = true;
     }
 
-    /// @notice Deploys fee vaults and fee splitter to L2 via OptimismPortal2.
-    ///         The fee splitter is initialized with address(0) calculator (disabled).
-    function deployVaultsAndSplitter() external {
-        _deployFeeVaults();
-        _deployFeeSplitter();
+    /// @notice Setup revenue sharing with default calculator (deploys L1Withdrawer + Calculator, configures vaults + splitter).
+    /// @param _portal The OptimismPortal2 address for the target L2.
+    /// @param _saltSeed The salt seed for CREATE2 deployments.
+    /// @param _l1Config L1Withdrawer configuration.
+    /// @param _calcConfig SuperchainRevenueShareCalculator configuration.
+    function setupRevShareWithDefaultCalculator(
+        address _portal,
+        string memory _saltSeed,
+        L1WithdrawerConfig memory _l1Config,
+        CalculatorConfig memory _calcConfig
+    ) external {
+        require(upgradedPortals[_portal], "Must upgrade contracts first");
+        require(_l1Config.recipient != address(0), "L1Withdrawer recipient cannot be zero address");
+        require(_calcConfig.chainFeesRecipient != address(0), "Calculator chainFeesRecipient cannot be zero address");
+
+        // Deploy L1Withdrawer
+        address l1Withdrawer = _deployL1Withdrawer(_portal, _saltSeed, _l1Config);
+
+        // Deploy SuperchainRevenueShareCalculator
+        address calculator = _deployCalculator(_portal, _saltSeed, l1Withdrawer, _calcConfig);
+
+        // Configure all 4 vaults for revenue sharing
+        _configureVaultsForRevShare(_portal);
+
+        // Set calculator on fee splitter
+        _setFeeSplitterCalculator(_portal, calculator);
     }
 
-    /// @notice Deploys the fee vaults implementation and upgrades the proxies.
-    function _deployFeeVaults() private {
-        // Deploy OperatorFeeVault
-        bytes32 operatorSalt = _getSalt(saltSeed, "OperatorFeeVault");
-        bytes memory operatorInitCode = RevShareCodeRepo.operatorFeeVaultCreationCode;
-        address operatorFeeVaultImpl =
-            Utils.getCreate2Address(operatorSalt, operatorInitCode, CREATE2_DEPLOYER);
+    /// @notice Setup revenue sharing with custom calculator (configures vaults + splitter only).
+    /// @param _portal The OptimismPortal2 address for the target L2.
+    /// @param _calculator The custom calculator address.
+    function setupRevShareWithCustomCalculator(address _portal, address _calculator) external {
+        require(upgradedPortals[_portal], "Must upgrade contracts first");
+        require(_calculator != address(0), "Calculator cannot be zero address");
 
-        IOptimismPortal2(payable(portal)).depositTransaction(
+        // Configure all 4 vaults for revenue sharing
+        _configureVaultsForRevShare(_portal);
+
+        // Set calculator on fee splitter
+        _setFeeSplitterCalculator(_portal, _calculator);
+    }
+
+    /// @notice Deploys and upgrades a single vault.
+    function _upgradeVault(address _portal, string memory _saltSeed, VaultConfig memory _config) private {
+        require(_config.proxy != address(0), "Vault proxy cannot be zero address");
+
+        // Determine which vault type and get the appropriate creation code
+        bytes memory creationCode;
+        string memory vaultName;
+
+        if (_config.proxy == OPERATOR_FEE_VAULT) {
+            creationCode = RevShareCodeRepo.operatorFeeVaultCreationCode;
+            vaultName = "OperatorFeeVault";
+        } else if (_config.proxy == SEQUENCER_FEE_WALLET) {
+            creationCode = RevShareCodeRepo.sequencerFeeVaultCreationCode;
+            vaultName = "SequencerFeeVault";
+        } else if (_config.proxy == BASE_FEE_VAULT) {
+            creationCode = RevShareCodeRepo.baseFeeVaultCreationCode;
+            vaultName = "BaseFeeVault";
+        } else if (_config.proxy == L1_FEE_VAULT) {
+            creationCode = RevShareCodeRepo.l1FeeVaultCreationCode;
+            vaultName = "L1FeeVault";
+        } else {
+            revert("Unknown vault proxy address");
+        }
+
+        bytes32 salt = _getSalt(_saltSeed, vaultName);
+        address impl = Utils.getCreate2Address(salt, creationCode, CREATE2_DEPLOYER);
+
+        // Deploy implementation
+        IOptimismPortal2(payable(_portal)).depositTransaction(
             address(CREATE2_DEPLOYER),
             0,
             RevShareGasLimits.FEE_VAULTS_DEPLOYMENT_GAS_LIMIT,
             false,
-            abi.encodeCall(ICreate2Deployer.deploy, (0, operatorSalt, operatorInitCode))
+            abi.encodeCall(ICreate2Deployer.deploy, (0, salt, creationCode))
         );
 
-        IOptimismPortal2(payable(portal)).depositTransaction(
+        // Upgrade proxy and initialize
+        IOptimismPortal2(payable(_portal)).depositTransaction(
             address(PROXY_ADMIN),
             0,
             RevShareGasLimits.UPGRADE_GAS_LIMIT,
@@ -91,144 +182,138 @@ contract RevShareContractsManager is RevSharePredeploys {
             abi.encodeCall(
                 IProxyAdmin.upgradeAndCall,
                 (
-                    payable(OPERATOR_FEE_VAULT),
-                    operatorFeeVaultImpl,
+                    payable(_config.proxy),
+                    impl,
                     abi.encodeCall(
-                        IFeeVault.initialize,
-                        (FEE_VAULT_RECIPIENT, FEE_VAULT_MIN_WITHDRAWAL_AMOUNT, FEE_VAULT_WITHDRAWAL_NETWORK)
-                    )
-                )
-            )
-        );
-
-        // Deploy SequencerFeeVault
-        bytes32 sequencerSalt = _getSalt(saltSeed, "SequencerFeeVault");
-        bytes memory sequencerInitCode = RevShareCodeRepo.sequencerFeeVaultCreationCode;
-        address sequencerFeeVaultImpl =
-            Utils.getCreate2Address(sequencerSalt, sequencerInitCode, CREATE2_DEPLOYER);
-
-        IOptimismPortal2(payable(portal)).depositTransaction(
-            address(CREATE2_DEPLOYER),
-            0,
-            RevShareGasLimits.FEE_VAULTS_DEPLOYMENT_GAS_LIMIT,
-            false,
-            abi.encodeCall(ICreate2Deployer.deploy, (0, sequencerSalt, sequencerInitCode))
-        );
-
-        IOptimismPortal2(payable(portal)).depositTransaction(
-            address(PROXY_ADMIN),
-            0,
-            RevShareGasLimits.UPGRADE_GAS_LIMIT,
-            false,
-            abi.encodeCall(
-                IProxyAdmin.upgradeAndCall,
-                (
-                    payable(SEQUENCER_FEE_WALLET),
-                    sequencerFeeVaultImpl,
-                    abi.encodeCall(
-                        IFeeVault.initialize,
-                        (FEE_VAULT_RECIPIENT, FEE_VAULT_MIN_WITHDRAWAL_AMOUNT, FEE_VAULT_WITHDRAWAL_NETWORK)
-                    )
-                )
-            )
-        );
-
-        // Deploy BaseFeeVault
-        bytes32 baseSalt = _getSalt(saltSeed, "BaseFeeVault");
-        bytes memory baseInitCode = RevShareCodeRepo.baseFeeVaultCreationCode;
-        address baseFeeVaultImpl = Utils.getCreate2Address(baseSalt, baseInitCode, CREATE2_DEPLOYER);
-
-        IOptimismPortal2(payable(portal)).depositTransaction(
-            address(CREATE2_DEPLOYER),
-            0,
-            RevShareGasLimits.FEE_VAULTS_DEPLOYMENT_GAS_LIMIT,
-            false,
-            abi.encodeCall(ICreate2Deployer.deploy, (0, baseSalt, baseInitCode))
-        );
-
-        IOptimismPortal2(payable(portal)).depositTransaction(
-            address(PROXY_ADMIN),
-            0,
-            RevShareGasLimits.UPGRADE_GAS_LIMIT,
-            false,
-            abi.encodeCall(
-                IProxyAdmin.upgradeAndCall,
-                (
-                    payable(BASE_FEE_VAULT),
-                    baseFeeVaultImpl,
-                    abi.encodeCall(
-                        IFeeVault.initialize,
-                        (FEE_VAULT_RECIPIENT, FEE_VAULT_MIN_WITHDRAWAL_AMOUNT, FEE_VAULT_WITHDRAWAL_NETWORK)
-                    )
-                )
-            )
-        );
-
-        // Deploy L1FeeVault
-        bytes32 l1Salt = _getSalt(saltSeed, "L1FeeVault");
-        bytes memory l1InitCode = RevShareCodeRepo.l1FeeVaultCreationCode;
-        address l1FeeVaultImpl = Utils.getCreate2Address(l1Salt, l1InitCode, CREATE2_DEPLOYER);
-
-        IOptimismPortal2(payable(portal)).depositTransaction(
-            address(CREATE2_DEPLOYER),
-            0,
-            RevShareGasLimits.FEE_VAULTS_DEPLOYMENT_GAS_LIMIT,
-            false,
-            abi.encodeCall(ICreate2Deployer.deploy, (0, l1Salt, l1InitCode))
-        );
-
-        IOptimismPortal2(payable(portal)).depositTransaction(
-            address(PROXY_ADMIN),
-            0,
-            RevShareGasLimits.UPGRADE_GAS_LIMIT,
-            false,
-            abi.encodeCall(
-                IProxyAdmin.upgradeAndCall,
-                (
-                    payable(L1_FEE_VAULT),
-                    l1FeeVaultImpl,
-                    abi.encodeCall(
-                        IFeeVault.initialize,
-                        (FEE_VAULT_RECIPIENT, FEE_VAULT_MIN_WITHDRAWAL_AMOUNT, FEE_VAULT_WITHDRAWAL_NETWORK)
+                        IFeeVault.initialize, (_config.recipient, _config.minWithdrawal, _config.withdrawalNetwork)
                     )
                 )
             )
         );
     }
 
-    /// @notice Deploys the fee splitter implementation using Create2.
-    function _deployFeeSplitter() private {
-        bytes32 feeSplitterSalt = _getSalt(saltSeed, "FeeSplitter");
-        bytes memory feeSplitterInitCode = RevShareCodeRepo.feeSplitterCreationCode;
-        address feeSplitterImpl =
-            Utils.getCreate2Address(feeSplitterSalt, feeSplitterInitCode, CREATE2_DEPLOYER);
+    /// @notice Deploys and upgrades the fee splitter.
+    function _deployAndUpgradeFeeSplitter(address _portal, string memory _saltSeed) private {
+        bytes32 salt = _getSalt(_saltSeed, "FeeSplitter");
+        bytes memory creationCode = RevShareCodeRepo.feeSplitterCreationCode;
+        address impl = Utils.getCreate2Address(salt, creationCode, CREATE2_DEPLOYER);
 
-        // Deploy FeeSplitter implementation
-        IOptimismPortal2(payable(portal)).depositTransaction(
+        // Deploy implementation
+        IOptimismPortal2(payable(_portal)).depositTransaction(
             address(CREATE2_DEPLOYER),
             0,
             RevShareGasLimits.FEE_SPLITTER_DEPLOYMENT_GAS_LIMIT,
             false,
-            abi.encodeCall(ICreate2Deployer.deploy, (0, feeSplitterSalt, feeSplitterInitCode))
+            abi.encodeCall(ICreate2Deployer.deploy, (0, salt, creationCode))
         );
 
-        // Upgrade FeeSplitter proxy and initialize with address(0) calculator (disabled)
-        IOptimismPortal2(payable(portal)).depositTransaction(
+        // Upgrade proxy and initialize with address(0) calculator (disabled)
+        IOptimismPortal2(payable(_portal)).depositTransaction(
             address(PROXY_ADMIN),
             0,
             RevShareGasLimits.UPGRADE_GAS_LIMIT,
             false,
             abi.encodeCall(
                 IProxyAdmin.upgradeAndCall,
-                (payable(FEE_SPLITTER), feeSplitterImpl, abi.encodeCall(IFeeSplitter.initialize, (address(0))))
+                (payable(FEE_SPLITTER), impl, abi.encodeCall(IFeeSplitter.initialize, (address(0))))
             )
         );
     }
 
+    /// @notice Deploys L1Withdrawer to L2.
+    function _deployL1Withdrawer(address _portal, string memory _saltSeed, L1WithdrawerConfig memory _config)
+        private
+        returns (address)
+    {
+        bytes memory initCode = bytes.concat(
+            RevShareCodeRepo.l1WithdrawerCreationCode,
+            abi.encode(_config.minWithdrawalAmount, _config.recipient, _config.gasLimit)
+        );
+        bytes32 salt = _getSalt(_saltSeed, "L1Withdrawer");
+        address l1Withdrawer = Utils.getCreate2Address(salt, initCode, CREATE2_DEPLOYER);
+
+        IOptimismPortal2(payable(_portal)).depositTransaction(
+            address(CREATE2_DEPLOYER),
+            0,
+            RevShareGasLimits.L1_WITHDRAWER_DEPLOYMENT_GAS_LIMIT,
+            false,
+            abi.encodeCall(ICreate2Deployer.deploy, (0, salt, initCode))
+        );
+
+        return l1Withdrawer;
+    }
+
+    /// @notice Deploys SuperchainRevenueShareCalculator to L2.
+    function _deployCalculator(
+        address _portal,
+        string memory _saltSeed,
+        address _l1Withdrawer,
+        CalculatorConfig memory _config
+    ) private returns (address) {
+        bytes memory initCode = bytes.concat(
+            RevShareCodeRepo.scRevShareCalculatorCreationCode, abi.encode(_l1Withdrawer, _config.chainFeesRecipient)
+        );
+        bytes32 salt = _getSalt(_saltSeed, "SCRevShareCalculator");
+        address calculator = Utils.getCreate2Address(salt, initCode, CREATE2_DEPLOYER);
+
+        IOptimismPortal2(payable(_portal)).depositTransaction(
+            address(CREATE2_DEPLOYER),
+            0,
+            RevShareGasLimits.SC_REV_SHARE_CALCULATOR_DEPLOYMENT_GAS_LIMIT,
+            false,
+            abi.encodeCall(ICreate2Deployer.deploy, (0, salt, initCode))
+        );
+
+        return calculator;
+    }
+
+    /// @notice Configures all 4 vaults for revenue sharing (recipient=FeeSplitter, minWithdrawal=0, network=L2).
+    function _configureVaultsForRevShare(address _portal) private {
+        address[4] memory vaults =
+            [OPERATOR_FEE_VAULT, SEQUENCER_FEE_WALLET, BASE_FEE_VAULT, L1_FEE_VAULT];
+
+        for (uint256 i = 0; i < vaults.length; i++) {
+            // Set recipient to FeeSplitter
+            IOptimismPortal2(payable(_portal)).depositTransaction(
+                vaults[i],
+                0,
+                RevShareGasLimits.SETTERS_GAS_LIMIT,
+                false,
+                abi.encodeCall(IFeeVaultSetters.setRecipient, (FEE_SPLITTER))
+            );
+
+            // Set minWithdrawalAmount to 0
+            IOptimismPortal2(payable(_portal)).depositTransaction(
+                vaults[i],
+                0,
+                RevShareGasLimits.SETTERS_GAS_LIMIT,
+                false,
+                abi.encodeCall(IFeeVaultSetters.setMinWithdrawalAmount, (0))
+            );
+
+            // Set withdrawalNetwork to L2 (1)
+            IOptimismPortal2(payable(_portal)).depositTransaction(
+                vaults[i],
+                0,
+                RevShareGasLimits.SETTERS_GAS_LIMIT,
+                false,
+                abi.encodeCall(IFeeVaultSetters.setWithdrawalNetwork, (1))
+            );
+        }
+    }
+
+    /// @notice Sets the calculator on the fee splitter.
+    function _setFeeSplitterCalculator(address _portal, address _calculator) private {
+        IOptimismPortal2(payable(_portal)).depositTransaction(
+            FEE_SPLITTER,
+            0,
+            RevShareGasLimits.SETTERS_GAS_LIMIT,
+            false,
+            abi.encodeCall(IFeeSplitterSetter.setSharesCalculator, (_calculator))
+        );
+    }
+
     /// @notice Generates a salt from a prefix and suffix.
-    /// @param _prefix The prefix for the salt.
-    /// @param _suffix The suffix for the salt.
-    /// @return The generated salt.
     function _getSalt(string memory _prefix, string memory _suffix) private pure returns (bytes32) {
         return keccak256(abi.encodePacked(bytes(_prefix), bytes(":"), bytes(_suffix)));
     }
