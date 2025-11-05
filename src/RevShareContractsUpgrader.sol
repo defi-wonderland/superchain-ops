@@ -79,6 +79,7 @@ contract RevShareContractsManager is RevSharePredeploys {
     function upgradeContracts(address _portal, string memory _saltSeed, VaultConfig[] memory _vaults) external {
         require(_portal != address(0), "portal cannot be zero address");
         require(bytes(_saltSeed).length != 0, "saltSeed cannot be empty");
+        require(_vaults.length == 4, "vaults must be an array of 4");
 
         // Deploy and upgrade each vault
         for (uint256 i = 0; i < _vaults.length; i++) {
@@ -89,25 +90,36 @@ contract RevShareContractsManager is RevSharePredeploys {
         _deployAndUpgradeFeeSplitter(_portal, _saltSeed);
     }
 
-    /// @notice Setup revenue sharing with default calculator (deploys L1Withdrawer + Calculator, configures vaults + splitter).
+    /// @notice Setup revenue sharing (deploys calculator if needed, configures vaults + splitter).
     /// @param _portal The OptimismPortal2 address for the target L2.
-    /// @param _saltSeed The salt seed for CREATE2 deployments.
-    /// @param _l1Config L1Withdrawer configuration.
-    /// @param _calcConfig SuperchainRevenueShareCalculator configuration.
-    function setupRevShareWithDefaultCalculator(
+    /// @param _saltSeed The salt seed for CREATE2 deployments (only used if useDefaultCalculator=true).
+    /// @param _useDefaultCalculator Whether to deploy the default calculator (L1Withdrawer + Calculator).
+    /// @param _customCalculator The custom calculator address (used if useDefaultCalculator=false).
+    /// @param _l1Config L1Withdrawer configuration (only used if useDefaultCalculator=true).
+    /// @param _calcConfig SuperchainRevenueShareCalculator configuration (only used if useDefaultCalculator=true).
+    function setupRevShare(
         address _portal,
         string memory _saltSeed,
+        bool _useDefaultCalculator,
+        address _customCalculator,
         L1WithdrawerConfig memory _l1Config,
         CalculatorConfig memory _calcConfig
     ) external {
-        require(_l1Config.recipient != address(0), "L1Withdrawer recipient cannot be zero address");
-        require(_calcConfig.chainFeesRecipient != address(0), "Calculator chainFeesRecipient cannot be zero address");
+        address calculator;
 
-        // Deploy L1Withdrawer
-        address l1Withdrawer = _deployL1Withdrawer(_portal, _saltSeed, _l1Config);
+        if (_useDefaultCalculator) {
+            require(_l1Config.recipient != address(0), "L1Withdrawer recipient cannot be zero address");
+            require(_calcConfig.chainFeesRecipient != address(0), "Calculator chainFeesRecipient cannot be zero address");
 
-        // Deploy SuperchainRevenueShareCalculator
-        address calculator = _deployCalculator(_portal, _saltSeed, l1Withdrawer, _calcConfig);
+            // Deploy L1Withdrawer
+            address l1Withdrawer = _deployL1Withdrawer(_portal, _saltSeed, _l1Config);
+
+            // Deploy SuperchainRevenueShareCalculator
+            calculator = _deployCalculator(_portal, _saltSeed, l1Withdrawer, _calcConfig);
+        } else {
+            require(_customCalculator != address(0), "Calculator cannot be zero address");
+            calculator = _customCalculator;
+        }
 
         // Configure all 4 vaults for revenue sharing
         _configureVaultsForRevShare(_portal);
@@ -116,17 +128,46 @@ contract RevShareContractsManager is RevSharePredeploys {
         _setFeeSplitterCalculator(_portal, calculator);
     }
 
-    /// @notice Setup revenue sharing with custom calculator (configures vaults + splitter only).
+    /// @notice Upgrades contracts and sets up revenue sharing in a single transaction.
+    ///         This is more efficient as vaults are initialized with RevShare config from the start.
     /// @param _portal The OptimismPortal2 address for the target L2.
-    /// @param _calculator The custom calculator address.
-    function setupRevShareWithCustomCalculator(address _portal, address _calculator) external {
-        require(_calculator != address(0), "Calculator cannot be zero address");
+    /// @param _saltSeed The salt seed for CREATE2 deployments.
+    /// @param _useDefaultCalculator Whether to deploy the default calculator (L1Withdrawer + Calculator).
+    /// @param _customCalculator The custom calculator address (used if useDefaultCalculator=false).
+    /// @param _l1Config L1Withdrawer configuration (only used if useDefaultCalculator=true).
+    /// @param _calcConfig SuperchainRevenueShareCalculator configuration (only used if useDefaultCalculator=true).
+    function upgradeAndSetupRevShare(
+        address _portal,
+        string memory _saltSeed,
+        bool _useDefaultCalculator,
+        address _customCalculator,
+        L1WithdrawerConfig memory _l1Config,
+        CalculatorConfig memory _calcConfig
+    ) external {
+        require(_portal != address(0), "portal cannot be zero address");
+        require(bytes(_saltSeed).length != 0, "saltSeed cannot be empty");
 
-        // Configure all 4 vaults for revenue sharing
-        _configureVaultsForRevShare(_portal);
+        address calculator;
 
-        // Set calculator on fee splitter
-        _setFeeSplitterCalculator(_portal, _calculator);
+        if (_useDefaultCalculator) {
+            require(_l1Config.recipient != address(0), "L1Withdrawer recipient cannot be zero address");
+            require(_calcConfig.chainFeesRecipient != address(0), "Calculator chainFeesRecipient cannot be zero address");
+
+            // Deploy L1Withdrawer
+            address l1Withdrawer = _deployL1Withdrawer(_portal, _saltSeed, _l1Config);
+
+            // Deploy SuperchainRevenueShareCalculator
+            calculator = _deployCalculator(_portal, _saltSeed, l1Withdrawer, _calcConfig);
+        } else {
+            require(_customCalculator != address(0), "Calculator cannot be zero address");
+            calculator = _customCalculator;
+        }
+
+        // Upgrade all 4 vaults with RevShare configuration (recipient=FeeSplitter, minWithdrawal=0, network=L2)
+        _upgradeVaultsWithRevShareConfig(_portal, _saltSeed);
+
+        // Upgrade fee splitter and initialize with calculator
+        _deployAndUpgradeFeeSplitterWithCalculator(_portal, _saltSeed, calculator);
     }
 
     /// @notice Deploys and upgrades a single vault.
@@ -302,6 +343,81 @@ contract RevShareContractsManager is RevSharePredeploys {
             RevShareGasLimits.SETTERS_GAS_LIMIT,
             false,
             abi.encodeCall(IFeeSplitterSetter.setSharesCalculator, (_calculator))
+        );
+    }
+
+    /// @notice Upgrades all 4 vaults with RevShare configuration (recipient=FeeSplitter, minWithdrawal=0, network=L2).
+    function _upgradeVaultsWithRevShareConfig(address _portal, string memory _saltSeed) private {
+        address[4] memory vaultProxies = [OPERATOR_FEE_VAULT, SEQUENCER_FEE_WALLET, BASE_FEE_VAULT, L1_FEE_VAULT];
+        bytes[4] memory creationCodes = [
+            RevShareCodeRepo.operatorFeeVaultCreationCode,
+            RevShareCodeRepo.sequencerFeeVaultCreationCode,
+            RevShareCodeRepo.baseFeeVaultCreationCode,
+            RevShareCodeRepo.l1FeeVaultCreationCode
+        ];
+        string[4] memory vaultNames = ["OperatorFeeVault", "SequencerFeeVault", "BaseFeeVault", "L1FeeVault"];
+
+        for (uint256 i = 0; i < 4; i++) {
+            bytes32 salt = _getSalt(_saltSeed, vaultNames[i]);
+            address impl = Utils.getCreate2Address(salt, creationCodes[i], CREATE2_DEPLOYER);
+
+            // Deploy implementation
+            IOptimismPortal2(payable(_portal)).depositTransaction(
+                address(CREATE2_DEPLOYER),
+                0,
+                RevShareGasLimits.FEE_VAULTS_DEPLOYMENT_GAS_LIMIT,
+                false,
+                abi.encodeCall(ICreate2Deployer.deploy, (0, salt, creationCodes[i]))
+            );
+
+            // Upgrade proxy and initialize with RevShare config
+            IOptimismPortal2(payable(_portal)).depositTransaction(
+                address(PROXY_ADMIN),
+                0,
+                RevShareGasLimits.UPGRADE_GAS_LIMIT,
+                false,
+                abi.encodeCall(
+                    IProxyAdmin.upgradeAndCall,
+                    (
+                        payable(vaultProxies[i]),
+                        impl,
+                        abi.encodeCall(
+                            IFeeVault.initialize,
+                            (FEE_SPLITTER, 0, 1) // recipient=FeeSplitter, minWithdrawal=0, network=L2
+                        )
+                    )
+                )
+            );
+        }
+    }
+
+    /// @notice Deploys and upgrades the fee splitter with a calculator.
+    function _deployAndUpgradeFeeSplitterWithCalculator(address _portal, string memory _saltSeed, address _calculator)
+        private
+    {
+        bytes32 salt = _getSalt(_saltSeed, "FeeSplitter");
+        bytes memory creationCode = RevShareCodeRepo.feeSplitterCreationCode;
+        address impl = Utils.getCreate2Address(salt, creationCode, CREATE2_DEPLOYER);
+
+        // Deploy implementation
+        IOptimismPortal2(payable(_portal)).depositTransaction(
+            address(CREATE2_DEPLOYER),
+            0,
+            RevShareGasLimits.FEE_SPLITTER_DEPLOYMENT_GAS_LIMIT,
+            false,
+            abi.encodeCall(ICreate2Deployer.deploy, (0, salt, creationCode))
+        );
+
+        // Upgrade proxy and initialize with calculator
+        IOptimismPortal2(payable(_portal)).depositTransaction(
+            address(PROXY_ADMIN),
+            0,
+            RevShareGasLimits.UPGRADE_GAS_LIMIT,
+            false,
+            abi.encodeCall(
+                IProxyAdmin.upgradeAndCall,
+                (payable(FEE_SPLITTER), impl, abi.encodeCall(IFeeSplitter.initialize, (_calculator)))
+            )
         );
     }
 
