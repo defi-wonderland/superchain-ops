@@ -48,9 +48,9 @@ interface IFeeSplitterSetter {
 /// @title RevShareContractsManager
 /// @notice Upgrader contract that manages RevShare deployments and configuration via delegatecall.
 ///         Supports three main operations:
-///         1. Upgrade vault and splitter contracts
-///         2. Setup revenue sharing with default calculator
-///         3. Setup revenue sharing with custom calculator
+///         1. Upgrade vault and splitter contracts (upgradeContracts)
+///         2. Setup revenue sharing after vaults were upgraded (setupRevShare)
+///         3. Upgrade contracts and setup revenue sharing in one call (upgradeAndSetupRevShare)
 contract RevShareContractsManager is RevSharePredeploys {
     /// @notice Struct for vault configuration.
     struct VaultConfig {
