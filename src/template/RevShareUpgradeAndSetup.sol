@@ -10,42 +10,40 @@ import {RevSharePredeploys} from "src/libraries/RevSharePredeploys.sol";
 
 /// @notice Interface for the RevShareContractsManager.
 interface IRevShareContractsManager {
-    struct VaultConfig {
-        address proxy;
+    struct L1WithdrawerConfig {
+        uint256 minWithdrawalAmount;
         address recipient;
-        uint256 minWithdrawal;
-        uint8 withdrawalNetwork;
+        uint32 gasLimit;
     }
 
-    function upgradeContracts(address _portal, string memory _saltSeed, VaultConfig[] memory _vaults) external;
+    function upgradeAndSetupRevShare(
+        address _portal,
+        string memory _saltSeed,
+        L1WithdrawerConfig memory _l1Config,
+        address _chainFeesRecipient
+    ) external;
 }
 
-/// @notice Template for upgrading vault and fee splitter contracts via RevShareContractsManager.
-/// @dev This template upgrades contracts without enabling revenue sharing. Supports multiple L2 chains.
-contract RevShareContractsUpgrade is L2TaskBase, RevSharePredeploys {
+/// @notice Template for upgrading vault and fee splitter contracts AND enabling revenue sharing.
+/// @dev This template performs the complete upgrade and setup with default calculator. Supports multiple L2 chains.
+contract RevShareUpgradeAndSetup is L2TaskBase, RevSharePredeploys {
     using stdToml for string;
 
-    /// @notice Temporary struct for parsing TOML (includes vault array).
-    struct TempChainConfig {
-        uint256 chainId;
-        string saltSeed;
-        IRevShareContractsManager.VaultConfig[] vaults;
-    }
-
-    /// @notice Struct representing configuration for a single chain upgrade.
+    /// @notice Struct representing configuration for a single chain.
     struct ChainConfig {
         uint256 chainId;
         string saltSeed;
+        uint256 l1WithdrawerMinWithdrawalAmount;
+        address l1WithdrawerRecipient;
+        uint32 l1WithdrawerGasLimit;
+        address chainFeesRecipient;
     }
 
     /// @notice The RevShareContractsManager contract to delegatecall.
     address public REVSHARE_MANAGER;
 
-    /// @notice Mapping of chain ID to configuration for the upgrade.
+    /// @notice Mapping of chain ID to configuration.
     mapping(uint256 => ChainConfig) public cfg;
-
-    /// @notice Mapping of chain ID to vault configurations (stored separately due to Solidity limitations).
-    mapping(uint256 => mapping(uint256 => IRevShareContractsManager.VaultConfig)) public vaultCfg;
 
     /// @notice Returns the safe address string identifier.
     function safeAddressString() public pure override returns (string memory) {
@@ -80,48 +78,38 @@ contract RevShareContractsUpgrade is L2TaskBase, RevSharePredeploys {
 
         // Load per-chain configurations
         // Expected TOML structure:
-        // [[revShareUpgrades]]
+        // [[revShareSetups]]
         // chainId = 10
         // saltSeed = "..."
-        // [[revShareUpgrades.vaults]]
-        // proxy = "0x..."
-        // recipient = "0x..."
-        // minWithdrawal = 100000
-        // withdrawalNetwork = 1
+        // l1WithdrawerMinWithdrawalAmount = 350000
+        // l1WithdrawerRecipient = "0x..."
+        // l1WithdrawerGasLimit = 800000
+        // chainFeesRecipient = "0x..."
+        ChainConfig[] memory _configs = abi.decode(_toml.parseRaw(".revShareSetups"), (ChainConfig[]));
 
-        // Parse the raw TOML array - we need to parse the struct with vaults array separately
-        bytes memory rawConfigs = _toml.parseRaw(".revShareUpgrades");
-
-        // Decode into a temporary struct that includes the vaults array
-        TempChainConfig[] memory tempConfigs = abi.decode(rawConfigs, (TempChainConfig[]));
-
-        for (uint256 i = 0; i < tempConfigs.length; i++) {
-            TempChainConfig memory tempCfg = tempConfigs[i];
-            require(bytes(tempCfg.saltSeed).length != 0, "saltSeed must be set for each chain");
-            require(tempCfg.vaults.length == 4, "Must provide exactly 4 vault configurations");
+        for (uint256 i = 0; i < _configs.length; i++) {
+            ChainConfig memory _config = _configs[i];
+            require(bytes(_config.saltSeed).length != 0, "saltSeed must be set for each chain");
+            require(_config.l1WithdrawerRecipient != address(0), "l1WithdrawerRecipient must be set");
+            require(_config.chainFeesRecipient != address(0), "chainFeesRecipient must be set");
+            require(_config.l1WithdrawerGasLimit > 0, "l1WithdrawerGasLimit must be greater than 0");
 
             // Verify chainId is in the l2chains list
             bool chainFound = false;
             for (uint256 j = 0; j < _chains.length; j++) {
-                if (_chains[j].chainId == tempCfg.chainId) {
+                if (_chains[j].chainId == _config.chainId) {
                     chainFound = true;
                     break;
                 }
             }
             require(chainFound, "Chain ID not found in l2chains list");
 
-            // Store basic configuration
-            cfg[tempCfg.chainId] = ChainConfig({chainId: tempCfg.chainId, saltSeed: tempCfg.saltSeed});
-
-            // Store vault configurations separately
-            for (uint256 j = 0; j < 4; j++) {
-                require(tempCfg.vaults[j].proxy != address(0), "Vault proxy cannot be zero address");
-                vaultCfg[tempCfg.chainId][j] = tempCfg.vaults[j];
-            }
+            // Store configuration
+            cfg[_config.chainId] = _config;
         }
     }
 
-    /// @notice Executes the vault and splitter upgrade via delegatecall for each chain.
+    /// @notice Executes the vault/splitter upgrade and revenue sharing setup via delegatecall for each chain.
     function _build(address) internal override {
         SuperchainAddressRegistry.ChainInfo[] memory chains = superchainAddrRegistry.getChains();
 
@@ -133,18 +121,22 @@ contract RevShareContractsUpgrade is L2TaskBase, RevSharePredeploys {
             address portal = superchainAddrRegistry.getAddress("OptimismPortal", chainId);
             require(portal != address(0), "OptimismPortal not found for chain");
 
-            // Prepare vault configs array from separate mapping
-            IRevShareContractsManager.VaultConfig[] memory vaults =
-                new IRevShareContractsManager.VaultConfig[](4);
-            for (uint256 j = 0; j < 4; j++) {
-                vaults[j] = vaultCfg[chainId][j];
-            }
+            // Prepare L1Withdrawer config
+            IRevShareContractsManager.L1WithdrawerConfig memory l1Config = IRevShareContractsManager
+                .L1WithdrawerConfig({
+                minWithdrawalAmount: chainCfg.l1WithdrawerMinWithdrawalAmount,
+                recipient: chainCfg.l1WithdrawerRecipient,
+                gasLimit: chainCfg.l1WithdrawerGasLimit
+            });
 
             // Delegatecall to RevShareContractsManager for this chain
             (bool success,) = REVSHARE_MANAGER.delegatecall(
-                abi.encodeCall(IRevShareContractsManager.upgradeContracts, (portal, chainCfg.saltSeed, vaults))
+                abi.encodeCall(
+                    IRevShareContractsManager.upgradeAndSetupRevShare,
+                    (portal, chainCfg.saltSeed, l1Config, chainCfg.chainFeesRecipient)
+                )
             );
-            require(success, "RevShareContractsUpgrade: Delegatecall to upgradeContracts failed");
+            require(success, "RevShareUpgradeAndSetup: Delegatecall to upgradeAndSetupRevShare failed");
         }
     }
 
