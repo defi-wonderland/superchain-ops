@@ -72,9 +72,6 @@ contract RevShareContractsManager is RevSharePredeploys {
         address chainFeesRecipient;
     }
 
-    /// @notice Tracks which portals have been upgraded.
-    mapping(address => bool) public upgradedPortals;
-
     /// @notice Upgrades vault and fee splitter contracts.
     /// @param _portal The OptimismPortal2 address for the target L2.
     /// @param _saltSeed The salt seed for CREATE2 deployments.
@@ -90,9 +87,6 @@ contract RevShareContractsManager is RevSharePredeploys {
 
         // Deploy and upgrade fee splitter with address(0) calculator (disabled)
         _deployAndUpgradeFeeSplitter(_portal, _saltSeed);
-
-        // Mark this portal as upgraded
-        upgradedPortals[_portal] = true;
     }
 
     /// @notice Setup revenue sharing with default calculator (deploys L1Withdrawer + Calculator, configures vaults + splitter).
@@ -106,7 +100,6 @@ contract RevShareContractsManager is RevSharePredeploys {
         L1WithdrawerConfig memory _l1Config,
         CalculatorConfig memory _calcConfig
     ) external {
-        require(upgradedPortals[_portal], "Must upgrade contracts first");
         require(_l1Config.recipient != address(0), "L1Withdrawer recipient cannot be zero address");
         require(_calcConfig.chainFeesRecipient != address(0), "Calculator chainFeesRecipient cannot be zero address");
 
@@ -127,7 +120,6 @@ contract RevShareContractsManager is RevSharePredeploys {
     /// @param _portal The OptimismPortal2 address for the target L2.
     /// @param _calculator The custom calculator address.
     function setupRevShareWithCustomCalculator(address _portal, address _calculator) external {
-        require(upgradedPortals[_portal], "Must upgrade contracts first");
         require(_calculator != address(0), "Calculator cannot be zero address");
 
         // Configure all 4 vaults for revenue sharing
