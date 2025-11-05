@@ -67,10 +67,6 @@ contract RevShareContractsManager is RevSharePredeploys {
         uint32 gasLimit;
     }
 
-    /// @notice Struct for SuperchainRevenueShareCalculator configuration.
-    struct CalculatorConfig {
-        address chainFeesRecipient;
-    }
 
     /// @notice Upgrades vault and fee splitter contracts.
     /// @param _portal The OptimismPortal2 address for the target L2.
@@ -96,26 +92,26 @@ contract RevShareContractsManager is RevSharePredeploys {
     /// @param _useDefaultCalculator Whether to deploy the default calculator (L1Withdrawer + Calculator).
     /// @param _customCalculator The custom calculator address (used if useDefaultCalculator=false).
     /// @param _l1Config L1Withdrawer configuration (only used if useDefaultCalculator=true).
-    /// @param _calcConfig SuperchainRevenueShareCalculator configuration (only used if useDefaultCalculator=true).
+    /// @param _chainFeesRecipient The chain fees recipient for the calculator (only used if useDefaultCalculator=true).
     function setupRevShare(
         address _portal,
         string memory _saltSeed,
         bool _useDefaultCalculator,
         address _customCalculator,
         L1WithdrawerConfig memory _l1Config,
-        CalculatorConfig memory _calcConfig
+        address _chainFeesRecipient
     ) external {
         address calculator;
 
         if (_useDefaultCalculator) {
             require(_l1Config.recipient != address(0), "L1Withdrawer recipient cannot be zero address");
-            require(_calcConfig.chainFeesRecipient != address(0), "Calculator chainFeesRecipient cannot be zero address");
+            require(_chainFeesRecipient != address(0), "chainFeesRecipient cannot be zero address");
 
             // Deploy L1Withdrawer
             address l1Withdrawer = _deployL1Withdrawer(_portal, _saltSeed, _l1Config);
 
             // Deploy SuperchainRevenueShareCalculator
-            calculator = _deployCalculator(_portal, _saltSeed, l1Withdrawer, _calcConfig);
+            calculator = _deployCalculator(_portal, _saltSeed, l1Withdrawer, _chainFeesRecipient);
         } else {
             require(_customCalculator != address(0), "Calculator cannot be zero address");
             calculator = _customCalculator;
@@ -135,14 +131,14 @@ contract RevShareContractsManager is RevSharePredeploys {
     /// @param _useDefaultCalculator Whether to deploy the default calculator (L1Withdrawer + Calculator).
     /// @param _customCalculator The custom calculator address (used if useDefaultCalculator=false).
     /// @param _l1Config L1Withdrawer configuration (only used if useDefaultCalculator=true).
-    /// @param _calcConfig SuperchainRevenueShareCalculator configuration (only used if useDefaultCalculator=true).
+    /// @param _chainFeesRecipient The chain fees recipient for the calculator (only used if useDefaultCalculator=true).
     function upgradeAndSetupRevShare(
         address _portal,
         string memory _saltSeed,
         bool _useDefaultCalculator,
         address _customCalculator,
         L1WithdrawerConfig memory _l1Config,
-        CalculatorConfig memory _calcConfig
+        address _chainFeesRecipient
     ) external {
         require(_portal != address(0), "portal cannot be zero address");
         require(bytes(_saltSeed).length != 0, "saltSeed cannot be empty");
@@ -151,13 +147,13 @@ contract RevShareContractsManager is RevSharePredeploys {
 
         if (_useDefaultCalculator) {
             require(_l1Config.recipient != address(0), "L1Withdrawer recipient cannot be zero address");
-            require(_calcConfig.chainFeesRecipient != address(0), "Calculator chainFeesRecipient cannot be zero address");
+            require(_chainFeesRecipient != address(0), "chainFeesRecipient cannot be zero address");
 
             // Deploy L1Withdrawer
             address l1Withdrawer = _deployL1Withdrawer(_portal, _saltSeed, _l1Config);
 
             // Deploy SuperchainRevenueShareCalculator
-            calculator = _deployCalculator(_portal, _saltSeed, l1Withdrawer, _calcConfig);
+            calculator = _deployCalculator(_portal, _saltSeed, l1Withdrawer, _chainFeesRecipient);
         } else {
             require(_customCalculator != address(0), "Calculator cannot be zero address");
             calculator = _customCalculator;
@@ -281,10 +277,10 @@ contract RevShareContractsManager is RevSharePredeploys {
         address _portal,
         string memory _saltSeed,
         address _l1Withdrawer,
-        CalculatorConfig memory _config
+        address _chainFeesRecipient
     ) private returns (address) {
         bytes memory initCode = bytes.concat(
-            RevShareCodeRepo.scRevShareCalculatorCreationCode, abi.encode(_l1Withdrawer, _config.chainFeesRecipient)
+            RevShareCodeRepo.scRevShareCalculatorCreationCode, abi.encode(_l1Withdrawer, _chainFeesRecipient)
         );
         bytes32 salt = _getSalt(_saltSeed, "SCRevShareCalculator");
         address calculator = Utils.getCreate2Address(salt, initCode, CREATE2_DEPLOYER);
