@@ -77,7 +77,7 @@ contract RevShareContractsManager is RevSharePredeploys {
 
         // Deploy and upgrade each vault with custom config
         for (uint256 i = 0; i < _vaults.length; i++) {
-            _upgradeVault(_portal, _saltSeed, _vaults[i]);
+            _upgradeVaultWithCustomConfig(_portal, _saltSeed, _vaults[i]);
         }
 
         // Deploy and upgrade fee splitter with address(0) calculator (disabled)
@@ -149,7 +149,7 @@ contract RevShareContractsManager is RevSharePredeploys {
     /// @param _portal The OptimismPortal2 address for the target L2
     /// @param _saltSeed The salt seed for CREATE2 deployments
     /// @param _config Vault configuration containing proxy address and initialization parameters
-    function _upgradeVault(address _portal, string memory _saltSeed, VaultConfig memory _config) private {
+    function _upgradeVaultWithCustomConfig(address _portal, string memory _saltSeed, VaultConfig memory _config) private {
         if (_config.proxy == address(0)) revert VaultProxyCannotBeZeroAddress();
 
         // Determine which vault type and get the appropriate creation code
