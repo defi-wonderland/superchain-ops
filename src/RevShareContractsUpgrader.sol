@@ -16,21 +16,28 @@ import {IFeeVault} from "src/interfaces/IFeeVault.sol";
 
 /// @title RevShareContractsManager
 /// @notice Upgrader contract that manages RevShare deployments and configuration via delegatecall.
-///         Supports three operations:
+/// @dev    Supports three operations:
 ///         1. upgradeContracts() - Upgrade vault and splitter implementations only
 ///         2. setupRevShare() - Setup revenue sharing on already-upgraded contracts
 ///         3. upgradeAndSetupRevShare() - Combined upgrade + setup (most efficient)
 ///         All operations use the default calculator (L1Withdrawer + SuperchainRevenueShareCalculator).
 contract RevShareContractsManager is RevSharePredeploys {
     /// @notice Struct for vault configuration.
+    /// @param proxy Vault proxy address
+    /// @param recipient Withdrawal recipient
+    /// @param minWithdrawal Minimum withdrawal amount
+    /// @param withdrawalNetwork Network for withdrawals (0=L1, 1=L2)
     struct VaultConfig {
-        address proxy; // Vault proxy address
-        address recipient; // Withdrawal recipient
-        uint256 minWithdrawal; // Minimum withdrawal amount
-        uint8 withdrawalNetwork; // Network for withdrawals (0=L1, 1=L2)
+        address proxy;
+        address recipient;
+        uint256 minWithdrawal;
+        uint8 withdrawalNetwork;
     }
 
     /// @notice Struct for L1Withdrawer configuration.
+    /// @param minWithdrawalAmount Minimum withdrawal amount
+    /// @param recipient Recipient address for withdrawals
+    /// @param gasLimit Gas limit for L1 withdrawals
     struct L1WithdrawerConfig {
         uint256 minWithdrawalAmount;
         address recipient;
@@ -117,6 +124,9 @@ contract RevShareContractsManager is RevSharePredeploys {
     }
 
     /// @notice Deploys and upgrades a single vault with custom configuration.
+    /// @param _portal The OptimismPortal2 address for the target L2
+    /// @param _saltSeed The salt seed for CREATE2 deployments
+    /// @param _config Vault configuration containing proxy address and initialization parameters
     function _upgradeVault(address _portal, string memory _saltSeed, VaultConfig memory _config) private {
         require(_config.proxy != address(0), "Vault proxy cannot be zero address");
 
@@ -172,6 +182,8 @@ contract RevShareContractsManager is RevSharePredeploys {
     }
 
     /// @notice Deploys and upgrades the fee splitter with address(0) calculator (disabled).
+    /// @param _portal The OptimismPortal2 address for the target L2
+    /// @param _saltSeed The salt seed for CREATE2 deployments
     function _deployAndUpgradeFeeSplitter(address _portal, string memory _saltSeed) private {
         bytes32 salt = _getSalt(_saltSeed, "FeeSplitter");
         bytes memory creationCode = RevShareCodeRepo.feeSplitterCreationCode;
@@ -200,6 +212,10 @@ contract RevShareContractsManager is RevSharePredeploys {
     }
 
     /// @notice Deploys L1Withdrawer to L2.
+    /// @param _portal The OptimismPortal2 address for the target L2
+    /// @param _saltSeed The salt seed for CREATE2 deployments
+    /// @param _config L1Withdrawer configuration
+    /// @return The deployed L1Withdrawer address
     function _deployL1Withdrawer(address _portal, string memory _saltSeed, L1WithdrawerConfig memory _config)
         private
         returns (address)
@@ -223,6 +239,11 @@ contract RevShareContractsManager is RevSharePredeploys {
     }
 
     /// @notice Deploys SuperchainRevenueShareCalculator to L2.
+    /// @param _portal The OptimismPortal2 address for the target L2
+    /// @param _saltSeed The salt seed for CREATE2 deployments
+    /// @param _l1Withdrawer The L1Withdrawer address
+    /// @param _chainFeesRecipient The chain fees recipient address
+    /// @return The deployed calculator address
     function _deployCalculator(
         address _portal,
         string memory _saltSeed,
@@ -247,6 +268,7 @@ contract RevShareContractsManager is RevSharePredeploys {
     }
 
     /// @notice Configures all 4 vaults for revenue sharing (recipient=FeeSplitter, minWithdrawal=0, network=L2).
+    /// @param _portal The OptimismPortal2 address for the target L2
     function _configureVaultsForRevShare(address _portal) private {
         address[4] memory vaults = [OPERATOR_FEE_VAULT, SEQUENCER_FEE_WALLET, BASE_FEE_VAULT, L1_FEE_VAULT];
 
@@ -269,6 +291,8 @@ contract RevShareContractsManager is RevSharePredeploys {
     }
 
     /// @notice Sets the calculator on the fee splitter.
+    /// @param _portal The OptimismPortal2 address for the target L2
+    /// @param _calculator The calculator address to set
     function _setFeeSplitterCalculator(address _portal, address _calculator) private {
         IOptimismPortal2(payable(_portal)).depositTransaction(
             FEE_SPLITTER,
@@ -280,6 +304,8 @@ contract RevShareContractsManager is RevSharePredeploys {
     }
 
     /// @notice Upgrades all 4 vaults with RevShare configuration (recipient=FeeSplitter, minWithdrawal=0, network=L2).
+    /// @param _portal The OptimismPortal2 address for the target L2
+    /// @param _saltSeed The salt seed for CREATE2 deployments
     function _upgradeVaultsWithRevShareConfig(address _portal, string memory _saltSeed) private {
         address[4] memory vaultProxies = [OPERATOR_FEE_VAULT, SEQUENCER_FEE_WALLET, BASE_FEE_VAULT, L1_FEE_VAULT];
         bytes[4] memory creationCodes = [
@@ -325,6 +351,9 @@ contract RevShareContractsManager is RevSharePredeploys {
     }
 
     /// @notice Deploys and upgrades the fee splitter with a calculator.
+    /// @param _portal The OptimismPortal2 address for the target L2
+    /// @param _saltSeed The salt seed for CREATE2 deployments
+    /// @param _calculator The calculator address to initialize with
     function _deployAndUpgradeFeeSplitterWithCalculator(address _portal, string memory _saltSeed, address _calculator)
         private
     {
@@ -355,6 +384,9 @@ contract RevShareContractsManager is RevSharePredeploys {
     }
 
     /// @notice Generates a salt from a prefix and suffix.
+    /// @param _prefix The prefix string
+    /// @param _suffix The suffix string
+    /// @return The generated salt as bytes32
     function _getSalt(string memory _prefix, string memory _suffix) private pure returns (bytes32) {
         return keccak256(abi.encodePacked(bytes(_prefix), bytes(":"), bytes(_suffix)));
     }
