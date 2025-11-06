@@ -84,7 +84,7 @@ contract RevShareContractsManager is RevSharePredeploys {
         _deployAndUpgradeFeeSplitterDisabled(_portal, _saltSeed);
     }
 
-    /// @notice Setup revenue sharing on already-upgraded contracts.
+    /// @notice Enables revenue sharing after vaults have been upgraded and `FeeSplitter` initialized.
     ///         Deploys L1Withdrawer and calculator, then configures vaults and splitter.
     /// @param _portal The OptimismPortal2 address for the target L2.
     /// @param _saltSeed The salt seed for CREATE2 deployments.
