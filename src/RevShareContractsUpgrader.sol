@@ -22,6 +22,27 @@ import {IFeeVault} from "src/interfaces/IFeeVault.sol";
 ///         3. upgradeAndSetupRevShare() - Combined upgrade + setup (most efficient)
 ///         All operations use the default calculator (L1Withdrawer + SuperchainRevenueShareCalculator).
 contract RevShareContractsManager is RevSharePredeploys {
+    /// @notice Thrown when portal address is zero
+    error PortalCannotBeZeroAddress();
+
+    /// @notice Thrown when salt seed is empty
+    error SaltSeedCannotBeEmpty();
+
+    /// @notice Thrown when vaults array length is not 4
+    error VaultsMustBeArrayOf4();
+
+    /// @notice Thrown when L1Withdrawer recipient is zero address
+    error L1WithdrawerRecipientCannotBeZeroAddress();
+
+    /// @notice Thrown when chain fees recipient is zero address
+    error ChainFeesRecipientCannotBeZeroAddress();
+
+    /// @notice Thrown when vault proxy address is zero
+    error VaultProxyCannotBeZeroAddress();
+
+    /// @notice Thrown when vault proxy address is unknown
+    error UnknownVaultProxyAddress();
+
     /// @notice Struct for vault configuration.
     /// @param proxy Vault proxy address
     /// @param recipient Withdrawal recipient
@@ -50,9 +71,9 @@ contract RevShareContractsManager is RevSharePredeploys {
     /// @param _saltSeed The salt seed for CREATE2 deployments.
     /// @param _vaults Array of 4 vault configurations.
     function upgradeContracts(address _portal, string memory _saltSeed, VaultConfig[] memory _vaults) external {
-        require(_portal != address(0), "portal cannot be zero address");
-        require(bytes(_saltSeed).length != 0, "saltSeed cannot be empty");
-        require(_vaults.length == 4, "vaults must be an array of 4");
+        if (_portal == address(0)) revert PortalCannotBeZeroAddress();
+        if (bytes(_saltSeed).length == 0) revert SaltSeedCannotBeEmpty();
+        if (_vaults.length != 4) revert VaultsMustBeArrayOf4();
 
         // Deploy and upgrade each vault with custom config
         for (uint256 i = 0; i < _vaults.length; i++) {
@@ -75,10 +96,10 @@ contract RevShareContractsManager is RevSharePredeploys {
         L1WithdrawerConfig memory _l1Config,
         address _chainFeesRecipient
     ) external {
-        require(_portal != address(0), "portal cannot be zero address");
-        require(bytes(_saltSeed).length != 0, "saltSeed cannot be empty");
-        require(_l1Config.recipient != address(0), "L1Withdrawer recipient cannot be zero address");
-        require(_chainFeesRecipient != address(0), "chainFeesRecipient cannot be zero address");
+        if (_portal == address(0)) revert PortalCannotBeZeroAddress();
+        if (bytes(_saltSeed).length == 0) revert SaltSeedCannotBeEmpty();
+        if (_l1Config.recipient == address(0)) revert L1WithdrawerRecipientCannotBeZeroAddress();
+        if (_chainFeesRecipient == address(0)) revert ChainFeesRecipientCannotBeZeroAddress();
 
         // Deploy L1Withdrawer
         address l1Withdrawer = _deployL1Withdrawer(_portal, _saltSeed, _l1Config);
@@ -105,10 +126,10 @@ contract RevShareContractsManager is RevSharePredeploys {
         L1WithdrawerConfig memory _l1Config,
         address _chainFeesRecipient
     ) external {
-        require(_portal != address(0), "portal cannot be zero address");
-        require(bytes(_saltSeed).length != 0, "saltSeed cannot be empty");
-        require(_l1Config.recipient != address(0), "L1Withdrawer recipient cannot be zero address");
-        require(_chainFeesRecipient != address(0), "chainFeesRecipient cannot be zero address");
+        if (_portal == address(0)) revert PortalCannotBeZeroAddress();
+        if (bytes(_saltSeed).length == 0) revert SaltSeedCannotBeEmpty();
+        if (_l1Config.recipient == address(0)) revert L1WithdrawerRecipientCannotBeZeroAddress();
+        if (_chainFeesRecipient == address(0)) revert ChainFeesRecipientCannotBeZeroAddress();
 
         // Deploy L1Withdrawer
         address l1Withdrawer = _deployL1Withdrawer(_portal, _saltSeed, _l1Config);
@@ -128,7 +149,7 @@ contract RevShareContractsManager is RevSharePredeploys {
     /// @param _saltSeed The salt seed for CREATE2 deployments
     /// @param _config Vault configuration containing proxy address and initialization parameters
     function _upgradeVault(address _portal, string memory _saltSeed, VaultConfig memory _config) private {
-        require(_config.proxy != address(0), "Vault proxy cannot be zero address");
+        if (_config.proxy == address(0)) revert VaultProxyCannotBeZeroAddress();
 
         // Determine which vault type and get the appropriate creation code
         bytes memory creationCode;
@@ -147,7 +168,7 @@ contract RevShareContractsManager is RevSharePredeploys {
             creationCode = RevShareCodeRepo.l1FeeVaultCreationCode;
             vaultName = "L1FeeVault";
         } else {
-            revert("Unknown vault proxy address");
+            revert UnknownVaultProxyAddress();
         }
 
         bytes32 salt = _getSalt(_saltSeed, vaultName);
