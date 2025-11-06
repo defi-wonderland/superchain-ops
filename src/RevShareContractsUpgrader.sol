@@ -6,44 +6,13 @@ import {RevShareCodeRepo} from "src/libraries/RevShareCodeRepo.sol";
 import {RevShareGasLimits} from "src/libraries/RevShareGasLimits.sol";
 import {Utils} from "src/libraries/Utils.sol";
 
-/// @notice Interface for the OptimismPortal2 in L1.
-interface IOptimismPortal2 {
-    function depositTransaction(address _to, uint256 _value, uint64 _gasLimit, bool _isCreation, bytes memory _data)
-        external
-        payable;
-}
-
-/// @notice Interface of the Create2 Preinstall in L2.
-interface ICreate2Deployer {
-    function deploy(uint256 _value, bytes32 _salt, bytes memory _code) external;
-}
-
-/// @notice Interface for ProxyAdmin.
-interface IProxyAdmin {
-    function upgradeAndCall(address payable _proxy, address _implementation, bytes memory _data) external;
-}
-
-/// @notice Interface for the FeeSplitter in L2.
-interface IFeeSplitter {
-    function initialize(address _sharesCalculator) external;
-}
-
-/// @notice Interface for the vaults in L2 (initialization).
-interface IFeeVault {
-    function initialize(address _recipient, uint256 _minWithdrawalAmount, uint8 _withdrawalNetwork) external;
-}
-
-/// @notice Interface for vault setters (RevShare vaults have mutable storage).
-interface IFeeVaultSetters {
-    function setRecipient(address _recipient) external;
-    function setMinWithdrawalAmount(uint256 _minWithdrawalAmount) external;
-    function setWithdrawalNetwork(uint8 _withdrawalNetwork) external;
-}
-
-/// @notice Interface for FeeSplitter setter.
-interface IFeeSplitterSetter {
-    function setSharesCalculator(address _calculator) external;
-}
+// Interfaces
+import {IOptimismPortal2} from "@eth-optimism-bedrock/interfaces/L1/IOptimismPortal2.sol";
+import {IProxyAdmin} from "@eth-optimism-bedrock/interfaces/universal/IProxyAdmin.sol";
+import {ICreate2Deployer} from "src/interfaces/ICreate2Deployer.sol";
+import {IFeeSplitter} from "src/interfaces/IFeeSplitter.sol";
+import {IFeeSplitterSetter} from "src/interfaces/IFeeSplitterSetter.sol";
+import {IFeeVault} from "src/interfaces/IFeeVault.sol";
 
 /// @title RevShareContractsManager
 /// @notice Upgrader contract that manages RevShare deployments and configuration via delegatecall.
@@ -284,17 +253,17 @@ contract RevShareContractsManager is RevSharePredeploys {
         for (uint256 i = 0; i < vaults.length; i++) {
             // Set recipient to FeeSplitter
             IOptimismPortal2(payable(_portal)).depositTransaction(
-                vaults[i], 0, RevShareGasLimits.SETTERS_GAS_LIMIT, false, abi.encodeCall(IFeeVaultSetters.setRecipient, (FEE_SPLITTER))
+                vaults[i], 0, RevShareGasLimits.SETTERS_GAS_LIMIT, false, abi.encodeCall(IFeeVault.setRecipient, (FEE_SPLITTER))
             );
 
             // Set minWithdrawalAmount to 0
             IOptimismPortal2(payable(_portal)).depositTransaction(
-                vaults[i], 0, RevShareGasLimits.SETTERS_GAS_LIMIT, false, abi.encodeCall(IFeeVaultSetters.setMinWithdrawalAmount, (0))
+                vaults[i], 0, RevShareGasLimits.SETTERS_GAS_LIMIT, false, abi.encodeCall(IFeeVault.setMinWithdrawalAmount, (0))
             );
 
             // Set withdrawalNetwork to L2 (1)
             IOptimismPortal2(payable(_portal)).depositTransaction(
-                vaults[i], 0, RevShareGasLimits.SETTERS_GAS_LIMIT, false, abi.encodeCall(IFeeVaultSetters.setWithdrawalNetwork, (1))
+                vaults[i], 0, RevShareGasLimits.SETTERS_GAS_LIMIT, false, abi.encodeCall(IFeeVault.setWithdrawalNetwork, (1))
             );
         }
     }
