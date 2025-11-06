@@ -65,7 +65,7 @@ contract RevShareContractsManager is RevSharePredeploys {
         uint32 gasLimit;
     }
 
-    /// @notice Upgrades vault and fee splitter contracts with custom configurations.
+    /// @notice Upgrades vault initializing them with custom configuration and deploys fee splitter initializing it with 0 address as shares calculator since revenue sharing is disabled.
     ///         Vaults are NOT configured for revenue sharing - use setupRevShare() afterwards.
     /// @param _portal The OptimismPortal2 address for the target L2.
     /// @param _saltSeed The salt seed for CREATE2 deployments.
