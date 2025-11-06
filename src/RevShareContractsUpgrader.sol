@@ -81,7 +81,7 @@ contract RevShareContractsManager is RevSharePredeploys {
         }
 
         // Deploy and upgrade fee splitter with address(0) calculator (disabled)
-        _deployAndUpgradeFeeSplitter(_portal, _saltSeed);
+        _deployAndUpgradeFeeSplitterDisabled(_portal, _saltSeed);
     }
 
     /// @notice Setup revenue sharing on already-upgraded contracts.
@@ -203,10 +203,10 @@ contract RevShareContractsManager is RevSharePredeploys {
         );
     }
 
-    /// @notice Deploys and upgrades the fee splitter with address(0) calculator (disabled).
+    /// @notice Deploys and upgrades the fee splitter with address(0) calculator (revenue sharing disabled).
     /// @param _portal The OptimismPortal2 address for the target L2
     /// @param _saltSeed The salt seed for CREATE2 deployments
-    function _deployAndUpgradeFeeSplitter(address _portal, string memory _saltSeed) private {
+    function _deployAndUpgradeFeeSplitterDisabled(address _portal, string memory _saltSeed) private {
         bytes32 salt = _getSalt(_saltSeed, "FeeSplitter");
         bytes memory creationCode = RevShareCodeRepo.feeSplitterCreationCode;
         address impl = Utils.getCreate2Address(salt, creationCode, CREATE2_DEPLOYER);
