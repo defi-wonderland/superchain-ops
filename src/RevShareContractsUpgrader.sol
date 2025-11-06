@@ -137,11 +137,12 @@ contract RevShareContractsManager is RevSharePredeploys {
         // Deploy SuperchainRevenueShareCalculator
         address calculator = _deployCalculator(_portal, _saltSeed, l1Withdrawer, _chainFeesRecipient);
 
+        // Upgrade fee splitter and initialize with calculator FIRST
+        // This prevents the edge case where fees could be sent to an uninitialized FeeSplitter
+        _deployAndUpgradeFeeSplitterWithCalculator(_portal, _saltSeed, calculator);
+
         // Upgrade all 4 vaults with RevShare configuration (recipient=FeeSplitter, minWithdrawal=0, network=L2)
         _upgradeVaultsWithRevShareConfig(_portal, _saltSeed);
-
-        // Upgrade fee splitter and initialize with calculator
-        _deployAndUpgradeFeeSplitterWithCalculator(_portal, _saltSeed, calculator);
     }
 
     /// @notice Deploys and upgrades a single vault with custom configuration.
