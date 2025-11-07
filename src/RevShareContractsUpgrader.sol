@@ -36,6 +36,9 @@ contract RevShareContractsManager is RevSharePredeploys {
     /// @notice Thrown when array lengths don't match
     error ArrayLengthMismatch();
 
+    /// @notice Thrown when array is empty
+    error EmptyArray();
+
     /// @notice Struct for L1Withdrawer configuration.
     /// @param minWithdrawalAmount Minimum withdrawal amount
     /// @param recipient Recipient address for withdrawals
@@ -56,6 +59,7 @@ contract RevShareContractsManager is RevSharePredeploys {
         L1WithdrawerConfig[] calldata _l1WithdrawerConfigs,
         address[] calldata _chainFeesRecipients
     ) external {
+        if (_portals.length == 0) revert EmptyArray();
         if (_portals.length != _l1WithdrawerConfigs.length || _portals.length != _chainFeesRecipients.length) {
             revert ArrayLengthMismatch();
         }
@@ -128,6 +132,7 @@ contract RevShareContractsManager is RevSharePredeploys {
         L1WithdrawerConfig[] calldata _l1WithdrawerConfigs,
         address[] calldata _chainFeesRecipients
     ) external {
+        if (_portals.length == 0) revert EmptyArray();
         if (_portals.length != _l1WithdrawerConfigs.length || _portals.length != _chainFeesRecipients.length) {
             revert ArrayLengthMismatch();
         }
