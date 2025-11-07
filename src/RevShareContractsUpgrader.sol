@@ -21,11 +21,11 @@ import {IFeeVault} from "src/interfaces/IFeeVault.sol";
 ///         2. upgradeAndSetupRevShare() - Combined upgrade + setup (most efficient)
 ///         All operations use the default calculator (L1Withdrawer + SuperchainRevenueShareCalculator).
 contract RevShareContractsManager is RevSharePredeploys {
+    /// @notice Salt seed used for CREATE2 deployments
+    string private constant SALT_SEED = "RevShare";
+
     /// @notice Thrown when portal address is zero
     error PortalCannotBeZeroAddress();
-
-    /// @notice Thrown when salt seed is empty
-    error SaltSeedCannotBeEmpty();
 
     /// @notice Thrown when L1Withdrawer recipient is zero address
     error L1WithdrawerRecipientCannotBeZeroAddress();
@@ -46,25 +46,20 @@ contract RevShareContractsManager is RevSharePredeploys {
     /// @notice Enables revenue sharing after vaults have been upgraded and `FeeSplitter` initialized.
     ///         Deploys L1Withdrawer and calculator, then configures vaults and splitter.
     /// @param _portal The OptimismPortal2 address for the target L2.
-    /// @param _saltSeed The salt seed for CREATE2 deployments.
     /// @param _l1Config L1Withdrawer configuration.
     /// @param _chainFeesRecipient The chain fees recipient for the calculator.
-    function setupRevShare(
-        address _portal,
-        string memory _saltSeed,
-        L1WithdrawerConfig memory _l1Config,
-        address _chainFeesRecipient
-    ) external {
+    function setupRevShare(address _portal, L1WithdrawerConfig memory _l1Config, address _chainFeesRecipient)
+        external
+    {
         if (_portal == address(0)) revert PortalCannotBeZeroAddress();
-        if (bytes(_saltSeed).length == 0) revert SaltSeedCannotBeEmpty();
         if (_l1Config.recipient == address(0)) revert L1WithdrawerRecipientCannotBeZeroAddress();
         if (_chainFeesRecipient == address(0)) revert ChainFeesRecipientCannotBeZeroAddress();
 
         // Deploy L1Withdrawer
-        address l1Withdrawer = _deployL1Withdrawer(_portal, _saltSeed, _l1Config);
+        address l1Withdrawer = _deployL1Withdrawer(_portal, _l1Config);
 
         // Deploy SuperchainRevenueShareCalculator
-        address calculator = _deployCalculator(_portal, _saltSeed, l1Withdrawer, _chainFeesRecipient);
+        address calculator = _deployCalculator(_portal, l1Withdrawer, _chainFeesRecipient);
 
         // Configure all 4 vaults for revenue sharing
         _configureVaultsForRevShare(_portal);
@@ -76,48 +71,39 @@ contract RevShareContractsManager is RevSharePredeploys {
     /// @notice Upgrades vault and splitter contracts and sets up revenue sharing in one transaction.
     ///         This is the most efficient path as vaults are initialized with RevShare config from the start.
     /// @param _portal The OptimismPortal2 address for the target L2.
-    /// @param _saltSeed The salt seed for CREATE2 deployments.
     /// @param _l1Config L1Withdrawer configuration.
     /// @param _chainFeesRecipient The chain fees recipient for the calculator.
-    function upgradeAndSetupRevShare(
-        address _portal,
-        string memory _saltSeed,
-        L1WithdrawerConfig memory _l1Config,
-        address _chainFeesRecipient
-    ) external {
+    function upgradeAndSetupRevShare(address _portal, L1WithdrawerConfig memory _l1Config, address _chainFeesRecipient)
+        external
+    {
         if (_portal == address(0)) revert PortalCannotBeZeroAddress();
-        if (bytes(_saltSeed).length == 0) revert SaltSeedCannotBeEmpty();
         if (_l1Config.recipient == address(0)) revert L1WithdrawerRecipientCannotBeZeroAddress();
         if (_chainFeesRecipient == address(0)) revert ChainFeesRecipientCannotBeZeroAddress();
 
         // Deploy L1Withdrawer
-        address l1Withdrawer = _deployL1Withdrawer(_portal, _saltSeed, _l1Config);
+        address l1Withdrawer = _deployL1Withdrawer(_portal, _l1Config);
 
         // Deploy SuperchainRevenueShareCalculator
-        address calculator = _deployCalculator(_portal, _saltSeed, l1Withdrawer, _chainFeesRecipient);
+        address calculator = _deployCalculator(_portal, l1Withdrawer, _chainFeesRecipient);
 
         // Upgrade fee splitter and initialize with calculator FIRST
         // This prevents the edge case where fees could be sent to an uninitialized FeeSplitter
-        _deployAndUpgradeFeeSplitterWithCalculator(_portal, _saltSeed, calculator);
+        _deployAndUpgradeFeeSplitterWithCalculator(_portal, calculator);
 
         // Upgrade all 4 vaults with RevShare configuration (recipient=FeeSplitter, minWithdrawal=0, network=L2)
-        _upgradeVaultsWithRevShareConfig(_portal, _saltSeed);
+        _upgradeVaultsWithRevShareConfig(_portal);
     }
 
     /// @notice Deploys L1Withdrawer to L2.
     /// @param _portal The OptimismPortal2 address for the target L2
-    /// @param _saltSeed The salt seed for CREATE2 deployments
     /// @param _config L1Withdrawer configuration
     /// @return The deployed L1Withdrawer address
-    function _deployL1Withdrawer(address _portal, string memory _saltSeed, L1WithdrawerConfig memory _config)
-        private
-        returns (address)
-    {
+    function _deployL1Withdrawer(address _portal, L1WithdrawerConfig memory _config) private returns (address) {
         bytes memory initCode = bytes.concat(
             RevShareCodeRepo.l1WithdrawerCreationCode,
             abi.encode(_config.minWithdrawalAmount, _config.recipient, _config.gasLimit)
         );
-        bytes32 salt = _getSalt(_saltSeed, "L1Withdrawer");
+        bytes32 salt = _getSalt(SALT_SEED, "L1Withdrawer");
         address l1Withdrawer = Utils.getCreate2Address(salt, initCode, CREATE2_DEPLOYER);
 
         IOptimismPortal2(payable(_portal)).depositTransaction(
@@ -133,20 +119,17 @@ contract RevShareContractsManager is RevSharePredeploys {
 
     /// @notice Deploys SuperchainRevenueShareCalculator to L2.
     /// @param _portal The OptimismPortal2 address for the target L2
-    /// @param _saltSeed The salt seed for CREATE2 deployments
     /// @param _l1Withdrawer The L1Withdrawer address
     /// @param _chainFeesRecipient The chain fees recipient address
     /// @return The deployed calculator address
-    function _deployCalculator(
-        address _portal,
-        string memory _saltSeed,
-        address _l1Withdrawer,
-        address _chainFeesRecipient
-    ) private returns (address) {
+    function _deployCalculator(address _portal, address _l1Withdrawer, address _chainFeesRecipient)
+        private
+        returns (address)
+    {
         bytes memory initCode = bytes.concat(
             RevShareCodeRepo.scRevShareCalculatorCreationCode, abi.encode(_l1Withdrawer, _chainFeesRecipient)
         );
-        bytes32 salt = _getSalt(_saltSeed, "SCRevShareCalculator");
+        bytes32 salt = _getSalt(SALT_SEED, "SCRevShareCalculator");
         address calculator = Utils.getCreate2Address(salt, initCode, CREATE2_DEPLOYER);
 
         IOptimismPortal2(payable(_portal)).depositTransaction(
@@ -198,8 +181,7 @@ contract RevShareContractsManager is RevSharePredeploys {
 
     /// @notice Upgrades all 4 vaults with RevShare configuration (recipient=FeeSplitter, minWithdrawal=0, network=L2).
     /// @param _portal The OptimismPortal2 address for the target L2
-    /// @param _saltSeed The salt seed for CREATE2 deployments
-    function _upgradeVaultsWithRevShareConfig(address _portal, string memory _saltSeed) private {
+    function _upgradeVaultsWithRevShareConfig(address _portal) private {
         address[4] memory vaultProxies = [OPERATOR_FEE_VAULT, SEQUENCER_FEE_WALLET, BASE_FEE_VAULT, L1_FEE_VAULT];
         bytes[4] memory creationCodes = [
             RevShareCodeRepo.operatorFeeVaultCreationCode,
@@ -210,7 +192,7 @@ contract RevShareContractsManager is RevSharePredeploys {
         string[4] memory vaultNames = ["OperatorFeeVault", "SequencerFeeVault", "BaseFeeVault", "L1FeeVault"];
 
         for (uint256 i = 0; i < 4; i++) {
-            bytes32 salt = _getSalt(_saltSeed, vaultNames[i]);
+            bytes32 salt = _getSalt(SALT_SEED, vaultNames[i]);
             address impl = Utils.getCreate2Address(salt, creationCodes[i], CREATE2_DEPLOYER);
 
             // Deploy implementation
@@ -245,12 +227,9 @@ contract RevShareContractsManager is RevSharePredeploys {
 
     /// @notice Deploys and upgrades the fee splitter with a calculator.
     /// @param _portal The OptimismPortal2 address for the target L2
-    /// @param _saltSeed The salt seed for CREATE2 deployments
     /// @param _calculator The calculator address to initialize with
-    function _deployAndUpgradeFeeSplitterWithCalculator(address _portal, string memory _saltSeed, address _calculator)
-        private
-    {
-        bytes32 salt = _getSalt(_saltSeed, "FeeSplitter");
+    function _deployAndUpgradeFeeSplitterWithCalculator(address _portal, address _calculator) private {
+        bytes32 salt = _getSalt(SALT_SEED, "FeeSplitter");
         bytes memory creationCode = RevShareCodeRepo.feeSplitterCreationCode;
         address impl = Utils.getCreate2Address(salt, creationCode, CREATE2_DEPLOYER);
 
