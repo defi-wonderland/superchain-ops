@@ -46,65 +46,6 @@ contract RevShareContractsManager is RevSharePredeploys {
         uint32 gasLimit;
     }
 
-    /// @notice Enables revenue sharing after vaults have been upgraded and `FeeSplitter` initialized.
-    ///         Deploys L1Withdrawer and calculator, then configures vaults and splitter for multiple chains.
-    /// @param _portals Array of OptimismPortal2 addresses for the target L2s.
-    /// @param _l1Configs Array of L1Withdrawer configurations.
-    /// @param _chainFeesRecipients Array of chain fees recipients for the calculators.
-    function setupRevShare(
-        address[] calldata _portals,
-        L1WithdrawerConfig[] calldata _l1Configs,
-        address[] calldata _chainFeesRecipients
-    ) external {
-        if (_portals.length != _l1Configs.length || _portals.length != _chainFeesRecipients.length) {
-            revert ArrayLengthMismatch();
-        }
-
-        for (uint256 i; i < _portals.length; i++) {
-            if (_portals[i] == address(0)) revert PortalCannotBeZeroAddress();
-            if (_l1Configs[i].recipient == address(0)) revert L1WithdrawerRecipientCannotBeZeroAddress();
-            if (_chainFeesRecipients[i] == address(0)) revert ChainFeesRecipientCannotBeZeroAddress();
-
-            // Deploy L1Withdrawer
-            bytes memory l1WithdrawerInitCode = bytes.concat(
-                RevShareCodeRepo.l1WithdrawerCreationCode,
-                abi.encode(_l1Configs[i].minWithdrawalAmount, _l1Configs[i].recipient, _l1Configs[i].gasLimit)
-            );
-            bytes32 l1WithdrawerSalt = _getSalt("L1Withdrawer");
-            address l1Withdrawer = Utils.getCreate2Address(l1WithdrawerSalt, l1WithdrawerInitCode, CREATE2_DEPLOYER);
-            _depositCreate2(
-                _portals[i],
-                RevShareGasLimits.L1_WITHDRAWER_DEPLOYMENT_GAS_LIMIT,
-                l1WithdrawerSalt,
-                l1WithdrawerInitCode
-            );
-
-            // Deploy SuperchainRevenueShareCalculator
-            bytes memory calculatorInitCode = bytes.concat(
-                RevShareCodeRepo.scRevShareCalculatorCreationCode, abi.encode(l1Withdrawer, _chainFeesRecipients[i])
-            );
-            bytes32 calculatorSalt = _getSalt("SCRevShareCalculator");
-            address calculator = Utils.getCreate2Address(calculatorSalt, calculatorInitCode, CREATE2_DEPLOYER);
-            _depositCreate2(
-                _portals[i],
-                RevShareGasLimits.SC_REV_SHARE_CALCULATOR_DEPLOYMENT_GAS_LIMIT,
-                calculatorSalt,
-                calculatorInitCode
-            );
-
-            // Configure all 4 vaults for revenue sharing
-            _configureVaultsForRevShare(_portals[i]);
-
-            // Set calculator on fee splitter
-            _depositCall(
-                _portals[i],
-                FEE_SPLITTER,
-                RevShareGasLimits.SETTERS_GAS_LIMIT,
-                abi.encodeCall(IFeeSplitterSetter.setSharesCalculator, (calculator))
-            );
-        }
-    }
-
     /// @notice Upgrades vault and splitter contracts and sets up revenue sharing in one transaction for multiple chains.
     ///         This is the most efficient path as vaults are initialized with RevShare config from the start.
     /// @param _portals Array of OptimismPortal2 addresses for the target L2s.
@@ -174,6 +115,65 @@ contract RevShareContractsManager is RevSharePredeploys {
 
             // Upgrade all 4 vaults with RevShare configuration (recipient=FeeSplitter, minWithdrawal=0, network=L2)
             _upgradeVaultsWithRevShareConfig(_portals[i]);
+        }
+    }
+
+    /// @notice Enables revenue sharing after vaults have been upgraded and `FeeSplitter` initialized.
+    ///         Deploys L1Withdrawer and calculator, then configures vaults and splitter for multiple chains.
+    /// @param _portals Array of OptimismPortal2 addresses for the target L2s.
+    /// @param _l1Configs Array of L1Withdrawer configurations.
+    /// @param _chainFeesRecipients Array of chain fees recipients for the calculators.
+    function setupRevShare(
+        address[] calldata _portals,
+        L1WithdrawerConfig[] calldata _l1Configs,
+        address[] calldata _chainFeesRecipients
+    ) external {
+        if (_portals.length != _l1Configs.length || _portals.length != _chainFeesRecipients.length) {
+            revert ArrayLengthMismatch();
+        }
+
+        for (uint256 i; i < _portals.length; i++) {
+            if (_portals[i] == address(0)) revert PortalCannotBeZeroAddress();
+            if (_l1Configs[i].recipient == address(0)) revert L1WithdrawerRecipientCannotBeZeroAddress();
+            if (_chainFeesRecipients[i] == address(0)) revert ChainFeesRecipientCannotBeZeroAddress();
+
+            // Deploy L1Withdrawer
+            bytes memory l1WithdrawerInitCode = bytes.concat(
+                RevShareCodeRepo.l1WithdrawerCreationCode,
+                abi.encode(_l1Configs[i].minWithdrawalAmount, _l1Configs[i].recipient, _l1Configs[i].gasLimit)
+            );
+            bytes32 l1WithdrawerSalt = _getSalt("L1Withdrawer");
+            address l1Withdrawer = Utils.getCreate2Address(l1WithdrawerSalt, l1WithdrawerInitCode, CREATE2_DEPLOYER);
+            _depositCreate2(
+                _portals[i],
+                RevShareGasLimits.L1_WITHDRAWER_DEPLOYMENT_GAS_LIMIT,
+                l1WithdrawerSalt,
+                l1WithdrawerInitCode
+            );
+
+            // Deploy SuperchainRevenueShareCalculator
+            bytes memory calculatorInitCode = bytes.concat(
+                RevShareCodeRepo.scRevShareCalculatorCreationCode, abi.encode(l1Withdrawer, _chainFeesRecipients[i])
+            );
+            bytes32 calculatorSalt = _getSalt("SCRevShareCalculator");
+            address calculator = Utils.getCreate2Address(calculatorSalt, calculatorInitCode, CREATE2_DEPLOYER);
+            _depositCreate2(
+                _portals[i],
+                RevShareGasLimits.SC_REV_SHARE_CALCULATOR_DEPLOYMENT_GAS_LIMIT,
+                calculatorSalt,
+                calculatorInitCode
+            );
+
+            // Configure all 4 vaults for revenue sharing
+            _configureVaultsForRevShare(_portals[i]);
+
+            // Set calculator on fee splitter
+            _depositCall(
+                _portals[i],
+                FEE_SPLITTER,
+                RevShareGasLimits.SETTERS_GAS_LIMIT,
+                abi.encodeCall(IFeeSplitterSetter.setSharesCalculator, (calculator))
+            );
         }
     }
 
