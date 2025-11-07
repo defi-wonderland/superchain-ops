@@ -210,7 +210,7 @@ contract RevShareContractsManager is RevSharePredeploys {
         ];
         string[4] memory vaultNames = ["OperatorFeeVault", "SequencerFeeVault", "BaseFeeVault", "L1FeeVault"];
 
-        for (uint256 i; i < 4; i++) {
+        for (uint256 i; i < vaultProxies.length; i++) {
             bytes32 salt = _getSalt(vaultNames[i]);
             address impl = Utils.getCreate2Address(salt, creationCodes[i], CREATE2_DEPLOYER);
 
