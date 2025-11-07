@@ -33,6 +33,9 @@ contract RevShareContractsManager is RevSharePredeploys {
     /// @notice Thrown when chain fees recipient is zero address
     error ChainFeesRecipientCannotBeZeroAddress();
 
+    /// @notice Thrown when array lengths don't match
+    error ArrayLengthMismatch();
+
     /// @notice Struct for L1Withdrawer configuration.
     /// @param minWithdrawalAmount Minimum withdrawal amount
     /// @param recipient Recipient address for withdrawals
@@ -44,54 +47,70 @@ contract RevShareContractsManager is RevSharePredeploys {
     }
 
     /// @notice Enables revenue sharing after vaults have been upgraded and `FeeSplitter` initialized.
-    ///         Deploys L1Withdrawer and calculator, then configures vaults and splitter.
-    /// @param _portal The OptimismPortal2 address for the target L2.
-    /// @param _l1Config L1Withdrawer configuration.
-    /// @param _chainFeesRecipient The chain fees recipient for the calculator.
-    function setupRevShare(address _portal, L1WithdrawerConfig memory _l1Config, address _chainFeesRecipient)
-        external
-    {
-        if (_portal == address(0)) revert PortalCannotBeZeroAddress();
-        if (_l1Config.recipient == address(0)) revert L1WithdrawerRecipientCannotBeZeroAddress();
-        if (_chainFeesRecipient == address(0)) revert ChainFeesRecipientCannotBeZeroAddress();
+    ///         Deploys L1Withdrawer and calculator, then configures vaults and splitter for multiple chains.
+    /// @param _portals Array of OptimismPortal2 addresses for the target L2s.
+    /// @param _l1Configs Array of L1Withdrawer configurations.
+    /// @param _chainFeesRecipients Array of chain fees recipients for the calculators.
+    function setupRevShare(
+        address[] calldata _portals,
+        L1WithdrawerConfig[] calldata _l1Configs,
+        address[] calldata _chainFeesRecipients
+    ) external {
+        if (_portals.length != _l1Configs.length || _portals.length != _chainFeesRecipients.length) {
+            revert ArrayLengthMismatch();
+        }
 
-        // Deploy L1Withdrawer
-        address l1Withdrawer = _deployL1Withdrawer(_portal, _l1Config);
+        for (uint256 i = 0; i < _portals.length; i++) {
+            if (_portals[i] == address(0)) revert PortalCannotBeZeroAddress();
+            if (_l1Configs[i].recipient == address(0)) revert L1WithdrawerRecipientCannotBeZeroAddress();
+            if (_chainFeesRecipients[i] == address(0)) revert ChainFeesRecipientCannotBeZeroAddress();
 
-        // Deploy SuperchainRevenueShareCalculator
-        address calculator = _deployCalculator(_portal, l1Withdrawer, _chainFeesRecipient);
+            // Deploy L1Withdrawer
+            address l1Withdrawer = _deployL1Withdrawer(_portals[i], _l1Configs[i]);
 
-        // Configure all 4 vaults for revenue sharing
-        _configureVaultsForRevShare(_portal);
+            // Deploy SuperchainRevenueShareCalculator
+            address calculator = _deployCalculator(_portals[i], l1Withdrawer, _chainFeesRecipients[i]);
 
-        // Set calculator on fee splitter
-        _setFeeSplitterCalculator(_portal, calculator);
+            // Configure all 4 vaults for revenue sharing
+            _configureVaultsForRevShare(_portals[i]);
+
+            // Set calculator on fee splitter
+            _setFeeSplitterCalculator(_portals[i], calculator);
+        }
     }
 
-    /// @notice Upgrades vault and splitter contracts and sets up revenue sharing in one transaction.
+    /// @notice Upgrades vault and splitter contracts and sets up revenue sharing in one transaction for multiple chains.
     ///         This is the most efficient path as vaults are initialized with RevShare config from the start.
-    /// @param _portal The OptimismPortal2 address for the target L2.
-    /// @param _l1Config L1Withdrawer configuration.
-    /// @param _chainFeesRecipient The chain fees recipient for the calculator.
-    function upgradeAndSetupRevShare(address _portal, L1WithdrawerConfig memory _l1Config, address _chainFeesRecipient)
-        external
-    {
-        if (_portal == address(0)) revert PortalCannotBeZeroAddress();
-        if (_l1Config.recipient == address(0)) revert L1WithdrawerRecipientCannotBeZeroAddress();
-        if (_chainFeesRecipient == address(0)) revert ChainFeesRecipientCannotBeZeroAddress();
+    /// @param _portals Array of OptimismPortal2 addresses for the target L2s.
+    /// @param _l1Configs Array of L1Withdrawer configurations.
+    /// @param _chainFeesRecipients Array of chain fees recipients for the calculators.
+    function upgradeAndSetupRevShare(
+        address[] calldata _portals,
+        L1WithdrawerConfig[] calldata _l1Configs,
+        address[] calldata _chainFeesRecipients
+    ) external {
+        if (_portals.length != _l1Configs.length || _portals.length != _chainFeesRecipients.length) {
+            revert ArrayLengthMismatch();
+        }
 
-        // Deploy L1Withdrawer
-        address l1Withdrawer = _deployL1Withdrawer(_portal, _l1Config);
+        for (uint256 i = 0; i < _portals.length; i++) {
+            if (_portals[i] == address(0)) revert PortalCannotBeZeroAddress();
+            if (_l1Configs[i].recipient == address(0)) revert L1WithdrawerRecipientCannotBeZeroAddress();
+            if (_chainFeesRecipients[i] == address(0)) revert ChainFeesRecipientCannotBeZeroAddress();
 
-        // Deploy SuperchainRevenueShareCalculator
-        address calculator = _deployCalculator(_portal, l1Withdrawer, _chainFeesRecipient);
+            // Deploy L1Withdrawer
+            address l1Withdrawer = _deployL1Withdrawer(_portals[i], _l1Configs[i]);
 
-        // Upgrade fee splitter and initialize with calculator FIRST
-        // This prevents the edge case where fees could be sent to an uninitialized FeeSplitter
-        _deployAndUpgradeFeeSplitterWithCalculator(_portal, calculator);
+            // Deploy SuperchainRevenueShareCalculator
+            address calculator = _deployCalculator(_portals[i], l1Withdrawer, _chainFeesRecipients[i]);
 
-        // Upgrade all 4 vaults with RevShare configuration (recipient=FeeSplitter, minWithdrawal=0, network=L2)
-        _upgradeVaultsWithRevShareConfig(_portal);
+            // Upgrade fee splitter and initialize with calculator FIRST
+            // This prevents the edge case where fees could be sent to an uninitialized FeeSplitter
+            _deployAndUpgradeFeeSplitterWithCalculator(_portals[i], calculator);
+
+            // Upgrade all 4 vaults with RevShare configuration (recipient=FeeSplitter, minWithdrawal=0, network=L2)
+            _upgradeVaultsWithRevShareConfig(_portals[i]);
+        }
     }
 
     /// @notice Deploys L1Withdrawer to L2.
