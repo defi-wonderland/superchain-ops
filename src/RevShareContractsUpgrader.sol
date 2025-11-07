@@ -11,7 +11,6 @@ import {IOptimismPortal2} from "@eth-optimism-bedrock/interfaces/L1/IOptimismPor
 import {IProxyAdmin} from "@eth-optimism-bedrock/interfaces/universal/IProxyAdmin.sol";
 import {ICreate2Deployer} from "src/interfaces/ICreate2Deployer.sol";
 import {IFeeSplitter} from "src/interfaces/IFeeSplitter.sol";
-import {IFeeSplitterSetter} from "src/interfaces/IFeeSplitterSetter.sol";
 import {IFeeVault} from "src/interfaces/IFeeVault.sol";
 
 /// @title RevShareContractsManager
@@ -126,7 +125,7 @@ contract RevShareContractsManager is RevSharePredeploys {
                 _portals[i],
                 FEE_SPLITTER,
                 RevShareGasLimits.SETTERS_GAS_LIMIT,
-                abi.encodeCall(IFeeSplitterSetter.setSharesCalculator, (calculator))
+                abi.encodeCall(IFeeSplitter.setSharesCalculator, (calculator))
             );
 
             // Configure all 4 vaults for revenue sharing
