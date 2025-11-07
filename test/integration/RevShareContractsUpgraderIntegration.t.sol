@@ -34,8 +34,16 @@ interface ISuperchainRevSharesCalculator {
     function remainderRecipient() external view returns (address payable);
 }
 
+/// @notice Simple contract to simulate a Safe executing delegatecall
+contract SafeSimulator {
+    function executeDelegatecall(address target, bytes memory data) external returns (bool success, bytes memory returnData) {
+        return target.delegatecall(data);
+    }
+}
+
 contract RevShareContractsUpgraderIntegrationTest is IntegrationBase {
     RevShareContractsManager public revShareManager;
+    SafeSimulator public safeSimulator;
 
     // Fork IDs
     uint256 internal _mainnetForkId;
@@ -53,8 +61,8 @@ contract RevShareContractsUpgraderIntegrationTest is IntegrationBase {
     address internal constant FEE_SPLITTER = 0x420000000000000000000000000000000000002B;
 
     // Expected deployed contracts (deterministic CREATE2 addresses)
-    address internal constant L1_WITHDRAWER = 0x1aF7f9310029851c75843c3E393b0012dCC38260;
-    address internal constant REV_SHARE_CALCULATOR = 0x1E32f55E539aD75b90bEAD33347B43264755a178;
+    address internal constant L1_WITHDRAWER = 0xB3AeB34b88D73Fb4832f65BEa5Bd865017fB5daC;
+    address internal constant REV_SHARE_CALCULATOR = 0x3E806Fd8592366E850197FEC8D80608b5526Bba2;
 
     // Test configuration
     uint256 internal constant MIN_WITHDRAWAL_AMOUNT = 350000;
@@ -67,8 +75,16 @@ contract RevShareContractsUpgraderIntegrationTest is IntegrationBase {
         _mainnetForkId = vm.createFork("http://127.0.0.1:8545");
         _opMainnetForkId = vm.createFork("http://127.0.0.1:9545");
 
-        // Deploy RevShareContractsManager on L1
+        // Deploy contracts on L1
         vm.selectFork(_mainnetForkId);
+
+        // Deploy SafeSimulator at PROXY_ADMIN_OWNER address using vm.etch
+        // This simulates the Safe that will execute the delegatecall
+        bytes memory safeSimulatorCode = type(SafeSimulator).runtimeCode;
+        vm.etch(PROXY_ADMIN_OWNER, safeSimulatorCode);
+        safeSimulator = SafeSimulator(PROXY_ADMIN_OWNER);
+
+        // Deploy RevShareContractsManager
         revShareManager = new RevShareContractsManager();
     }
 
@@ -92,14 +108,14 @@ contract RevShareContractsUpgraderIntegrationTest is IntegrationBase {
         address[] memory chainFeesRecipients = new address[](1);
         chainFeesRecipients[0] = CHAIN_FEES_RECIPIENT;
 
-        // Step 3: Execute upgradeAndSetupRevShare via delegatecall as ProxyAdmin Owner
+        // Step 3: Execute upgradeAndSetupRevShare via delegatecall from SafeSimulator
+        // This simulates how the Safe will execute this in production
         bytes memory callData = abi.encodeCall(
             RevShareContractsManager.upgradeAndSetupRevShare,
             (portals, l1Configs, chainFeesRecipients)
         );
 
-        vm.prank(PROXY_ADMIN_OWNER);
-        (bool success,) = address(revShareManager).delegatecall(callData);
+        (bool success,) = safeSimulator.executeDelegatecall(address(revShareManager), callData);
         require(success, "Delegatecall failed");
 
         // Step 4: Relay all deposit transactions from L1 to L2
