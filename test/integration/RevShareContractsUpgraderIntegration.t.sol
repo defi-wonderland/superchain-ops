@@ -52,10 +52,9 @@ contract RevShareContractsUpgraderIntegrationTest is IntegrationBase {
     address internal constant L1_FEE_VAULT = 0x420000000000000000000000000000000000001A;
     address internal constant FEE_SPLITTER = 0x420000000000000000000000000000000000002B;
 
-    // Expected deployed contracts (precalculated with CREATE2 and hardcoded SALT)
-    // These addresses are deterministic based on the SALT = keccak256("RevShare")
-    address internal constant L1_WITHDRAWER = 0x524E512Dd372C70E7866a7825481385b7b533af0;
-    address internal constant REV_SHARE_CALCULATOR = 0x72aa66CaA04C9bd83Ecc43c65cff2Cf837EE4BB3;
+    // Expected deployed contracts (deterministic CREATE2 addresses)
+    address internal constant L1_WITHDRAWER = 0x1aF7f9310029851c75843c3E393b0012dCC38260;
+    address internal constant REV_SHARE_CALCULATOR = 0x1E32f55E539aD75b90bEAD33347B43264755a178;
 
     // Test configuration
     uint256 internal constant MIN_WITHDRAWAL_AMOUNT = 350000;
