@@ -60,7 +60,7 @@ contract RevShareContractsManager is RevSharePredeploys {
             revert ArrayLengthMismatch();
         }
 
-        for (uint256 i = 0; i < _portals.length; i++) {
+        for (uint256 i; i < _portals.length; i++) {
             if (_portals[i] == address(0)) revert PortalCannotBeZeroAddress();
             if (_l1Configs[i].recipient == address(0)) revert L1WithdrawerRecipientCannotBeZeroAddress();
             if (_chainFeesRecipients[i] == address(0)) revert ChainFeesRecipientCannotBeZeroAddress();
@@ -93,7 +93,7 @@ contract RevShareContractsManager is RevSharePredeploys {
             revert ArrayLengthMismatch();
         }
 
-        for (uint256 i = 0; i < _portals.length; i++) {
+        for (uint256 i; i < _portals.length; i++) {
             if (_portals[i] == address(0)) revert PortalCannotBeZeroAddress();
             if (_l1Configs[i].recipient == address(0)) revert L1WithdrawerRecipientCannotBeZeroAddress();
             if (_chainFeesRecipients[i] == address(0)) revert ChainFeesRecipientCannotBeZeroAddress();
@@ -167,7 +167,7 @@ contract RevShareContractsManager is RevSharePredeploys {
     function _configureVaultsForRevShare(address _portal) private {
         address[4] memory vaults = [OPERATOR_FEE_VAULT, SEQUENCER_FEE_WALLET, BASE_FEE_VAULT, L1_FEE_VAULT];
 
-        for (uint256 i = 0; i < vaults.length; i++) {
+        for (uint256 i; i < vaults.length; i++) {
             // Set recipient to FeeSplitter
             IOptimismPortal2(payable(_portal)).depositTransaction(
                 vaults[i], 0, RevShareGasLimits.SETTERS_GAS_LIMIT, false, abi.encodeCall(IFeeVault.setRecipient, (FEE_SPLITTER))
@@ -210,7 +210,7 @@ contract RevShareContractsManager is RevSharePredeploys {
         ];
         string[4] memory vaultNames = ["OperatorFeeVault", "SequencerFeeVault", "BaseFeeVault", "L1FeeVault"];
 
-        for (uint256 i = 0; i < 4; i++) {
+        for (uint256 i; i < 4; i++) {
             bytes32 salt = _getSalt(vaultNames[i]);
             address impl = Utils.getCreate2Address(salt, creationCodes[i], CREATE2_DEPLOYER);
 
