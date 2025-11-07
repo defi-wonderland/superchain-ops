@@ -69,32 +69,8 @@ contract RevShareContractsManager is RevSharePredeploys {
             if (_l1WithdrawerConfigs[i].recipient == address(0)) revert L1WithdrawerRecipientCannotBeZeroAddress();
             if (_chainFeesRecipients[i] == address(0)) revert ChainFeesRecipientCannotBeZeroAddress();
 
-            // Deploy L1Withdrawer
-            bytes memory l1WithdrawerInitCode = bytes.concat(
-                RevShareCodeRepo.l1WithdrawerCreationCode,
-                abi.encode(_l1WithdrawerConfigs[i].minWithdrawalAmount, _l1WithdrawerConfigs[i].recipient, _l1WithdrawerConfigs[i].gasLimit)
-            );
-            bytes32 l1WithdrawerSalt = _getSalt("L1Withdrawer");
-            address l1Withdrawer = Utils.getCreate2Address(l1WithdrawerSalt, l1WithdrawerInitCode, CREATE2_DEPLOYER);
-            _depositCreate2(
-                _portals[i],
-                RevShareGasLimits.L1_WITHDRAWER_DEPLOYMENT_GAS_LIMIT,
-                l1WithdrawerSalt,
-                l1WithdrawerInitCode
-            );
-
-            // Deploy SuperchainRevenueShareCalculator
-            bytes memory calculatorInitCode = bytes.concat(
-                RevShareCodeRepo.scRevShareCalculatorCreationCode, abi.encode(l1Withdrawer, _chainFeesRecipients[i])
-            );
-            bytes32 calculatorSalt = _getSalt("SCRevShareCalculator");
-            address calculator = Utils.getCreate2Address(calculatorSalt, calculatorInitCode, CREATE2_DEPLOYER);
-            _depositCreate2(
-                _portals[i],
-                RevShareGasLimits.SC_REV_SHARE_CALCULATOR_DEPLOYMENT_GAS_LIMIT,
-                calculatorSalt,
-                calculatorInitCode
-            );
+            // Deploy L1Withdrawer and SuperchainRevenueShareCalculator
+            address calculator = _deployRevSharePeriphery(_portals[i], _l1WithdrawerConfigs[i], _chainFeesRecipients[i]);
 
             // Upgrade fee splitter and initialize with calculator FIRST
             // This prevents the edge case where fees could be sent to an uninitialized FeeSplitter
@@ -142,32 +118,8 @@ contract RevShareContractsManager is RevSharePredeploys {
             if (_l1WithdrawerConfigs[i].recipient == address(0)) revert L1WithdrawerRecipientCannotBeZeroAddress();
             if (_chainFeesRecipients[i] == address(0)) revert ChainFeesRecipientCannotBeZeroAddress();
 
-            // Deploy L1Withdrawer
-            bytes memory l1WithdrawerInitCode = bytes.concat(
-                RevShareCodeRepo.l1WithdrawerCreationCode,
-                abi.encode(_l1WithdrawerConfigs[i].minWithdrawalAmount, _l1WithdrawerConfigs[i].recipient, _l1WithdrawerConfigs[i].gasLimit)
-            );
-            bytes32 l1WithdrawerSalt = _getSalt("L1Withdrawer");
-            address l1Withdrawer = Utils.getCreate2Address(l1WithdrawerSalt, l1WithdrawerInitCode, CREATE2_DEPLOYER);
-            _depositCreate2(
-                _portals[i],
-                RevShareGasLimits.L1_WITHDRAWER_DEPLOYMENT_GAS_LIMIT,
-                l1WithdrawerSalt,
-                l1WithdrawerInitCode
-            );
-
-            // Deploy SuperchainRevenueShareCalculator
-            bytes memory calculatorInitCode = bytes.concat(
-                RevShareCodeRepo.scRevShareCalculatorCreationCode, abi.encode(l1Withdrawer, _chainFeesRecipients[i])
-            );
-            bytes32 calculatorSalt = _getSalt("SCRevShareCalculator");
-            address calculator = Utils.getCreate2Address(calculatorSalt, calculatorInitCode, CREATE2_DEPLOYER);
-            _depositCreate2(
-                _portals[i],
-                RevShareGasLimits.SC_REV_SHARE_CALCULATOR_DEPLOYMENT_GAS_LIMIT,
-                calculatorSalt,
-                calculatorInitCode
-            );
+            // Deploy L1Withdrawer and SuperchainRevenueShareCalculator
+            address calculator = _deployRevSharePeriphery(_portals[i], _l1WithdrawerConfigs[i], _chainFeesRecipients[i]);
 
             // Configure all 4 vaults for revenue sharing
             _configureVaultsForRevShare(_portals[i]);
@@ -180,6 +132,37 @@ contract RevShareContractsManager is RevSharePredeploys {
                 abi.encodeCall(IFeeSplitterSetter.setSharesCalculator, (calculator))
             );
         }
+    }
+
+    /// @notice Deploys L1Withdrawer and SuperchainRevenueShareCalculator to L2.
+    /// @param _portal The OptimismPortal2 address for the target L2
+    /// @param _l1WithdrawerConfig L1Withdrawer configuration
+    /// @param _chainFeesRecipient Chain fees recipient address
+    /// @return calculator The deployed calculator address
+    function _deployRevSharePeriphery(
+        address _portal,
+        L1WithdrawerConfig calldata _l1WithdrawerConfig,
+        address _chainFeesRecipient
+    ) private returns (address calculator) {
+        // Deploy L1Withdrawer
+        bytes memory l1WithdrawerInitCode = bytes.concat(
+            RevShareCodeRepo.l1WithdrawerCreationCode,
+            abi.encode(_l1WithdrawerConfig.minWithdrawalAmount, _l1WithdrawerConfig.recipient, _l1WithdrawerConfig.gasLimit)
+        );
+        bytes32 l1WithdrawerSalt = _getSalt("L1Withdrawer");
+        address l1Withdrawer = Utils.getCreate2Address(l1WithdrawerSalt, l1WithdrawerInitCode, CREATE2_DEPLOYER);
+        _depositCreate2(
+            _portal, RevShareGasLimits.L1_WITHDRAWER_DEPLOYMENT_GAS_LIMIT, l1WithdrawerSalt, l1WithdrawerInitCode
+        );
+
+        // Deploy SuperchainRevenueShareCalculator
+        bytes memory calculatorInitCode =
+            bytes.concat(RevShareCodeRepo.scRevShareCalculatorCreationCode, abi.encode(l1Withdrawer, _chainFeesRecipient));
+        bytes32 calculatorSalt = _getSalt("SCRevShareCalculator");
+        calculator = Utils.getCreate2Address(calculatorSalt, calculatorInitCode, CREATE2_DEPLOYER);
+        _depositCreate2(
+            _portal, RevShareGasLimits.SC_REV_SHARE_CALCULATOR_DEPLOYMENT_GAS_LIMIT, calculatorSalt, calculatorInitCode
+        );
     }
 
     /// @notice Configures all 4 vaults for revenue sharing (recipient=FeeSplitter, minWithdrawal=0, network=L2).
