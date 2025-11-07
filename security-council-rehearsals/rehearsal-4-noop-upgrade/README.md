@@ -9,7 +9,7 @@ Once completed:
 - A deposit transaction event will be emitted from the OptimismPortal contract on L1.
 - The Governor implementation on OP Mainnet will remain unchanged
 
-The call executed by the Safe contract is defined in the `build` function of the [`L1PortalExecuteL2Call`](src/template/L1PortalExecuteL2Call.sol) template.
+The call executed by the Safe contract is defined in the `build` function of the [`L1PortalExecuteL2Call`](/src/template/L1PortalExecuteL2Call.sol) template.
 
 Note: No onchain actions will occur during this rehearsal. You are not submitting a transaction, and your wallet does not need to be funded. You will simply sign an offchain message with your wallet. These signatures will be collected by a Facilitator, who will submit them for execution.
 Once the required number of signatures is collected, anyone can finalize the execution. For convenience, a Facilitator will handle this step.
@@ -29,9 +29,7 @@ See the [README](/README.md) for more information on how to install the dependen
 
 ### 2. Setup Ledger
 
-Your Ledger needs to be connected and unlocked. The Ethereum
-application needs to be opened on Ledger with the message “Application
-is ready”.
+Your Ledger needs to be connected and unlocked. The Ethereum application needs to be opened on Ledger with the message “Application is ready”.
 
 ### 3. Simulate and validate the transaction
 
@@ -41,19 +39,16 @@ Make sure your ledger is still unlocked and run the following.
 cd src/tasks/<network>/rehearsals/<rehearsal-task-name>
 just --dotenv-path $(pwd)/.env simulate
 # For a different derivation path, use: HD_PATH=1 just --dotenv-path $(pwd)/.env simulate
-# For simulating without Ledger, use: SIMULATE_WITHOUT_LEDGER=1 just --dotenv-path $(pwd)/.env simulate
+# For simulating without Ledger, use: SIMULATE_WITHOUT_LEDGER=1 just --dotenv-path $(pwd)/.env simulate council
 ```
 
 You will see a "Simulation link" URL in the output.
 
-Copy this URL from the output and and open it with your browser. A prompt may ask you to choose a
-project, any project will do. You can create one if necessary.
+Copy this URL from the output and and open it with your browser. A prompt may ask you to choose a project, any project will do. You can create one if necessary.
 
 Click "Simulate Transaction".
 
-We will be performing 3 validations and ensure the domain hash and
-message hash are the same between the Tenderly simulation and your
-Ledger:
+We will be performing 3 validations and ensure the domain hash and message hash are the same between the Tenderly simulation and your Ledger:
 
 1. Validate integrity of the simulation.
 2. Validate correctness of the state diff.
@@ -96,7 +91,7 @@ Now click on the "Events" tab. Verify that:
 1. `TransactionDeposited` event has been emitted by the Optimism Portal. This should include:
    - The correct `to` address, in this case, the address used in the `config.toml` for `l2Target`.
    - The correct `from` address, in this case, the aliased address of the `ProxyAdmin`.
-   - The correct calldata sent to the Governor in the `opaqueData` field: this is the concatenation of the value sent to the contract, the gas limit, a flag indicating if we are creating a contract (`false` in this rehearsal) and the actual call made to the L2 contract.
+   - The correct calldata sent to the target in the `opaqueData` field: this is the concatenation of the value sent to the contract, the gas limit, a flag indicating if we are creating a contract (`false` in this rehearsal) and the actual call made to the L2 contract.
 
 Here is an example screenshot. Note the specific data might be different:
 
@@ -109,7 +104,7 @@ In this rehearsal the values correspond to:
 0000000000000000000000000000000000000000000000000000000000000000 -> value sent to L2 contract
 000000000007a120 -> Gas Limit, in the photo the value corresponds to 500,000
 00 -> isCreation, set to false
-3659cfe60000000000000000000000000000000000000000000000000000000000001234 -> The abi-encoded call to `upgradeTo(address)` with address `0x0000000000000000000000000000000000001234`
+0x99a88ec4000000000000000000000000cdf27f107725988f2261ce2256bdfcde8b382b10000000000000000000000000637da4eeac836188d8c46f63cb2655f4d3c9f893 -> The abi-encoded call to `upgrade(address proxy, address implementation)` with proxy `0xcDF27F107725988f2261Ce2256bDfCdE8B382B10` and implementation `0x637DA4Eeac836188D8C46F63Cb2655f4d3C9F893`
 ```
 
 #### 3.3. Extract the domain hash and the message hash to approve.
