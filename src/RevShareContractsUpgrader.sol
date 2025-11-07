@@ -49,26 +49,26 @@ contract RevShareContractsManager is RevSharePredeploys {
     /// @notice Upgrades vault and splitter contracts and sets up revenue sharing in one transaction for multiple chains.
     ///         This is the most efficient path as vaults are initialized with RevShare config from the start.
     /// @param _portals Array of OptimismPortal2 addresses for the target L2s.
-    /// @param _l1Configs Array of L1Withdrawer configurations.
+    /// @param _l1WithdrawerConfigs Array of L1Withdrawer configurations.
     /// @param _chainFeesRecipients Array of chain fees recipients for the calculators.
     function upgradeAndSetupRevShare(
         address[] calldata _portals,
-        L1WithdrawerConfig[] calldata _l1Configs,
+        L1WithdrawerConfig[] calldata _l1WithdrawerConfigs,
         address[] calldata _chainFeesRecipients
     ) external {
-        if (_portals.length != _l1Configs.length || _portals.length != _chainFeesRecipients.length) {
+        if (_portals.length != _l1WithdrawerConfigs.length || _portals.length != _chainFeesRecipients.length) {
             revert ArrayLengthMismatch();
         }
 
         for (uint256 i; i < _portals.length; i++) {
             if (_portals[i] == address(0)) revert PortalCannotBeZeroAddress();
-            if (_l1Configs[i].recipient == address(0)) revert L1WithdrawerRecipientCannotBeZeroAddress();
+            if (_l1WithdrawerConfigs[i].recipient == address(0)) revert L1WithdrawerRecipientCannotBeZeroAddress();
             if (_chainFeesRecipients[i] == address(0)) revert ChainFeesRecipientCannotBeZeroAddress();
 
             // Deploy L1Withdrawer
             bytes memory l1WithdrawerInitCode = bytes.concat(
                 RevShareCodeRepo.l1WithdrawerCreationCode,
-                abi.encode(_l1Configs[i].minWithdrawalAmount, _l1Configs[i].recipient, _l1Configs[i].gasLimit)
+                abi.encode(_l1WithdrawerConfigs[i].minWithdrawalAmount, _l1WithdrawerConfigs[i].recipient, _l1WithdrawerConfigs[i].gasLimit)
             );
             bytes32 l1WithdrawerSalt = _getSalt("L1Withdrawer");
             address l1Withdrawer = Utils.getCreate2Address(l1WithdrawerSalt, l1WithdrawerInitCode, CREATE2_DEPLOYER);
@@ -121,26 +121,26 @@ contract RevShareContractsManager is RevSharePredeploys {
     /// @notice Enables revenue sharing after vaults have been upgraded and `FeeSplitter` initialized.
     ///         Deploys L1Withdrawer and calculator, then configures vaults and splitter for multiple chains.
     /// @param _portals Array of OptimismPortal2 addresses for the target L2s.
-    /// @param _l1Configs Array of L1Withdrawer configurations.
+    /// @param _l1WithdrawerConfigs Array of L1Withdrawer configurations.
     /// @param _chainFeesRecipients Array of chain fees recipients for the calculators.
     function setupRevShare(
         address[] calldata _portals,
-        L1WithdrawerConfig[] calldata _l1Configs,
+        L1WithdrawerConfig[] calldata _l1WithdrawerConfigs,
         address[] calldata _chainFeesRecipients
     ) external {
-        if (_portals.length != _l1Configs.length || _portals.length != _chainFeesRecipients.length) {
+        if (_portals.length != _l1WithdrawerConfigs.length || _portals.length != _chainFeesRecipients.length) {
             revert ArrayLengthMismatch();
         }
 
         for (uint256 i; i < _portals.length; i++) {
             if (_portals[i] == address(0)) revert PortalCannotBeZeroAddress();
-            if (_l1Configs[i].recipient == address(0)) revert L1WithdrawerRecipientCannotBeZeroAddress();
+            if (_l1WithdrawerConfigs[i].recipient == address(0)) revert L1WithdrawerRecipientCannotBeZeroAddress();
             if (_chainFeesRecipients[i] == address(0)) revert ChainFeesRecipientCannotBeZeroAddress();
 
             // Deploy L1Withdrawer
             bytes memory l1WithdrawerInitCode = bytes.concat(
                 RevShareCodeRepo.l1WithdrawerCreationCode,
-                abi.encode(_l1Configs[i].minWithdrawalAmount, _l1Configs[i].recipient, _l1Configs[i].gasLimit)
+                abi.encode(_l1WithdrawerConfigs[i].minWithdrawalAmount, _l1WithdrawerConfigs[i].recipient, _l1WithdrawerConfigs[i].gasLimit)
             );
             bytes32 l1WithdrawerSalt = _getSalt("L1Withdrawer");
             address l1Withdrawer = Utils.getCreate2Address(l1WithdrawerSalt, l1WithdrawerInitCode, CREATE2_DEPLOYER);
