@@ -121,9 +121,6 @@ contract RevShareContractsManager is RevSharePredeploys {
             // Deploy L1Withdrawer and SuperchainRevenueShareCalculator
             address calculator = _deployRevSharePeriphery(_portals[i], _l1WithdrawerConfigs[i], _chainFeesRecipients[i]);
 
-            // Configure all 4 vaults for revenue sharing
-            _configureVaultsForRevShare(_portals[i]);
-
             // Set calculator on fee splitter
             _depositCall(
                 _portals[i],
@@ -131,6 +128,9 @@ contract RevShareContractsManager is RevSharePredeploys {
                 RevShareGasLimits.SETTERS_GAS_LIMIT,
                 abi.encodeCall(IFeeSplitterSetter.setSharesCalculator, (calculator))
             );
+
+            // Configure all 4 vaults for revenue sharing
+            _configureVaultsForRevShare(_portals[i]);
         }
     }
 
