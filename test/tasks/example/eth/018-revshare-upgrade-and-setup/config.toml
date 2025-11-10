@@ -1,5 +1,7 @@
 # RevShare Setup Configuration
 
+templateName = "RevShareUpgradeAndSetup"
+
 # L2 chains to target
 l2chains = [{name = "OP Mainnet", chainId = 10}, {name = "Ink", chainId = 57073}]
 
