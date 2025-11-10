@@ -46,6 +46,7 @@ contract RevShareContractsUpgraderIntegrationTest is IntegrationBase {
     address internal constant L1_WITHDRAWAL_RECIPIENT = address(1); // Placeholder
     uint32 internal constant WITHDRAWAL_GAS_LIMIT = 800000;
     address internal constant CHAIN_FEES_RECIPIENT = address(1); // Placeholder
+    bool internal constant IS_SIMULATE = true;
 
     function setUp() public {
         // Create forks for L1 (mainnet) and L2 (OP Mainnet)
@@ -82,7 +83,7 @@ contract RevShareContractsUpgraderIntegrationTest is IntegrationBase {
         portals[0] = OP_MAINNET_PORTAL;
         portals[1] = INK_MAINNET_PORTAL;
 
-        _relayAllMessages(forkIds, true, portals);
+        _relayAllMessages(forkIds, IS_SIMULATE, portals);
 
         // Step 4: Assert the state of the OP Mainnet contracts
         vm.selectFork(_opMainnetForkId);
