@@ -91,7 +91,7 @@ contract RevShareContractsUpgraderIntegrationTest is IntegrationBase {
         vm.recordLogs();
 
         // Step 2: Execute task simulation
-        revShareTask.simulate("test/integration/fixtures/revshare-config.toml");
+        revShareTask.simulate("test/tasks/example/eth/018-revshare-upgrade-and-setup/config.toml");
 
         // Step 3: Relay deposit transactions from L1 to all L2s
         uint256[] memory forkIds = new uint256[](2);
