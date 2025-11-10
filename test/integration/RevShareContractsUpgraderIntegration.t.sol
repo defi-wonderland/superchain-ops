@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: MIT
 pragma solidity 0.8.15;
 
-import {RevShareContractsManager} from "src/RevShareContractsUpgrader.sol";
+import {RevShareContractsUpgrader} from "src/RevShareContractsUpgrader.sol";
 import {RevShareUpgradeAndSetup} from "src/template/RevShareUpgradeAndSetup.sol";
 import {IntegrationBase} from "./IntegrationBase.t.sol";
 import {Test} from "forge-std/Test.sol";
@@ -16,7 +16,7 @@ import {IL1Withdrawer} from "src/interfaces/IL1Withdrawer.sol";
 import {ISuperchainRevSharesCalculator} from "src/interfaces/ISuperchainRevSharesCalculator.sol";
 
 contract RevShareContractsUpgraderIntegrationTest is IntegrationBase {
-    RevShareContractsManager public revShareManager;
+    RevShareContractsUpgrader public revShareManager;
     RevShareUpgradeAndSetup public revShareTask;
 
     // Fork IDs
@@ -57,10 +57,10 @@ contract RevShareContractsUpgraderIntegrationTest is IntegrationBase {
         // Deploy contracts on L1
         vm.selectFork(_mainnetForkId);
 
-        // Deploy RevShareContractsManager and etch at predetermined address
-        revShareManager = new RevShareContractsManager();
+        // Deploy RevShareContractsUpgrader and etch at predetermined address
+        revShareManager = new RevShareContractsUpgrader();
         vm.etch(REV_SHARE_MANAGER_ADDRESS, address(revShareManager).code);
-        revShareManager = RevShareContractsManager(REV_SHARE_MANAGER_ADDRESS);
+        revShareManager = RevShareContractsUpgrader(REV_SHARE_MANAGER_ADDRESS);
 
         // Deploy RevShareUpgradeAndSetup task
         revShareTask = new RevShareUpgradeAndSetup();

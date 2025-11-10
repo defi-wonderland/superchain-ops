@@ -7,14 +7,15 @@ import {EnumerableSet} from "@openzeppelin/contracts/utils/structs/EnumerableSet
 
 import {OPCMTaskBase} from "src/tasks/types/OPCMTaskBase.sol";
 import {Action} from "src/libraries/MultisigTypes.sol";
-import {RevShareContractsManager} from "src/RevShareContractsUpgrader.sol";
+import {MultisigTaskPrinter} from "src/libraries/MultisigTaskPrinter.sol";
+import {RevShareContractsUpgrader} from "src/RevShareContractsUpgrader.sol";
 
 /// @notice Task for setting up revenue sharing on OP Stack chains.
 contract RevShareUpgradeAndSetup is OPCMTaskBase {
     using stdToml for string;
     using EnumerableSet for EnumerableSet.AddressSet;
 
-    /// @notice RevShareContractsManager address
+    /// @notice RevShareContractsUpgrader address
     address public REV_SHARE_MANAGER;
 
     /// @notice Portal addresses for L2 chains.
@@ -49,12 +50,12 @@ contract RevShareUpgradeAndSetup is OPCMTaskBase {
     function _templateSetup(string memory taskConfigFilePath, address) internal override {
         string memory tomlContent = vm.readFile(taskConfigFilePath);
 
-        // Load RevShareContractsManager address from TOML
+        // Load RevShareContractsUpgrader address from TOML
         REV_SHARE_MANAGER = tomlContent.readAddress(".revShareManager");
-        require(REV_SHARE_MANAGER.code.length > 0, "RevShareContractsManager has no code");
-        vm.label(REV_SHARE_MANAGER, "RevShareContractsManager");
+        require(REV_SHARE_MANAGER.code.length > 0, "RevShareContractsUpgrader has no code");
+        vm.label(REV_SHARE_MANAGER, "RevShareContractsUpgrader");
 
-        // Set RevShareContractsManager as the allowed target for delegatecall
+        // Set RevShareContractsUpgrader as the allowed target for delegatecall
         OPCM_TARGETS.push(REV_SHARE_MANAGER);
 
         // Load portal addresses
@@ -65,12 +66,12 @@ contract RevShareUpgradeAndSetup is OPCMTaskBase {
         // Note: We can't use parseRaw + abi.decode directly because TOML inline tables
         // sort keys alphabetically, which doesn't match the struct field order
         // So we need to read each field separately and construct the struct manually
-        RevShareContractsManager.L1WithdrawerConfig[] memory configs =
-            new RevShareContractsManager.L1WithdrawerConfig[](portals.length);
+        RevShareContractsUpgrader.L1WithdrawerConfig[] memory configs =
+            new RevShareContractsUpgrader.L1WithdrawerConfig[](portals.length);
 
         for (uint256 i = 0; i < portals.length; i++) {
             string memory basePath = string.concat(".l1WithdrawerConfigs[", vm.toString(i), "]");
-            configs[i] = RevShareContractsManager.L1WithdrawerConfig({
+            configs[i] = RevShareContractsUpgrader.L1WithdrawerConfig({
                 minWithdrawalAmount: tomlContent.readUint(string.concat(basePath, ".minWithdrawalAmount")),
                 recipient: tomlContent.readAddress(string.concat(basePath, ".recipient")),
                 gasLimit: uint32(tomlContent.readUint(string.concat(basePath, ".gasLimit")))
@@ -86,23 +87,45 @@ contract RevShareUpgradeAndSetup is OPCMTaskBase {
     /// @notice Builds the actions for executing the operations.
     function _build(address) internal override {
         // Decode configs from storage
-        RevShareContractsManager.L1WithdrawerConfig[] memory l1WithdrawerConfigs =
-            abi.decode(l1WithdrawerConfigsEncoded, (RevShareContractsManager.L1WithdrawerConfig[]));
+        RevShareContractsUpgrader.L1WithdrawerConfig[] memory l1WithdrawerConfigs =
+            abi.decode(l1WithdrawerConfigsEncoded, (RevShareContractsUpgrader.L1WithdrawerConfig[]));
 
-        // Delegatecall into RevShareContractsManager
+        // Delegatecall into RevShareContractsUpgrader
         // OPCMTaskBase uses Multicall3Delegatecall, so this delegatecall will be captured as an action
         (bool success,) = REV_SHARE_MANAGER.delegatecall(
             abi.encodeCall(
-                RevShareContractsManager.upgradeAndSetupRevShare, (portals, l1WithdrawerConfigs, remainderRecipients)
+                RevShareContractsUpgrader.upgradeAndSetupRevShare, (portals, l1WithdrawerConfigs, remainderRecipients)
             )
         );
         require(success, "RevShareUpgradeAndSetup: Delegatecall failed");
     }
 
     /// @notice This method performs all validations and assertions that verify the calls executed as expected.
-    function _validate(VmSafe.AccountAccess[] memory, Action[] memory, address) internal view override {
-        // Add validation logic here if needed
-        // For now, we rely on the integration tests to validate the L2 state
+    function _validate(VmSafe.AccountAccess[] memory, Action[] memory _actions, address) internal view override {
+        MultisigTaskPrinter.printTitle("Validating delegatecall to RevShareContractsUpgrader");
+
+        // For OPCM tasks using delegatecall, we validate that the delegatecall was made correctly.
+        // The actual portal calls happen inside the delegatecall and are validated by integration tests.
+
+        require(_actions.length == 1, "Expected exactly one action");
+
+        bool foundDelegatecall = false;
+
+        for (uint256 i = 0; i < _actions.length; i++) {
+            Action memory action = _actions[i];
+            // Check if this is a delegatecall to RevShareContractsUpgrader
+            if (action.target == REV_SHARE_MANAGER) {
+                foundDelegatecall = true;
+                // Verify it's calling upgradeAndSetupRevShare
+                bytes4 selector = bytes4(action.arguments);
+                require(
+                    selector == RevShareContractsUpgrader.upgradeAndSetupRevShare.selector,
+                    "Wrong function selector for delegatecall"
+                );
+            }
+        }
+
+        require(foundDelegatecall, "Delegatecall to RevShareContractsUpgrader not found");
     }
 
     /// @notice Override to return a list of addresses that should not be checked for code length.

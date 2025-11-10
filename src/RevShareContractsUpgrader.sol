@@ -19,7 +19,7 @@ import {IFeeVault} from "src/interfaces/IFeeVault.sol";
 ///         1. setupRevShare() - Setup revenue sharing on already-upgraded contracts
 ///         2. upgradeAndSetupRevShare() - Combined upgrade + setup (most efficient)
 ///         All operations use the default calculator (L1Withdrawer + SuperchainRevenueShareCalculator).
-contract RevShareContractsManager is RevSharePredeploys {
+contract RevShareContractsUpgrader is RevSharePredeploys {
     /// @notice Base salt seed for CREATE2 deployments
     string private constant SALT_SEED = "RevShare";
 
