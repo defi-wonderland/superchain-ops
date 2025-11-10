@@ -2,7 +2,7 @@
 pragma solidity 0.8.15;
 
 import {RevShareContractsManager} from "src/RevShareContractsUpgrader.sol";
-import {RevShareSetup} from "src/template/RevShareSetup.sol";
+import {RevShareUpgradeAndSetup} from "src/template/RevShareUpgradeAndSetup.sol";
 import {IntegrationBase} from "./IntegrationBase.t.sol";
 import {Test} from "forge-std/Test.sol";
 
@@ -37,7 +37,7 @@ interface ISuperchainRevSharesCalculator {
 
 contract RevShareContractsUpgraderIntegrationTest is IntegrationBase {
     RevShareContractsManager public revShareManager;
-    RevShareSetup public revShareTask;
+    RevShareUpgradeAndSetup public revShareTask;
 
     // Fork IDs
     uint256 internal _mainnetForkId;
@@ -81,8 +81,8 @@ contract RevShareContractsUpgraderIntegrationTest is IntegrationBase {
         vm.etch(REV_SHARE_MANAGER_ADDRESS, address(revShareManager).code);
         revShareManager = RevShareContractsManager(REV_SHARE_MANAGER_ADDRESS);
 
-        // Deploy RevShareSetup task
-        revShareTask = new RevShareSetup();
+        // Deploy RevShareUpgradeAndSetup task
+        revShareTask = new RevShareUpgradeAndSetup();
     }
 
     /// @notice Test the integration of upgradeAndSetupRevShare
