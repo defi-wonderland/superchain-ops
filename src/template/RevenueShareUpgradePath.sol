@@ -7,10 +7,8 @@ import {stdToml} from "lib/forge-std/src/StdToml.sol";
 import {SimpleTaskBase} from "src/tasks/types/SimpleTaskBase.sol";
 import {Action} from "src/libraries/MultisigTypes.sol";
 import {MultisigTaskPrinter} from "src/libraries/MultisigTaskPrinter.sol";
-import {RevShareCodeRepo} from "src/libraries/RevShareCodeRepo.sol";
-import {RevShareGasLimits} from "src/libraries/RevShareGasLimits.sol";
+import {RevShareLibrary} from "src/libraries/RevShareLibrary.sol";
 import {Utils} from "src/libraries/Utils.sol";
-import {RevSharePredeploys} from "src/libraries/RevSharePredeploys.sol";
 
 /// @notice Interface for the OptimismPortal2 in L1. This is the main interaction point for the template.
 interface IOptimismPortal2 {
@@ -41,7 +39,7 @@ interface IProxyAdmin {
 }
 
 /// @notice A template contract for chains to upgrade to the Revenue Share v1.0.0 implementation.
-contract RevenueShareV100UpgradePath is SimpleTaskBase, RevSharePredeploys {
+contract RevenueShareV100UpgradePath is SimpleTaskBase {
     using LibString for string;
     using stdToml for string;
 
@@ -163,21 +161,21 @@ contract RevenueShareV100UpgradePath is SimpleTaskBase, RevSharePredeploys {
 
             // Calculate addresses and data to deploy L1 Withdrawer
             bytes memory _l1WithdrawerInitCode = bytes.concat(
-                RevShareCodeRepo.l1WithdrawerCreationCode,
+                RevShareLibrary.l1WithdrawerCreationCode,
                 abi.encode(l1WithdrawerMinWithdrawalAmount, l1WithdrawerRecipient, l1WithdrawerGasLimit)
             );
             _l1WithdrawerCalldata =
                 abi.encodeCall(ICreate2Deployer.deploy, (0, _getSalt(saltSeed, "L1Withdrawer"), _l1WithdrawerInitCode));
             _l1WithdrawerPrecalculatedAddress =
-                Utils.getCreate2Address(_getSalt(saltSeed, "L1Withdrawer"), _l1WithdrawerInitCode, CREATE2_DEPLOYER);
+                Utils.getCreate2Address(_getSalt(saltSeed, "L1Withdrawer"), _l1WithdrawerInitCode, RevShareLibrary.CREATE2_DEPLOYER);
             // Expected calls for L1 Withdrawer: 1 (deploy)
             _incrementCallsToPortal(
                 abi.encodeCall(
                     IOptimismPortal2.depositTransaction,
                     (
-                        address(CREATE2_DEPLOYER),
+                        address(RevShareLibrary.CREATE2_DEPLOYER),
                         0,
-                        RevShareGasLimits.L1_WITHDRAWER_DEPLOYMENT_GAS_LIMIT,
+                        RevShareLibrary.L1_WITHDRAWER_DEPLOYMENT_GAS_LIMIT,
                         false,
                         _l1WithdrawerCalldata
                     )
@@ -191,7 +189,7 @@ contract RevenueShareV100UpgradePath is SimpleTaskBase, RevSharePredeploys {
             );
 
             bytes memory _scRevShareCalculatorInitCode = bytes.concat(
-                RevShareCodeRepo.scRevShareCalculatorCreationCode,
+                RevShareLibrary.scRevShareCalculatorCreationCode,
                 abi.encode(_l1WithdrawerPrecalculatedAddress, scRevShareCalcChainFeesRecipient)
             );
             _scRevShareCalculatorCalldata = abi.encodeCall(
@@ -199,7 +197,7 @@ contract RevenueShareV100UpgradePath is SimpleTaskBase, RevSharePredeploys {
             );
 
             _scRevShareCalculatorPrecalculatedAddress = Utils.getCreate2Address(
-                _getSalt(saltSeed, "SCRevShareCalculator"), _scRevShareCalculatorInitCode, CREATE2_DEPLOYER
+                _getSalt(saltSeed, "SCRevShareCalculator"), _scRevShareCalculatorInitCode, RevShareLibrary.CREATE2_DEPLOYER
             );
 
             // Expected calls for SC Rev Shares Calculator: 1 (deploy)
@@ -207,9 +205,9 @@ contract RevenueShareV100UpgradePath is SimpleTaskBase, RevSharePredeploys {
                 abi.encodeCall(
                     IOptimismPortal2.depositTransaction,
                     (
-                        address(CREATE2_DEPLOYER),
+                        address(RevShareLibrary.CREATE2_DEPLOYER),
                         0,
-                        RevShareGasLimits.SC_REV_SHARE_CALCULATOR_DEPLOYMENT_GAS_LIMIT,
+                        RevShareLibrary.SC_REV_SHARE_CALCULATOR_DEPLOYMENT_GAS_LIMIT,
                         false,
                         _scRevShareCalculatorCalldata
                     )
@@ -224,9 +222,9 @@ contract RevenueShareV100UpgradePath is SimpleTaskBase, RevSharePredeploys {
 
         // Calculate addresses and data to deploy vaults
         // Calculate addresses and data to deploy OperatorFeeVault
-        bytes memory _operatorFeeVaultInitCode = RevShareCodeRepo.operatorFeeVaultCreationCode;
+        bytes memory _operatorFeeVaultInitCode = RevShareLibrary.operatorFeeVaultCreationCode;
         _operatorFeeVaultPrecalculatedAddress =
-            Utils.getCreate2Address(_getSalt(saltSeed, "OperatorFeeVault"), _operatorFeeVaultInitCode, CREATE2_DEPLOYER);
+            Utils.getCreate2Address(_getSalt(saltSeed, "OperatorFeeVault"), _operatorFeeVaultInitCode, RevShareLibrary.CREATE2_DEPLOYER);
 
         _operatorFeeVaultCalldata = abi.encodeCall(
             ICreate2Deployer.deploy, (0, _getSalt(saltSeed, "OperatorFeeVault"), _operatorFeeVaultInitCode)
@@ -236,9 +234,9 @@ contract RevenueShareV100UpgradePath is SimpleTaskBase, RevSharePredeploys {
             abi.encodeCall(
                 IOptimismPortal2.depositTransaction,
                 (
-                    address(CREATE2_DEPLOYER),
+                    address(RevShareLibrary.CREATE2_DEPLOYER),
                     0,
-                    RevShareGasLimits.FEE_VAULTS_DEPLOYMENT_GAS_LIMIT,
+                    RevShareLibrary.FEE_VAULTS_DEPLOYMENT_GAS_LIMIT,
                     false,
                     _operatorFeeVaultCalldata
                 )
@@ -248,19 +246,19 @@ contract RevenueShareV100UpgradePath is SimpleTaskBase, RevSharePredeploys {
             abi.encodeCall(
                 IOptimismPortal2.depositTransaction,
                 (
-                    address(PROXY_ADMIN),
+                    address(RevShareLibrary.PROXY_ADMIN),
                     0,
-                    RevShareGasLimits.UPGRADE_GAS_LIMIT,
+                    RevShareLibrary.UPGRADE_GAS_LIMIT,
                     false,
                     abi.encodeCall(
                         IProxyAdmin.upgradeAndCall,
                         (
-                            payable(OPERATOR_FEE_VAULT),
+                            payable(RevShareLibrary.OPERATOR_FEE_VAULT),
                             address(_operatorFeeVaultPrecalculatedAddress),
                             abi.encodeCall(
                                 IFeeVault.initialize,
                                 (
-                                    FEE_VAULT_RECIPIENT,
+                                    RevShareLibrary.FEE_VAULT_RECIPIENT,
                                     FEE_VAULT_MIN_WITHDRAWAL_AMOUNT,
                                     FEE_VAULT_WITHDRAWAL_NETWORK
                                 )
@@ -272,9 +270,9 @@ contract RevenueShareV100UpgradePath is SimpleTaskBase, RevSharePredeploys {
         );
 
         // Calculate addresses and data to deploy SequencerFeeVault
-        bytes memory _sequencerFeeVaultInitCode = RevShareCodeRepo.sequencerFeeVaultCreationCode;
+        bytes memory _sequencerFeeVaultInitCode = RevShareLibrary.sequencerFeeVaultCreationCode;
         _sequencerFeeVaultPrecalculatedAddress = Utils.getCreate2Address(
-            _getSalt(saltSeed, "SequencerFeeVault"), _sequencerFeeVaultInitCode, CREATE2_DEPLOYER
+            _getSalt(saltSeed, "SequencerFeeVault"), _sequencerFeeVaultInitCode, RevShareLibrary.CREATE2_DEPLOYER
         );
         _sequencerFeeVaultCalldata = abi.encodeCall(
             ICreate2Deployer.deploy, (0, _getSalt(saltSeed, "SequencerFeeVault"), _sequencerFeeVaultInitCode)
@@ -285,9 +283,9 @@ contract RevenueShareV100UpgradePath is SimpleTaskBase, RevSharePredeploys {
             abi.encodeCall(
                 IOptimismPortal2.depositTransaction,
                 (
-                    address(CREATE2_DEPLOYER),
+                    address(RevShareLibrary.CREATE2_DEPLOYER),
                     0,
-                    RevShareGasLimits.FEE_VAULTS_DEPLOYMENT_GAS_LIMIT,
+                    RevShareLibrary.FEE_VAULTS_DEPLOYMENT_GAS_LIMIT,
                     false,
                     _sequencerFeeVaultCalldata
                 )
@@ -297,19 +295,19 @@ contract RevenueShareV100UpgradePath is SimpleTaskBase, RevSharePredeploys {
             abi.encodeCall(
                 IOptimismPortal2.depositTransaction,
                 (
-                    address(PROXY_ADMIN),
+                    address(RevShareLibrary.PROXY_ADMIN),
                     0,
-                    RevShareGasLimits.UPGRADE_GAS_LIMIT,
+                    RevShareLibrary.UPGRADE_GAS_LIMIT,
                     false,
                     abi.encodeCall(
                         IProxyAdmin.upgradeAndCall,
                         (
-                            payable(SEQUENCER_FEE_WALLET),
+                            payable(RevShareLibrary.SEQUENCER_FEE_WALLET),
                             address(_sequencerFeeVaultPrecalculatedAddress),
                             abi.encodeCall(
                                 IFeeVault.initialize,
                                 (
-                                    FEE_VAULT_RECIPIENT,
+                                    RevShareLibrary.FEE_VAULT_RECIPIENT,
                                     FEE_VAULT_MIN_WITHDRAWAL_AMOUNT,
                                     FEE_VAULT_WITHDRAWAL_NETWORK
                                 )
@@ -321,9 +319,9 @@ contract RevenueShareV100UpgradePath is SimpleTaskBase, RevSharePredeploys {
         );
 
         // Calculate addresses and data to deploy BaseFeeVault
-        bytes memory _baseFeeVaultInitCode = RevShareCodeRepo.baseFeeVaultCreationCode;
+        bytes memory _baseFeeVaultInitCode = RevShareLibrary.baseFeeVaultCreationCode;
         _baseFeeVaultPrecalculatedAddress =
-            Utils.getCreate2Address(_getSalt(saltSeed, "BaseFeeVault"), _baseFeeVaultInitCode, CREATE2_DEPLOYER);
+            Utils.getCreate2Address(_getSalt(saltSeed, "BaseFeeVault"), _baseFeeVaultInitCode, RevShareLibrary.CREATE2_DEPLOYER);
         _baseFeeVaultCalldata =
             abi.encodeCall(ICreate2Deployer.deploy, (0, _getSalt(saltSeed, "BaseFeeVault"), _baseFeeVaultInitCode));
 
@@ -332,9 +330,9 @@ contract RevenueShareV100UpgradePath is SimpleTaskBase, RevSharePredeploys {
             abi.encodeCall(
                 IOptimismPortal2.depositTransaction,
                 (
-                    address(CREATE2_DEPLOYER),
+                    address(RevShareLibrary.CREATE2_DEPLOYER),
                     0,
-                    RevShareGasLimits.FEE_VAULTS_DEPLOYMENT_GAS_LIMIT,
+                    RevShareLibrary.FEE_VAULTS_DEPLOYMENT_GAS_LIMIT,
                     false,
                     _baseFeeVaultCalldata
                 )
@@ -344,18 +342,18 @@ contract RevenueShareV100UpgradePath is SimpleTaskBase, RevSharePredeploys {
             abi.encodeCall(
                 IOptimismPortal2.depositTransaction,
                 (
-                    address(PROXY_ADMIN),
+                    address(RevShareLibrary.PROXY_ADMIN),
                     0,
-                    RevShareGasLimits.UPGRADE_GAS_LIMIT,
+                    RevShareLibrary.UPGRADE_GAS_LIMIT,
                     false,
                     abi.encodeCall(
                         IProxyAdmin.upgradeAndCall,
                         (
-                            payable(BASE_FEE_VAULT),
+                            payable(RevShareLibrary.BASE_FEE_VAULT),
                             address(_baseFeeVaultPrecalculatedAddress),
                             abi.encodeCall(
                                 IFeeVault.initialize,
-                                (FEE_VAULT_RECIPIENT, FEE_VAULT_MIN_WITHDRAWAL_AMOUNT, FEE_VAULT_WITHDRAWAL_NETWORK)
+                                (RevShareLibrary.FEE_VAULT_RECIPIENT, FEE_VAULT_MIN_WITHDRAWAL_AMOUNT, FEE_VAULT_WITHDRAWAL_NETWORK)
                             )
                         )
                     )
@@ -364,9 +362,9 @@ contract RevenueShareV100UpgradePath is SimpleTaskBase, RevSharePredeploys {
         );
 
         // Calculate addresses and data to deploy L1FeeVault
-        bytes memory _l1FeeVaultInitCode = RevShareCodeRepo.l1FeeVaultCreationCode;
+        bytes memory _l1FeeVaultInitCode = RevShareLibrary.l1FeeVaultCreationCode;
         _l1FeeVaultPrecalculatedAddress =
-            Utils.getCreate2Address(_getSalt(saltSeed, "L1FeeVault"), _l1FeeVaultInitCode, CREATE2_DEPLOYER);
+            Utils.getCreate2Address(_getSalt(saltSeed, "L1FeeVault"), _l1FeeVaultInitCode, RevShareLibrary.CREATE2_DEPLOYER);
         _l1FeeVaultCalldata =
             abi.encodeCall(ICreate2Deployer.deploy, (0, _getSalt(saltSeed, "L1FeeVault"), _l1FeeVaultInitCode));
 
@@ -375,9 +373,9 @@ contract RevenueShareV100UpgradePath is SimpleTaskBase, RevSharePredeploys {
             abi.encodeCall(
                 IOptimismPortal2.depositTransaction,
                 (
-                    address(CREATE2_DEPLOYER),
+                    address(RevShareLibrary.CREATE2_DEPLOYER),
                     0,
-                    RevShareGasLimits.FEE_VAULTS_DEPLOYMENT_GAS_LIMIT,
+                    RevShareLibrary.FEE_VAULTS_DEPLOYMENT_GAS_LIMIT,
                     false,
                     _l1FeeVaultCalldata
                 )
@@ -387,18 +385,18 @@ contract RevenueShareV100UpgradePath is SimpleTaskBase, RevSharePredeploys {
             abi.encodeCall(
                 IOptimismPortal2.depositTransaction,
                 (
-                    address(PROXY_ADMIN),
+                    address(RevShareLibrary.PROXY_ADMIN),
                     0,
-                    RevShareGasLimits.UPGRADE_GAS_LIMIT,
+                    RevShareLibrary.UPGRADE_GAS_LIMIT,
                     false,
                     abi.encodeCall(
                         IProxyAdmin.upgradeAndCall,
                         (
-                            payable(L1_FEE_VAULT),
+                            payable(RevShareLibrary.L1_FEE_VAULT),
                             address(_l1FeeVaultPrecalculatedAddress),
                             abi.encodeCall(
                                 IFeeVault.initialize,
-                                (FEE_VAULT_RECIPIENT, FEE_VAULT_MIN_WITHDRAWAL_AMOUNT, FEE_VAULT_WITHDRAWAL_NETWORK)
+                                (RevShareLibrary.FEE_VAULT_RECIPIENT, FEE_VAULT_MIN_WITHDRAWAL_AMOUNT, FEE_VAULT_WITHDRAWAL_NETWORK)
                             )
                         )
                     )
@@ -408,10 +406,10 @@ contract RevenueShareV100UpgradePath is SimpleTaskBase, RevSharePredeploys {
 
         // Calculate addresses and data to deploy Fee Splitter
         _feeSplitterCalldata = abi.encodeCall(
-            ICreate2Deployer.deploy, (0, _getSalt(saltSeed, "FeeSplitter"), RevShareCodeRepo.feeSplitterCreationCode)
+            ICreate2Deployer.deploy, (0, _getSalt(saltSeed, "FeeSplitter"), RevShareLibrary.feeSplitterCreationCode)
         );
         _feeSplitterPrecalculatedAddress = Utils.getCreate2Address(
-            _getSalt(saltSeed, "FeeSplitter"), RevShareCodeRepo.feeSplitterCreationCode, CREATE2_DEPLOYER
+            _getSalt(saltSeed, "FeeSplitter"), RevShareLibrary.feeSplitterCreationCode, RevShareLibrary.CREATE2_DEPLOYER
         );
 
         // Expected calls for FeeSplitter: 2 (deploy + upgradeAndCall)
@@ -419,9 +417,9 @@ contract RevenueShareV100UpgradePath is SimpleTaskBase, RevSharePredeploys {
             abi.encodeCall(
                 IOptimismPortal2.depositTransaction,
                 (
-                    address(CREATE2_DEPLOYER),
+                    address(RevShareLibrary.CREATE2_DEPLOYER),
                     0,
-                    RevShareGasLimits.FEE_SPLITTER_DEPLOYMENT_GAS_LIMIT,
+                    RevShareLibrary.FEE_SPLITTER_DEPLOYMENT_GAS_LIMIT,
                     false,
                     _feeSplitterCalldata
                 )
@@ -431,14 +429,14 @@ contract RevenueShareV100UpgradePath is SimpleTaskBase, RevSharePredeploys {
             abi.encodeCall(
                 IOptimismPortal2.depositTransaction,
                 (
-                    address(PROXY_ADMIN),
+                    address(RevShareLibrary.PROXY_ADMIN),
                     0,
-                    RevShareGasLimits.UPGRADE_GAS_LIMIT,
+                    RevShareLibrary.UPGRADE_GAS_LIMIT,
                     false,
                     abi.encodeCall(
                         IProxyAdmin.upgradeAndCall,
                         (
-                            payable(FEE_SPLITTER),
+                            payable(RevShareLibrary.FEE_SPLITTER),
                             address(_feeSplitterPrecalculatedAddress),
                             abi.encodeCall(IFeeSplitter.initialize, (_scRevShareCalculatorPrecalculatedAddress))
                         )
@@ -464,18 +462,18 @@ contract RevenueShareV100UpgradePath is SimpleTaskBase, RevSharePredeploys {
         if (useDefaultCalculator) {
             // Deploy L1 Withdrawer
             IOptimismPortal2(payable(portal)).depositTransaction(
-                address(CREATE2_DEPLOYER),
+                address(RevShareLibrary.CREATE2_DEPLOYER),
                 0,
-                RevShareGasLimits.L1_WITHDRAWER_DEPLOYMENT_GAS_LIMIT,
+                RevShareLibrary.L1_WITHDRAWER_DEPLOYMENT_GAS_LIMIT,
                 false,
                 _l1WithdrawerCalldata
             );
 
             // Deploy SC Rev Share Calculator
             IOptimismPortal2(payable(portal)).depositTransaction(
-                address(CREATE2_DEPLOYER),
+                address(RevShareLibrary.CREATE2_DEPLOYER),
                 0,
-                RevShareGasLimits.SC_REV_SHARE_CALCULATOR_DEPLOYMENT_GAS_LIMIT,
+                RevShareLibrary.SC_REV_SHARE_CALCULATOR_DEPLOYMENT_GAS_LIMIT,
                 false,
                 _scRevShareCalculatorCalldata
             );
@@ -512,26 +510,26 @@ contract RevenueShareV100UpgradePath is SimpleTaskBase, RevSharePredeploys {
         // Deploy the fee vaults
         // Deploy the operator fee vault
         IOptimismPortal2(payable(portal)).depositTransaction(
-            address(CREATE2_DEPLOYER),
+            address(RevShareLibrary.CREATE2_DEPLOYER),
             0,
-            RevShareGasLimits.FEE_VAULTS_DEPLOYMENT_GAS_LIMIT,
+            RevShareLibrary.FEE_VAULTS_DEPLOYMENT_GAS_LIMIT,
             false,
             _operatorFeeVaultCalldata
         );
         IOptimismPortal2(payable(portal)).depositTransaction(
-            address(PROXY_ADMIN),
+            address(RevShareLibrary.PROXY_ADMIN),
             0,
-            RevShareGasLimits.UPGRADE_GAS_LIMIT,
+            RevShareLibrary.UPGRADE_GAS_LIMIT,
             false,
             abi.encodeCall(
                 IProxyAdmin.upgradeAndCall,
                 (
-                    payable(OPERATOR_FEE_VAULT),
+                    payable(RevShareLibrary.OPERATOR_FEE_VAULT),
                     address(_operatorFeeVaultPrecalculatedAddress),
                     abi.encodeCall(
                         IFeeVault.initialize,
                         (
-                            FEE_VAULT_RECIPIENT,
+                            RevShareLibrary.FEE_VAULT_RECIPIENT,
                             FEE_VAULT_MIN_WITHDRAWAL_AMOUNT,
                             FEE_VAULT_WITHDRAWAL_NETWORK
                         )
@@ -542,26 +540,26 @@ contract RevenueShareV100UpgradePath is SimpleTaskBase, RevSharePredeploys {
 
         // Deploy the sequencer fee vault
         IOptimismPortal2(payable(portal)).depositTransaction(
-            address(CREATE2_DEPLOYER),
+            address(RevShareLibrary.CREATE2_DEPLOYER),
             0,
-            RevShareGasLimits.FEE_VAULTS_DEPLOYMENT_GAS_LIMIT,
+            RevShareLibrary.FEE_VAULTS_DEPLOYMENT_GAS_LIMIT,
             false,
             _sequencerFeeVaultCalldata
         );
         IOptimismPortal2(payable(portal)).depositTransaction(
-            address(PROXY_ADMIN),
+            address(RevShareLibrary.PROXY_ADMIN),
             0,
-            RevShareGasLimits.UPGRADE_GAS_LIMIT,
+            RevShareLibrary.UPGRADE_GAS_LIMIT,
             false,
             abi.encodeCall(
                 IProxyAdmin.upgradeAndCall,
                 (
-                    payable(SEQUENCER_FEE_WALLET),
+                    payable(RevShareLibrary.SEQUENCER_FEE_WALLET),
                     address(_sequencerFeeVaultPrecalculatedAddress),
                     abi.encodeCall(
                         IFeeVault.initialize,
                         (
-                            FEE_VAULT_RECIPIENT,
+                            RevShareLibrary.FEE_VAULT_RECIPIENT,
                             FEE_VAULT_MIN_WITHDRAWAL_AMOUNT,
                             FEE_VAULT_WITHDRAWAL_NETWORK
                         )
@@ -572,25 +570,25 @@ contract RevenueShareV100UpgradePath is SimpleTaskBase, RevSharePredeploys {
 
         // Deploy the base fee vault
         IOptimismPortal2(payable(portal)).depositTransaction(
-            address(CREATE2_DEPLOYER),
+            address(RevShareLibrary.CREATE2_DEPLOYER),
             0,
-            RevShareGasLimits.FEE_VAULTS_DEPLOYMENT_GAS_LIMIT,
+            RevShareLibrary.FEE_VAULTS_DEPLOYMENT_GAS_LIMIT,
             false,
             _baseFeeVaultCalldata
         );
         IOptimismPortal2(payable(portal)).depositTransaction(
-            address(PROXY_ADMIN),
+            address(RevShareLibrary.PROXY_ADMIN),
             0,
-            RevShareGasLimits.UPGRADE_GAS_LIMIT,
+            RevShareLibrary.UPGRADE_GAS_LIMIT,
             false,
             abi.encodeCall(
                 IProxyAdmin.upgradeAndCall,
                 (
-                    payable(BASE_FEE_VAULT),
+                    payable(RevShareLibrary.BASE_FEE_VAULT),
                     address(_baseFeeVaultPrecalculatedAddress),
                     abi.encodeCall(
                         IFeeVault.initialize,
-                        (FEE_VAULT_RECIPIENT, FEE_VAULT_MIN_WITHDRAWAL_AMOUNT, FEE_VAULT_WITHDRAWAL_NETWORK)
+                        (RevShareLibrary.FEE_VAULT_RECIPIENT, FEE_VAULT_MIN_WITHDRAWAL_AMOUNT, FEE_VAULT_WITHDRAWAL_NETWORK)
                     )
                 )
             )
@@ -598,21 +596,21 @@ contract RevenueShareV100UpgradePath is SimpleTaskBase, RevSharePredeploys {
 
         // Deploy the l1 fee vault
         IOptimismPortal2(payable(portal)).depositTransaction(
-            address(CREATE2_DEPLOYER), 0, RevShareGasLimits.FEE_VAULTS_DEPLOYMENT_GAS_LIMIT, false, _l1FeeVaultCalldata
+            address(RevShareLibrary.CREATE2_DEPLOYER), 0, RevShareLibrary.FEE_VAULTS_DEPLOYMENT_GAS_LIMIT, false, _l1FeeVaultCalldata
         );
         IOptimismPortal2(payable(portal)).depositTransaction(
-            address(PROXY_ADMIN),
+            address(RevShareLibrary.PROXY_ADMIN),
             0,
-            RevShareGasLimits.UPGRADE_GAS_LIMIT,
+            RevShareLibrary.UPGRADE_GAS_LIMIT,
             false,
             abi.encodeCall(
                 IProxyAdmin.upgradeAndCall,
                 (
-                    payable(L1_FEE_VAULT),
+                    payable(RevShareLibrary.L1_FEE_VAULT),
                     address(_l1FeeVaultPrecalculatedAddress),
                     abi.encodeCall(
                         IFeeVault.initialize,
-                        (FEE_VAULT_RECIPIENT, FEE_VAULT_MIN_WITHDRAWAL_AMOUNT, FEE_VAULT_WITHDRAWAL_NETWORK)
+                        (RevShareLibrary.FEE_VAULT_RECIPIENT, FEE_VAULT_MIN_WITHDRAWAL_AMOUNT, FEE_VAULT_WITHDRAWAL_NETWORK)
                     )
                 )
             )
@@ -623,22 +621,22 @@ contract RevenueShareV100UpgradePath is SimpleTaskBase, RevSharePredeploys {
     function _deployFeeSplitter() private {
         // Deploy Fee Splitter
         IOptimismPortal2(payable(portal)).depositTransaction(
-            address(CREATE2_DEPLOYER),
+            address(RevShareLibrary.CREATE2_DEPLOYER),
             0,
-            RevShareGasLimits.FEE_SPLITTER_DEPLOYMENT_GAS_LIMIT,
+            RevShareLibrary.FEE_SPLITTER_DEPLOYMENT_GAS_LIMIT,
             false,
             _feeSplitterCalldata
         );
 
         IOptimismPortal2(payable(portal)).depositTransaction(
-            address(PROXY_ADMIN),
+            address(RevShareLibrary.PROXY_ADMIN),
             0,
-            RevShareGasLimits.UPGRADE_GAS_LIMIT,
+            RevShareLibrary.UPGRADE_GAS_LIMIT,
             false,
             abi.encodeCall(
                 IProxyAdmin.upgradeAndCall,
                 (
-                    payable(FEE_SPLITTER),
+                    payable(RevShareLibrary.FEE_SPLITTER),
                     address(_feeSplitterPrecalculatedAddress),
                     abi.encodeCall(IFeeSplitter.initialize, (_scRevShareCalculatorPrecalculatedAddress))
                 )

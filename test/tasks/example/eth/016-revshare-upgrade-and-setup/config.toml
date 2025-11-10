@@ -16,16 +16,16 @@ portals = [
     "0x5d66C1782664115999C47c9fA5cd031f495D3e4F" # Ink Mainnet Portal
 ]
 
-# Chain fees recipients
+# Chain fees recipients (remainder recipients for each chain)
 remainderRecipients = [
-    "0x0000000000000000000000000000000000000001",
-    "0x0000000000000000000000000000000000000001"
+    "0x0000000000000000000000000000000000000001", # OP Mainnet chain fees recipient
+    "0x0000000000000000000000000000000000000002"  # Ink Mainnet chain fees recipient
 ]
 
-# L1Withdrawer configurations
+# L1Withdrawer configurations (different for each chain)
 l1WithdrawerConfigs = [
-    {minWithdrawalAmount = 350000, recipient = "0x0000000000000000000000000000000000000001", gasLimit = 800000},
-    {minWithdrawalAmount = 350000, recipient = "0x0000000000000000000000000000000000000001", gasLimit = 800000}
+    {minWithdrawalAmount = 350000, recipient = "0x0000000000000000000000000000000000000001", gasLimit = 800000}, # OP Mainnet L1Withdrawer
+    {minWithdrawalAmount = 500000, recipient = "0x0000000000000000000000000000000000000002", gasLimit = 1000000}  # Ink Mainnet L1Withdrawer
 ]
 
 [addresses]
