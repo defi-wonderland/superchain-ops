@@ -6,34 +6,14 @@ import {RevShareUpgradeAndSetup} from "src/template/RevShareUpgradeAndSetup.sol"
 import {IntegrationBase} from "./IntegrationBase.t.sol";
 import {Test} from "forge-std/Test.sol";
 
-enum WithdrawalNetwork {
-    L1,
-    L2
-}
-
-interface IFeeVault {
-    function MIN_WITHDRAWAL_AMOUNT() external view returns (uint256);
-    function RECIPIENT() external view returns (address);
-    function WITHDRAWAL_NETWORK() external view returns (WithdrawalNetwork);
-    function minWithdrawalAmount() external view returns (uint256);
-    function recipient() external view returns (address);
-    function withdrawalNetwork() external view returns (WithdrawalNetwork);
-}
-
-interface IFeeSplitter {
-    function sharesCalculator() external view returns (address);
-}
-
-interface IL1Withdrawer {
-    function minWithdrawalAmount() external view returns (uint256);
-    function recipient() external view returns (address);
-    function withdrawalGasLimit() external view returns (uint32);
-}
-
-interface ISuperchainRevSharesCalculator {
-    function shareRecipient() external view returns (address payable);
-    function remainderRecipient() external view returns (address payable);
-}
+// Interfaces
+import {IOptimismPortal2} from "@eth-optimism-bedrock/interfaces/L1/IOptimismPortal2.sol";
+import {IProxyAdmin} from "@eth-optimism-bedrock/interfaces/universal/IProxyAdmin.sol";
+import {ICreate2Deployer} from "src/interfaces/ICreate2Deployer.sol";
+import {IFeeSplitter} from "src/interfaces/IFeeSplitter.sol";
+import {IFeeVault} from "src/interfaces/IFeeVault.sol";
+import {IL1Withdrawer} from "src/interfaces/IL1Withdrawer.sol";
+import {ISuperchainRevSharesCalculator} from "src/interfaces/ISuperchainRevSharesCalculator.sol";
 
 contract RevShareContractsUpgraderIntegrationTest is IntegrationBase {
     RevShareContractsManager public revShareManager;
@@ -145,10 +125,10 @@ contract RevShareContractsUpgraderIntegrationTest is IntegrationBase {
 
     /// @notice Assert the configuration of all fee vaults
     function _assertFeeVaultsState() internal view {
-        _assertVaultGetters(SEQUENCER_FEE_VAULT, FEE_SPLITTER, WithdrawalNetwork.L2, 0);
-        _assertVaultGetters(OPERATOR_FEE_VAULT, FEE_SPLITTER, WithdrawalNetwork.L2, 0);
-        _assertVaultGetters(BASE_FEE_VAULT, FEE_SPLITTER, WithdrawalNetwork.L2, 0);
-        _assertVaultGetters(L1_FEE_VAULT, FEE_SPLITTER, WithdrawalNetwork.L2, 0);
+        _assertVaultGetters(SEQUENCER_FEE_VAULT, FEE_SPLITTER, IFeeVault.WithdrawalNetwork.L2, 0);
+        _assertVaultGetters(OPERATOR_FEE_VAULT, FEE_SPLITTER, IFeeVault.WithdrawalNetwork.L2, 0);
+        _assertVaultGetters(BASE_FEE_VAULT, FEE_SPLITTER, IFeeVault.WithdrawalNetwork.L2, 0);
+        _assertVaultGetters(L1_FEE_VAULT, FEE_SPLITTER, IFeeVault.WithdrawalNetwork.L2, 0);
     }
 
     /// @notice Assert the configuration of a single fee vault
@@ -160,7 +140,7 @@ contract RevShareContractsUpgraderIntegrationTest is IntegrationBase {
     function _assertVaultGetters(
         address _vault,
         address _recipient,
-        WithdrawalNetwork _withdrawalNetwork,
+        IFeeVault.WithdrawalNetwork _withdrawalNetwork,
         uint256 _minWithdrawalAmount
     ) internal view {
         // Check new getters

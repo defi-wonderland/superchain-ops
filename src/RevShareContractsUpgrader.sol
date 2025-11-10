@@ -177,7 +177,7 @@ contract RevShareContractsManager is RevSharePredeploys {
                 _portal, vaults[i], RevShareGasLimits.SETTERS_GAS_LIMIT, abi.encodeCall(IFeeVault.setMinWithdrawalAmount, (0))
             );
             _depositCall(
-                _portal, vaults[i], RevShareGasLimits.SETTERS_GAS_LIMIT, abi.encodeCall(IFeeVault.setWithdrawalNetwork, (1))
+                _portal, vaults[i], RevShareGasLimits.SETTERS_GAS_LIMIT, abi.encodeCall(IFeeVault.setWithdrawalNetwork, (IFeeVault.WithdrawalNetwork.L2))
             );
         }
     }
@@ -210,7 +210,7 @@ contract RevShareContractsManager is RevSharePredeploys {
                         impl,
                         abi.encodeCall(
                             IFeeVault.initialize,
-                            (FEE_SPLITTER, 0, 1) // recipient=FeeSplitter, minWithdrawal=0, network=L2
+                            (FEE_SPLITTER, 0, IFeeVault.WithdrawalNetwork.L2) // recipient=FeeSplitter, minWithdrawal=0, network=L2
                         )
                     )
                 )
