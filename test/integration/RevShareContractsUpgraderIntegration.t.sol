@@ -38,14 +38,24 @@ contract RevShareContractsUpgraderIntegrationTest is IntegrationBase {
     address internal constant FEE_SPLITTER = 0x420000000000000000000000000000000000002B;
 
     // Expected deployed contracts (deterministic CREATE2 addresses)
-    address internal constant L1_WITHDRAWER = 0xB3AeB34b88D73Fb4832f65BEa5Bd865017fB5daC;
-    address internal constant REV_SHARE_CALCULATOR = 0x3E806Fd8592366E850197FEC8D80608b5526Bba2;
+    address internal constant OP_L1_WITHDRAWER = 0xB3AeB34b88D73Fb4832f65BEa5Bd865017fB5daC;
+    address internal constant OP_REV_SHARE_CALCULATOR = 0x3E806Fd8592366E850197FEC8D80608b5526Bba2;
 
-    // Test configuration
-    uint256 internal constant MIN_WITHDRAWAL_AMOUNT = 350000;
-    address internal constant L1_WITHDRAWAL_RECIPIENT = address(1); // Placeholder
-    uint32 internal constant WITHDRAWAL_GAS_LIMIT = 800000;
-    address internal constant CHAIN_FEES_RECIPIENT = address(1); // Placeholder
+    address internal constant INK_L1_WITHDRAWER = 0x70e26B12a578176BccCD3b7e7f58f605871c5eF7;
+    address internal constant INK_REV_SHARE_CALCULATOR = 0xd7a5307B4Ce92B0269903191007b95dF42552Dfa;
+
+    // Test configuration - OP Mainnet
+    uint256 internal constant OP_MIN_WITHDRAWAL_AMOUNT = 350000;
+    address internal constant OP_L1_WITHDRAWAL_RECIPIENT = 0x0000000000000000000000000000000000000001;
+    uint32 internal constant OP_WITHDRAWAL_GAS_LIMIT = 800000;
+    address internal constant OP_CHAIN_FEES_RECIPIENT = 0x0000000000000000000000000000000000000001;
+
+    // Test configuration - Ink Mainnet
+    uint256 internal constant INK_MIN_WITHDRAWAL_AMOUNT = 500000;
+    address internal constant INK_L1_WITHDRAWAL_RECIPIENT = 0x0000000000000000000000000000000000000002;
+    uint32 internal constant INK_WITHDRAWAL_GAS_LIMIT = 1000000;
+    address internal constant INK_CHAIN_FEES_RECIPIENT = 0x0000000000000000000000000000000000000002;
+
     bool internal constant IS_SIMULATE = true;
 
     function setUp() public {
@@ -87,36 +97,47 @@ contract RevShareContractsUpgraderIntegrationTest is IntegrationBase {
 
         // Step 4: Assert the state of the OP Mainnet contracts
         vm.selectFork(_opMainnetForkId);
-        _assertL2State();
+        _assertL2State(OP_L1_WITHDRAWER, OP_REV_SHARE_CALCULATOR, OP_MIN_WITHDRAWAL_AMOUNT, OP_L1_WITHDRAWAL_RECIPIENT, OP_WITHDRAWAL_GAS_LIMIT, OP_CHAIN_FEES_RECIPIENT);
 
         // Step 5: Assert the state of the Ink Mainnet contracts
         vm.selectFork(_inkMainnetForkId);
-        _assertL2State();
+        _assertL2State(INK_L1_WITHDRAWER, INK_REV_SHARE_CALCULATOR, INK_MIN_WITHDRAWAL_AMOUNT, INK_L1_WITHDRAWAL_RECIPIENT, INK_WITHDRAWAL_GAS_LIMIT, INK_CHAIN_FEES_RECIPIENT);
     }
 
     /// @notice Assert the state of all L2 contracts after upgrade
-    function _assertL2State() internal view {
+    /// @param _minWithdrawalAmount Expected minimum withdrawal amount for L1Withdrawer
+    /// @param _l1Recipient Expected recipient address for L1Withdrawer
+    /// @param _gasLimit Expected gas limit for L1Withdrawer
+    /// @param _chainFeesRecipient Expected chain fees recipient (remainder recipient)
+    function _assertL2State(
+        address _l1Withdrawer,
+        address _revShareCalculator,
+        uint256 _minWithdrawalAmount,
+        address _l1Recipient,
+        uint32 _gasLimit,
+        address _chainFeesRecipient
+    ) internal view {
         // L1Withdrawer: check configuration
-        assertEq(IL1Withdrawer(L1_WITHDRAWER).minWithdrawalAmount(), MIN_WITHDRAWAL_AMOUNT, "L1Withdrawer minWithdrawalAmount mismatch");
-        assertEq(IL1Withdrawer(L1_WITHDRAWER).recipient(), L1_WITHDRAWAL_RECIPIENT, "L1Withdrawer recipient mismatch");
-        assertEq(IL1Withdrawer(L1_WITHDRAWER).withdrawalGasLimit(), WITHDRAWAL_GAS_LIMIT, "L1Withdrawer gasLimit mismatch");
+        assertEq(IL1Withdrawer(_l1Withdrawer).minWithdrawalAmount(), _minWithdrawalAmount, "L1Withdrawer minWithdrawalAmount mismatch");
+        assertEq(IL1Withdrawer(_l1Withdrawer).recipient(), _l1Recipient, "L1Withdrawer recipient mismatch");
+        assertEq(IL1Withdrawer(_l1Withdrawer).withdrawalGasLimit(), _gasLimit, "L1Withdrawer gasLimit mismatch");
 
         // Rev Share Calculator: check it's linked correctly
         assertEq(
-            ISuperchainRevSharesCalculator(REV_SHARE_CALCULATOR).shareRecipient(),
-            L1_WITHDRAWER,
+            ISuperchainRevSharesCalculator(_revShareCalculator).shareRecipient(),
+            _l1Withdrawer,
             "Calculator shareRecipient should be L1Withdrawer"
         );
         assertEq(
-            ISuperchainRevSharesCalculator(REV_SHARE_CALCULATOR).remainderRecipient(),
-            CHAIN_FEES_RECIPIENT,
+            ISuperchainRevSharesCalculator(_revShareCalculator).remainderRecipient(),
+            _chainFeesRecipient,
             "Calculator remainderRecipient mismatch"
         );
 
         // Fee Splitter: check calculator is set
         assertEq(
             IFeeSplitter(FEE_SPLITTER).sharesCalculator(),
-            REV_SHARE_CALCULATOR,
+            _revShareCalculator,
             "FeeSplitter calculator should be set to RevShareCalculator"
         );
 
