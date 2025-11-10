@@ -70,7 +70,7 @@ abstract contract IntegrationBase is Test {
 
         for (uint256 _i; _i < _logs.length; _i++) {
             // Check if this is a TransactionDeposited event AND it was emitted by the specified portal
-            if (_logs[_i].topics[0] == _transactionDepositedHash) {
+            if (_logs[_i].topics[0] == _transactionDepositedHash && _logs[_i].emitter == _portal) {
                 // Decode indexed parameters
                 address _from = address(uint160(uint256(_logs[_i].topics[1])));
                 address _to = address(uint160(uint256(_logs[_i].topics[2])));
