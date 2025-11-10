@@ -42,6 +42,9 @@ contract RevenueShareIntegrationTest is IntegrationBase {
     uint256 internal _mainnetForkId;
     uint256 internal _l2ForkId;
 
+    // L1 addresses
+    address internal constant OP_MAINNET_PORTAL = 0xbEb5Fc579115071764c7423A4f12eDde41f106Ed;
+
     // L2 predeploys
     /// @notice Address of the Sequencer Fee Vault Predeploy on L2.
     address internal constant SEQUENCER_FEE_VAULT = 0x4200000000000000000000000000000000000011;
@@ -77,7 +80,13 @@ contract RevenueShareIntegrationTest is IntegrationBase {
 
         // Step 2: Relay messages from L1 to L2
         // Pass true for _isSimulate since simulate() emits events twice
-        _relayAllMessages(_l2ForkId, true);
+        uint256[] memory forkIds = new uint256[](1);
+        forkIds[0] = _l2ForkId;
+
+        address[] memory portals = new address[](1);
+        portals[0] = OP_MAINNET_PORTAL;
+
+        _relayAllMessages(forkIds, true, portals);
 
         // Step 3: Assert the state of the L2 contracts
         string memory _config = vm.readFile(_configPath);
@@ -115,7 +124,13 @@ contract RevenueShareIntegrationTest is IntegrationBase {
 
         // Step 2: Relay messages from L1 to L2
         // Pass true for _isSimulate since simulate() emits events twice
-        _relayAllMessages(_l2ForkId, true);
+        uint256[] memory forkIds = new uint256[](1);
+        forkIds[0] = _l2ForkId;
+
+        address[] memory portals = new address[](1);
+        portals[0] = OP_MAINNET_PORTAL;
+
+        _relayAllMessages(forkIds, true, portals);
 
         // Step 3: Assert the state of the L2 contracts
         string memory _config = vm.readFile(_configPath);

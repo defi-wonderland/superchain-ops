@@ -2,6 +2,7 @@
 pragma solidity 0.8.15;
 
 import {RevShareContractsManager} from "src/RevShareContractsUpgrader.sol";
+import {RevShareSetup} from "src/template/RevShareSetup.sol";
 import {IntegrationBase} from "./IntegrationBase.t.sol";
 import {Test} from "forge-std/Test.sol";
 
@@ -34,24 +35,20 @@ interface ISuperchainRevSharesCalculator {
     function remainderRecipient() external view returns (address payable);
 }
 
-/// @notice Simple contract to simulate a Safe executing delegatecall
-contract SafeSimulator {
-    function executeDelegatecall(address target, bytes memory data) external returns (bool success, bytes memory returnData) {
-        return target.delegatecall(data);
-    }
-}
-
 contract RevShareContractsUpgraderIntegrationTest is IntegrationBase {
     RevShareContractsManager public revShareManager;
-    SafeSimulator public safeSimulator;
+    RevShareSetup public revShareTask;
 
     // Fork IDs
     uint256 internal _mainnetForkId;
     uint256 internal _opMainnetForkId;
+    uint256 internal _inkMainnetForkId;
 
     // L1 addresses
     address internal constant PROXY_ADMIN_OWNER = 0x5a0Aae59D09fccBdDb6C6CcEB07B7279367C3d2A;
     address internal constant OP_MAINNET_PORTAL = 0xbEb5Fc579115071764c7423A4f12eDde41f106Ed;
+    address internal constant INK_MAINNET_PORTAL = 0x5d66C1782664115999C47c9fA5cd031f495D3e4F;
+    address internal constant REV_SHARE_MANAGER_ADDRESS = 0x0000000000000000000000000000000000001337;
 
     // L2 predeploys (same across all OP Stack chains)
     address internal constant SEQUENCER_FEE_VAULT = 0x4200000000000000000000000000000000000011;
@@ -74,18 +71,18 @@ contract RevShareContractsUpgraderIntegrationTest is IntegrationBase {
         // Create forks for L1 (mainnet) and L2 (OP Mainnet)
         _mainnetForkId = vm.createFork("http://127.0.0.1:8545");
         _opMainnetForkId = vm.createFork("http://127.0.0.1:9545");
+        _inkMainnetForkId = vm.createFork("http://127.0.0.1:9546");
 
         // Deploy contracts on L1
         vm.selectFork(_mainnetForkId);
 
-        // Deploy SafeSimulator at PROXY_ADMIN_OWNER address using vm.etch
-        // This simulates the Safe that will execute the delegatecall
-        bytes memory safeSimulatorCode = type(SafeSimulator).runtimeCode;
-        vm.etch(PROXY_ADMIN_OWNER, safeSimulatorCode);
-        safeSimulator = SafeSimulator(PROXY_ADMIN_OWNER);
-
-        // Deploy RevShareContractsManager
+        // Deploy RevShareContractsManager and etch at predetermined address
         revShareManager = new RevShareContractsManager();
+        vm.etch(REV_SHARE_MANAGER_ADDRESS, address(revShareManager).code);
+        revShareManager = RevShareContractsManager(REV_SHARE_MANAGER_ADDRESS);
+
+        // Deploy RevShareSetup task
+        revShareTask = new RevShareSetup();
     }
 
     /// @notice Test the integration of upgradeAndSetupRevShare
@@ -93,36 +90,26 @@ contract RevShareContractsUpgraderIntegrationTest is IntegrationBase {
         // Step 1: Record logs for L1→L2 message replay
         vm.recordLogs();
 
-        // Step 2: Prepare call parameters
-        address[] memory portals = new address[](1);
+        // Step 2: Execute task simulation
+        revShareTask.simulate("test/integration/fixtures/revshare-config.toml");
+
+        // Step 3: Relay deposit transactions from L1 to all L2s
+        uint256[] memory forkIds = new uint256[](2);
+        forkIds[0] = _opMainnetForkId;
+        forkIds[1] = _inkMainnetForkId;
+
+        address[] memory portals = new address[](2);
         portals[0] = OP_MAINNET_PORTAL;
+        portals[1] = INK_MAINNET_PORTAL;
 
-        RevShareContractsManager.L1WithdrawerConfig[] memory l1Configs =
-            new RevShareContractsManager.L1WithdrawerConfig[](1);
-        l1Configs[0] = RevShareContractsManager.L1WithdrawerConfig({
-            minWithdrawalAmount: MIN_WITHDRAWAL_AMOUNT,
-            recipient: L1_WITHDRAWAL_RECIPIENT,
-            gasLimit: WITHDRAWAL_GAS_LIMIT
-        });
+        _relayAllMessages(forkIds, true, portals);
 
-        address[] memory chainFeesRecipients = new address[](1);
-        chainFeesRecipients[0] = CHAIN_FEES_RECIPIENT;
+        // Step 4: Assert the state of the OP Mainnet contracts
+        vm.selectFork(_opMainnetForkId);
+        _assertL2State();
 
-        // Step 3: Execute upgradeAndSetupRevShare via delegatecall from SafeSimulator
-        // This simulates how the Safe will execute this in production
-        bytes memory callData = abi.encodeCall(
-            RevShareContractsManager.upgradeAndSetupRevShare,
-            (portals, l1Configs, chainFeesRecipients)
-        );
-
-        (bool success,) = safeSimulator.executeDelegatecall(address(revShareManager), callData);
-        require(success, "Delegatecall failed");
-
-        // Step 4: Relay all deposit transactions from L1 to L2
-        // Pass false for _isSimulate since we're not using simulate()
-        _relayAllMessages(_opMainnetForkId, false);
-
-        // Step 5: Assert the state of the L2 contracts
+        // Step 5: Assert the state of the Ink Mainnet contracts
+        vm.selectFork(_inkMainnetForkId);
         _assertL2State();
     }
 

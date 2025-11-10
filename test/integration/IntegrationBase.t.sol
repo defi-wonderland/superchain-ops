@@ -9,24 +9,47 @@ import {AddressAliasHelper} from "@eth-optimism-bedrock/src/vendor/AddressAliasH
 /// @title IntegrationBase
 /// @notice Base contract for integration tests with L1->L2 deposit transaction replay functionality
 abstract contract IntegrationBase is Test {
-    /// @notice Replay all deposit transactions from L1 to L2
-    /// @param _forkId The fork ID to switch to for L2 execution
+    /// @notice Replay all deposit transactions from L1 to multiple L2s
+    /// @param _forkIds Array of fork IDs for each L2 chain
     /// @param _isSimulate If true, only process the second half of logs to avoid duplicates.
     ///                    Task simulations emit events twice: once during the initial dry-run
     ///                    and once during the actual simulation. Taking the second half ensures
     ///                    we only process the final simulation results.
-    function _relayAllMessages(uint256 _forkId, bool _isSimulate) internal {
+    /// @param _portals Array of OptimismPortal addresses corresponding to each fork.
+    ///                 Only events emitted by each portal will be replayed on its corresponding L2.
+    function _relayAllMessages(uint256[] memory _forkIds, bool _isSimulate, address[] memory _portals) internal {
+        require(_forkIds.length == _portals.length, "Fork IDs and portals length mismatch");
+
+        // Get logs from L1 execution (currently active fork should be L1)
+        Vm.Log[] memory _allLogs = vm.getRecordedLogs();
+
+        // Process each L2 chain
+        for (uint256 _chainIdx = 0; _chainIdx < _forkIds.length; _chainIdx++) {
+            _relayMessagesForChain(_allLogs, _forkIds[_chainIdx], _isSimulate, _portals[_chainIdx]);
+        }
+    }
+
+    /// @notice Replay deposit transactions for a single L2 chain
+    /// @param _allLogs All recorded logs from L1 execution
+    /// @param _forkId The fork ID to switch to for L2 execution
+    /// @param _isSimulate If true, only process the second half of logs
+    /// @param _portal The OptimismPortal address to filter events by
+    function _relayMessagesForChain(
+        Vm.Log[] memory _allLogs,
+        uint256 _forkId,
+        bool _isSimulate,
+        address _portal
+    ) internal {
+        // Switch to L2 fork for execution
         vm.selectFork(_forkId);
 
         console2.log("\n");
         console2.log("================================================================================");
         console2.log("=== Replaying Deposit Transactions on L2                                    ===");
+        console2.log("=== Portal:", _portal);
         console2.log("=== Each transaction includes Tenderly simulation link                      ===");
-        console2.log("=== Network is set to 10 (OP Mainnet) - adjust if testing on different L2  ===");
+        console2.log("=== Network is set to", block.chainid, "- adjust if testing on different L2  ===");
         console2.log("================================================================================");
-
-        // Get logs from L1 execution
-        Vm.Log[] memory _allLogs = vm.getRecordedLogs();
 
         // If this is a simulation, only take the second half of logs to avoid processing duplicates
         // Simulations emit events twice, so we skip the first half
@@ -44,10 +67,17 @@ abstract contract IntegrationBase is Test {
         uint256 _transactionCount;
         uint256 _successCount;
         uint256 _failureCount;
+        uint256 _totalDepositEvents;
+        uint256 _filteredOutEvents;
 
         for (uint256 _i = 0; _i < _logs.length; _i++) {
-            // Check if this is a TransactionDeposited event
+            // Check if this is a TransactionDeposited event AND it was emitted by the specified portal
             if (_logs[_i].topics[0] == _transactionDepositedHash) {
+                _totalDepositEvents++;
+                if (_logs[_i].emitter != _portal) {
+                    _filteredOutEvents++;
+                    continue;
+                }
                 // Decode indexed parameters
                 address _from = address(uint160(uint256(_logs[_i].topics[1])));
                 address _to = address(uint160(uint256(_logs[_i].topics[2])));
@@ -69,7 +99,7 @@ abstract contract IntegrationBase is Test {
         }
 
         console2.log("\n=== Summary ===");
-        console2.log("Total transactions:", _transactionCount);
+        console2.log("Total transactions processed:", _transactionCount);
         console2.log("Successful transactions:", _successCount);
         console2.log("Failed transactions:", _failureCount);
 
