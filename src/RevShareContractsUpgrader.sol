@@ -13,7 +13,7 @@ import {ICreate2Deployer} from "src/interfaces/ICreate2Deployer.sol";
 import {IFeeSplitter} from "src/interfaces/IFeeSplitter.sol";
 import {IFeeVault} from "src/interfaces/IFeeVault.sol";
 
-/// @title RevShareContractsManager
+/// @title RevShareContractsUpgrader
 /// @notice Upgrader contract that manages RevShare deployments and configuration via delegatecall.
 /// @dev    Supports two operations:
 ///         1. setupRevShare() - Setup revenue sharing on already-upgraded contracts
