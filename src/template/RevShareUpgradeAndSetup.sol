@@ -41,7 +41,7 @@ contract RevShareUpgradeAndSetup is OPCMTaskBase {
     function _setAllowedStorageAccesses() internal virtual override {
         super._setAllowedStorageAccesses();
         // Add portal addresses as they will have storage writes from depositTransaction calls
-        for (uint256 i = 0; i < portals.length; i++) {
+        for (uint256 i; i < portals.length; i++) {
             _allowedStorageAccesses.add(portals[i]);
         }
     }
@@ -69,7 +69,7 @@ contract RevShareUpgradeAndSetup is OPCMTaskBase {
         RevShareContractsUpgrader.L1WithdrawerConfig[] memory configs =
             new RevShareContractsUpgrader.L1WithdrawerConfig[](portals.length);
 
-        for (uint256 i = 0; i < portals.length; i++) {
+        for (uint256 i; i < portals.length; i++) {
             string memory basePath = string.concat(".l1WithdrawerConfigs[", vm.toString(i), "]");
             configs[i] = RevShareContractsUpgrader.L1WithdrawerConfig({
                 minWithdrawalAmount: tomlContent.readUint(string.concat(basePath, ".minWithdrawalAmount")),
@@ -111,7 +111,7 @@ contract RevShareUpgradeAndSetup is OPCMTaskBase {
 
         bool foundDelegatecall = false;
 
-        for (uint256 i = 0; i < _actions.length; i++) {
+        for (uint256 i; i < _actions.length; i++) {
             Action memory action = _actions[i];
             // Check if this is a delegatecall to RevShareContractsUpgrader
             if (action.target == REV_SHARE_MANAGER) {
