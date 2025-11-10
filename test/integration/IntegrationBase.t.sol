@@ -15,7 +15,7 @@ abstract contract IntegrationBase is Test {
     ///                    Task simulations emit events twice: once during the initial dry-run
     ///                    and once during the actual simulation. Taking the second half ensures
     ///                    we only process the final simulation results.
-    /// @param _portals Array of OptimismPortal addresses corresponding to each fork.
+    /// @param _portals Array of Portal addresses corresponding to each fork.
     ///                 Only events emitted by each portal will be replayed on its corresponding L2.
     function _relayAllMessages(uint256[] memory _forkIds, bool _isSimulate, address[] memory _portals) internal {
         require(_forkIds.length == _portals.length, "Fork IDs and portals length mismatch");
@@ -33,7 +33,7 @@ abstract contract IntegrationBase is Test {
     /// @param _allLogs All recorded logs from L1 execution
     /// @param _forkId The fork ID to switch to for L2 execution
     /// @param _isSimulate If true, only process the second half of logs
-    /// @param _portal The OptimismPortal address to filter events by
+    /// @param _portal The Portal address to filter events by
     function _relayMessagesForChain(
         Vm.Log[] memory _allLogs,
         uint256 _forkId,
