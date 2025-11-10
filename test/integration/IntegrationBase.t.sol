@@ -24,7 +24,7 @@ abstract contract IntegrationBase is Test {
         Vm.Log[] memory _allLogs = vm.getRecordedLogs();
 
         // Process each L2 chain
-        for (uint256 _chainIdx = 0; _chainIdx < _forkIds.length; _chainIdx++) {
+        for (uint256 _chainIdx; _chainIdx < _forkIds.length; _chainIdx++) {
             _relayMessagesForChain(_allLogs, _forkIds[_chainIdx], _isSimulate, _portals[_chainIdx]);
         }
     }
@@ -57,7 +57,7 @@ abstract contract IntegrationBase is Test {
         uint256 _logsCount = _isSimulate ? _allLogs.length - _startIndex : _allLogs.length;
 
         Vm.Log[] memory _logs = new Vm.Log[](_logsCount);
-        for (uint256 _i = 0; _i < _logsCount; _i++) {
+        for (uint256 _i; _i < _logsCount; _i++) {
             _logs[_i] = _allLogs[_startIndex + _i];
         }
 
@@ -67,17 +67,10 @@ abstract contract IntegrationBase is Test {
         uint256 _transactionCount;
         uint256 _successCount;
         uint256 _failureCount;
-        uint256 _totalDepositEvents;
-        uint256 _filteredOutEvents;
 
-        for (uint256 _i = 0; _i < _logs.length; _i++) {
+        for (uint256 _i; _i < _logs.length; _i++) {
             // Check if this is a TransactionDeposited event AND it was emitted by the specified portal
             if (_logs[_i].topics[0] == _transactionDepositedHash) {
-                _totalDepositEvents++;
-                if (_logs[_i].emitter != _portal) {
-                    _filteredOutEvents++;
-                    continue;
-                }
                 // Decode indexed parameters
                 address _from = address(uint160(uint256(_logs[_i].topics[1])));
                 address _to = address(uint160(uint256(_logs[_i].topics[2])));
@@ -157,7 +150,7 @@ abstract contract IntegrationBase is Test {
     /// @notice Helper function to slice bytes
     function _slice(bytes memory _data, uint256 _start, uint256 _length) internal pure returns (bytes memory) {
         bytes memory _result = new bytes(_length);
-        for (uint256 _i = 0; _i < _length; _i++) {
+        for (uint256 _i; _i < _length; _i++) {
             _result[_i] = _data[_start + _i];
         }
         return _result;
@@ -195,7 +188,7 @@ abstract contract IntegrationBase is Test {
     /// @notice Convert address to lowercase hex string without 0x prefix
     function _toAsciiString(address _addr) internal pure returns (string memory) {
         bytes memory _s = new bytes(40);
-        for (uint256 _i = 0; _i < 20; _i++) {
+        for (uint256 _i; _i < 20; _i++) {
             bytes1 _b = bytes1(uint8(uint256(uint160(_addr)) / (2 ** (8 * (19 - _i)))));
             bytes1 _hi = bytes1(uint8(_b) / 16);
             bytes1 _lo = bytes1(uint8(_b) - 16 * uint8(_hi));
@@ -209,7 +202,7 @@ abstract contract IntegrationBase is Test {
     function _bytesToHexString(bytes memory _data) internal pure returns (string memory) {
         bytes memory _hexChars = "0123456789abcdef";
         bytes memory _result = new bytes(_data.length * 2);
-        for (uint256 _i = 0; _i < _data.length; _i++) {
+        for (uint256 _i; _i < _data.length; _i++) {
             _result[_i * 2] = _hexChars[uint8(_data[_i] >> 4)];
             _result[_i * 2 + 1] = _hexChars[uint8(_data[_i] & 0x0f)];
         }
