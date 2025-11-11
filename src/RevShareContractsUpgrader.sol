@@ -66,13 +66,15 @@ contract RevShareContractsUpgrader {
             if (config.chainFeesRecipient == address(0)) revert ChainFeesRecipientCannotBeZeroAddress();
 
             // Deploy L1Withdrawer and SuperchainRevenueShareCalculator
-            address precalculatedCalculator = _deployRevSharePeriphery(config.portal, config.l1WithdrawerConfig, config.chainFeesRecipient);
+            address precalculatedCalculator =
+                _deployRevSharePeriphery(config.portal, config.l1WithdrawerConfig, config.chainFeesRecipient);
 
             // Upgrade fee splitter and initialize with calculator FIRST
             // This prevents the edge case where fees could be sent to an uninitialized FeeSplitter
             bytes32 feeSplitterSalt = _getSalt("FeeSplitter");
-            address feeSplitterImpl =
-                Utils.getCreate2Address(feeSplitterSalt, RevShareLibrary.feeSplitterCreationCode, RevShareLibrary.CREATE2_DEPLOYER);
+            address feeSplitterImpl = Utils.getCreate2Address(
+                feeSplitterSalt, RevShareLibrary.feeSplitterCreationCode, RevShareLibrary.CREATE2_DEPLOYER
+            );
             _depositCreate2(
                 config.portal,
                 RevShareLibrary.FEE_SPLITTER_DEPLOYMENT_GAS_LIMIT,
@@ -85,7 +87,11 @@ contract RevShareContractsUpgrader {
                 RevShareLibrary.UPGRADE_GAS_LIMIT,
                 abi.encodeCall(
                     IProxyAdmin.upgradeAndCall,
-                    (payable(RevShareLibrary.FEE_SPLITTER), feeSplitterImpl, abi.encodeCall(IFeeSplitter.initialize, (precalculatedCalculator)))
+                    (
+                        payable(RevShareLibrary.FEE_SPLITTER),
+                        feeSplitterImpl,
+                        abi.encodeCall(IFeeSplitter.initialize, (precalculatedCalculator))
+                    )
                 )
             );
 
@@ -107,7 +113,8 @@ contract RevShareContractsUpgrader {
             if (config.chainFeesRecipient == address(0)) revert ChainFeesRecipientCannotBeZeroAddress();
 
             // Deploy L1Withdrawer and SuperchainRevenueShareCalculator
-            address calculator = _deployRevSharePeriphery(config.portal, config.l1WithdrawerConfig, config.chainFeesRecipient);
+            address calculator =
+                _deployRevSharePeriphery(config.portal, config.l1WithdrawerConfig, config.chainFeesRecipient);
 
             // Set calculator on fee splitter
             _depositCall(
@@ -135,17 +142,21 @@ contract RevShareContractsUpgrader {
         // Deploy L1Withdrawer
         bytes memory l1WithdrawerInitCode = bytes.concat(
             RevShareLibrary.l1WithdrawerCreationCode,
-            abi.encode(_l1WithdrawerConfig.minWithdrawalAmount, _l1WithdrawerConfig.recipient, _l1WithdrawerConfig.gasLimit)
+            abi.encode(
+                _l1WithdrawerConfig.minWithdrawalAmount, _l1WithdrawerConfig.recipient, _l1WithdrawerConfig.gasLimit
+            )
         );
         bytes32 l1WithdrawerSalt = _getSalt("L1Withdrawer");
-        address precalculatedL1Withdrawer = Utils.getCreate2Address(l1WithdrawerSalt, l1WithdrawerInitCode, RevShareLibrary.CREATE2_DEPLOYER);
+        address precalculatedL1Withdrawer =
+            Utils.getCreate2Address(l1WithdrawerSalt, l1WithdrawerInitCode, RevShareLibrary.CREATE2_DEPLOYER);
         _depositCreate2(
             _portal, RevShareLibrary.L1_WITHDRAWER_DEPLOYMENT_GAS_LIMIT, l1WithdrawerSalt, l1WithdrawerInitCode
         );
 
         // Deploy SuperchainRevenueShareCalculator
-        bytes memory calculatorInitCode =
-            bytes.concat(RevShareLibrary.scRevShareCalculatorCreationCode, abi.encode(precalculatedL1Withdrawer, _chainFeesRecipient));
+        bytes memory calculatorInitCode = bytes.concat(
+            RevShareLibrary.scRevShareCalculatorCreationCode, abi.encode(precalculatedL1Withdrawer, _chainFeesRecipient)
+        );
         bytes32 calculatorSalt = _getSalt("SCRevShareCalculator");
         calculator = Utils.getCreate2Address(calculatorSalt, calculatorInitCode, RevShareLibrary.CREATE2_DEPLOYER);
         _depositCreate2(
@@ -156,17 +167,31 @@ contract RevShareContractsUpgrader {
     /// @notice Configures all 4 vaults for revenue sharing (recipient=FeeSplitter, minWithdrawal=0, network=L2).
     /// @param _portal The OptimismPortal2 address for the target L2
     function _configureVaultsForRevShare(address _portal) private {
-        address[4] memory vaults = [RevShareLibrary.OPERATOR_FEE_VAULT, RevShareLibrary.SEQUENCER_FEE_WALLET, RevShareLibrary.BASE_FEE_VAULT, RevShareLibrary.L1_FEE_VAULT];
+        address[4] memory vaults = [
+            RevShareLibrary.OPERATOR_FEE_VAULT,
+            RevShareLibrary.SEQUENCER_FEE_WALLET,
+            RevShareLibrary.BASE_FEE_VAULT,
+            RevShareLibrary.L1_FEE_VAULT
+        ];
 
         for (uint256 i; i < vaults.length; i++) {
             _depositCall(
-                _portal, vaults[i], RevShareLibrary.SETTERS_GAS_LIMIT, abi.encodeCall(IFeeVault.setRecipient, (RevShareLibrary.FEE_SPLITTER))
+                _portal,
+                vaults[i],
+                RevShareLibrary.SETTERS_GAS_LIMIT,
+                abi.encodeCall(IFeeVault.setRecipient, (RevShareLibrary.FEE_SPLITTER))
             );
             _depositCall(
-                _portal, vaults[i], RevShareLibrary.SETTERS_GAS_LIMIT, abi.encodeCall(IFeeVault.setMinWithdrawalAmount, (0))
+                _portal,
+                vaults[i],
+                RevShareLibrary.SETTERS_GAS_LIMIT,
+                abi.encodeCall(IFeeVault.setMinWithdrawalAmount, (0))
             );
             _depositCall(
-                _portal, vaults[i], RevShareLibrary.SETTERS_GAS_LIMIT, abi.encodeCall(IFeeVault.setWithdrawalNetwork, (IFeeVault.WithdrawalNetwork.L2))
+                _portal,
+                vaults[i],
+                RevShareLibrary.SETTERS_GAS_LIMIT,
+                abi.encodeCall(IFeeVault.setWithdrawalNetwork, (IFeeVault.WithdrawalNetwork.L2))
             );
         }
     }
@@ -175,7 +200,12 @@ contract RevShareContractsUpgrader {
     ///         Deploys only 3 implementations: OperatorFeeVault, SequencerFeeVault, and the same FeeVault implementation is used for both BaseFeeVault and L1FeeVault (we use the same one for both to avoid making the deployment size bigger).
     /// @param _portal The OptimismPortal2 address for the target L2
     function _upgradeVaultsWithRevShareConfig(address _portal) private {
-        address[4] memory vaultProxies = [RevShareLibrary.OPERATOR_FEE_VAULT, RevShareLibrary.SEQUENCER_FEE_WALLET, RevShareLibrary.BASE_FEE_VAULT, RevShareLibrary.L1_FEE_VAULT];
+        address[4] memory vaultProxies = [
+            RevShareLibrary.OPERATOR_FEE_VAULT,
+            RevShareLibrary.SEQUENCER_FEE_WALLET,
+            RevShareLibrary.BASE_FEE_VAULT,
+            RevShareLibrary.L1_FEE_VAULT
+        ];
         bytes[4] memory creationCodes = [
             RevShareLibrary.operatorFeeVaultCreationCode,
             RevShareLibrary.sequencerFeeVaultCreationCode,
@@ -217,8 +247,7 @@ contract RevShareContractsUpgrader {
                         payable(vaultProxies[i]),
                         impl,
                         abi.encodeCall(
-                            IFeeVault.initialize,
-                            (RevShareLibrary.FEE_SPLITTER, 0, IFeeVault.WithdrawalNetwork.L2)
+                            IFeeVault.initialize, (RevShareLibrary.FEE_SPLITTER, 0, IFeeVault.WithdrawalNetwork.L2)
                         )
                     )
                 )
