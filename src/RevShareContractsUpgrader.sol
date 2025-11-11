@@ -172,7 +172,7 @@ contract RevShareContractsUpgrader {
     }
 
     /// @notice Upgrades all 4 vaults with RevShare configuration (recipient=FeeSplitter, minWithdrawal=0, network=L2).
-    ///         Deploys only 3 implementations: OperatorFeeVault, SequencerFeeVault, and a default FeeVault used for both BaseFeeVault and L1FeeVault.
+    ///         Deploys only 3 implementations: OperatorFeeVault, SequencerFeeVault, and the same FeeVault implementation is used for both BaseFeeVault and L1FeeVault (we use the same one for both to avoid making the deployment size bigger).
     /// @param _portal The OptimismPortal2 address for the target L2
     function _upgradeVaultsWithRevShareConfig(address _portal) private {
         // Deploy OperatorFeeVault implementation
