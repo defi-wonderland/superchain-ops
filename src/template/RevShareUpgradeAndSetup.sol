@@ -95,12 +95,71 @@ contract RevShareUpgradeAndSetup is OPCMTaskBase {
 
         Action memory action = _actions[0];
         require(action.target == REV_SHARE_UPGRADER, "Delegatecall to RevShareContractsUpgrader not found");
+        require(action.value == 0, "Call value must be 0 for delegatecall");
+
         // Verify it's calling upgradeAndSetupRevShare
         bytes4 selector = bytes4(action.arguments);
         require(
             selector == RevShareContractsUpgrader.upgradeAndSetupRevShare.selector,
             "Wrong function selector for delegatecall"
         );
+
+        // Decode and validate the revShareConfigs argument
+        bytes memory args = action.arguments;
+        RevShareContractsUpgrader.RevShareConfig[] memory configs;
+        assembly {
+            // Skip the function selector (4 bytes) to get to the actual arguments
+            let argsPtr := add(args, 0x04)
+            // The first 32 bytes after selector contain the offset to the array
+            // Load from memory at that location
+            configs := add(argsPtr, mload(add(argsPtr, 0x20)))
+        }
+
+        // Validate each config
+        require(configs.length > 0, "No configs provided");
+        require(configs.length == revShareConfigs.length, "Config length mismatch");
+
+        for (uint256 i; i < configs.length; i++) {
+            RevShareContractsUpgrader.RevShareConfig memory config = configs[i];
+
+            // Validate portal address is not zero
+            require(config.portal != address(0), "Portal address cannot be zero");
+
+            // Validate L1 withdrawer config
+            require(
+                config.l1WithdrawerConfig.recipient != address(0),
+                "L1 withdrawer recipient cannot be zero"
+            );
+            require(
+                config.l1WithdrawerConfig.gasLimit > 0,
+                "Gas limit must be greater than 0"
+            );
+
+            // Validate chain fees recipient
+            require(
+                config.chainFeesRecipient != address(0),
+                "Chain fees recipient cannot be zero"
+            );
+
+            // Validate config matches the expected config from template setup
+            require(config.portal == revShareConfigs[i].portal, "Portal address mismatch");
+            require(
+                config.l1WithdrawerConfig.minWithdrawalAmount == revShareConfigs[i].l1WithdrawerConfig.minWithdrawalAmount,
+                "Min withdrawal amount mismatch"
+            );
+            require(
+                config.l1WithdrawerConfig.recipient == revShareConfigs[i].l1WithdrawerConfig.recipient,
+                "L1 withdrawer recipient mismatch"
+            );
+            require(
+                config.l1WithdrawerConfig.gasLimit == revShareConfigs[i].l1WithdrawerConfig.gasLimit,
+                "Gas limit mismatch"
+            );
+            require(
+                config.chainFeesRecipient == revShareConfigs[i].chainFeesRecipient,
+                "Chain fees recipient mismatch"
+            );
+        }
     }
 
     /// @notice Override to return a list of addresses that should not be checked for code length.
