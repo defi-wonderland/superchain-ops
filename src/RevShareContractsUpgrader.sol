@@ -138,14 +138,14 @@ contract RevShareContractsUpgrader {
             abi.encode(_l1WithdrawerConfig.minWithdrawalAmount, _l1WithdrawerConfig.recipient, _l1WithdrawerConfig.gasLimit)
         );
         bytes32 l1WithdrawerSalt = _getSalt("L1Withdrawer");
-        address l1Withdrawer = Utils.getCreate2Address(l1WithdrawerSalt, l1WithdrawerInitCode, RevShareLibrary.CREATE2_DEPLOYER);
+        address precalculatedL1Withdrawer = Utils.getCreate2Address(l1WithdrawerSalt, l1WithdrawerInitCode, RevShareLibrary.CREATE2_DEPLOYER);
         _depositCreate2(
             _portal, RevShareLibrary.L1_WITHDRAWER_DEPLOYMENT_GAS_LIMIT, l1WithdrawerSalt, l1WithdrawerInitCode
         );
 
         // Deploy SuperchainRevenueShareCalculator
         bytes memory calculatorInitCode =
-            bytes.concat(RevShareLibrary.scRevShareCalculatorCreationCode, abi.encode(l1Withdrawer, _chainFeesRecipient));
+            bytes.concat(RevShareLibrary.scRevShareCalculatorCreationCode, abi.encode(precalculatedL1Withdrawer, _chainFeesRecipient));
         bytes32 calculatorSalt = _getSalt("SCRevShareCalculator");
         calculator = Utils.getCreate2Address(calculatorSalt, calculatorInitCode, RevShareLibrary.CREATE2_DEPLOYER);
         _depositCreate2(
