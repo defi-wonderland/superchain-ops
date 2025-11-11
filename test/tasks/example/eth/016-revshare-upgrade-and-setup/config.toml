@@ -10,12 +10,6 @@ safeAddress = "ProxyAdminOwner"
 # RevShareContractsUpgrader address
 revShareUpgrader = "0x0000000000000000000000000000000000001337"
 
-# Portal addresses for each chain (needed for template validation)
-portals = [
-    "0xbEb5Fc579115071764c7423A4f12eDde41f106Ed", # OP Mainnet Portal
-    "0x5d66C1782664115999C47c9fA5cd031f495D3e4F" # Ink Mainnet Portal
-]
-
 # RevShare configurations (one per chain)
 [[configs]]
 portal = "0xbEb5Fc579115071764c7423A4f12eDde41f106Ed" # OP Mainnet Portal

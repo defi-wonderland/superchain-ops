@@ -54,9 +54,9 @@ contract RevShareUpgradeAndSetup is OPCMTaskBase {
         // Set RevShareContractsUpgrader as the allowed target for delegatecall
         OPCM_TARGETS.push(REV_SHARE_UPGRADER);
 
-        // Load portal addresses
-        address[] memory portals = abi.decode(tomlContent.parseRaw(".portals"), (address[]));
-        require(portals.length > 0, "No portals configured");
+        // Get the length of the configs array by parsing just the portal addresses
+        address[] memory portals = abi.decode(tomlContent.parseRaw(".configs[*].portal"), (address[]));
+        require(portals.length > 0, "No configs found");
 
         // Load RevShare configs by reading each field individually
         // Note: We can't use parseRaw + abi.decode directly because TOML inline tables
