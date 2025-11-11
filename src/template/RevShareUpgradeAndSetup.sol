@@ -93,21 +93,15 @@ contract RevShareUpgradeAndSetup is OPCMTaskBase {
 
         require(_actions.length == 1, "Expected exactly one action");
 
-        bool foundDelegatecall = false;
+        Action memory action = _actions[0];
+        require(action.target == REV_SHARE_UPGRADER, "Delegatecall to RevShareContractsUpgrader not found");
+        // Verify it's calling upgradeAndSetupRevShare
+        bytes4 selector = bytes4(action.arguments);
+        require(
+            selector == RevShareContractsUpgrader.upgradeAndSetupRevShare.selector,
+            "Wrong function selector for delegatecall"
+        );
 
-        for (uint256 i; i < _actions.length; i++) {
-            Action memory action = _actions[i];
-            // Check if this is a delegatecall to RevShareContractsUpgrader
-            if (action.target == REV_SHARE_UPGRADER) {
-                foundDelegatecall = true;
-                // Verify it's calling upgradeAndSetupRevShare
-                bytes4 selector = bytes4(action.arguments);
-                require(
-                    selector == RevShareContractsUpgrader.upgradeAndSetupRevShare.selector,
-                    "Wrong function selector for delegatecall"
-                );
-            }
-        }
 
         require(foundDelegatecall, "Delegatecall to RevShareContractsUpgrader not found");
     }
