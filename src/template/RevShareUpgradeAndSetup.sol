@@ -105,14 +105,15 @@ contract RevShareUpgradeAndSetup is OPCMTaskBase {
         );
 
         // Decode and validate the revShareConfigs argument
-        bytes memory args = action.arguments;
+        // Skip the first 4 bytes (function selector) and decode the rest
         RevShareContractsUpgrader.RevShareConfig[] memory configs;
-        assembly {
-            // Skip the function selector (4 bytes) to get to the actual arguments
-            let argsPtr := add(args, 0x04)
-            // The first 32 bytes after selector contain the offset to the array
-            // Load from memory at that location
-            configs := add(argsPtr, mload(add(argsPtr, 0x20)))
+        {
+            bytes memory args = action.arguments;
+            bytes memory argsWithoutSelector = new bytes(args.length - 4);
+            for (uint256 j = 4; j < args.length; j++) {
+                argsWithoutSelector[j - 4] = args[j];
+            }
+            configs = abi.decode(argsWithoutSelector, (RevShareContractsUpgrader.RevShareConfig[]));
         }
 
         // Validate each config
