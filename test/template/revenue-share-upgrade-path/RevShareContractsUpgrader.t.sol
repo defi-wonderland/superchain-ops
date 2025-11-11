@@ -400,6 +400,15 @@ contract RevShareContractsUpgrader_UpgradeAndSetupRevShare_Test is RevShareContr
         upgrader.upgradeAndSetupRevShare(configs);
     }
 
+    /// @notice Test that upgradeAndSetupRevShare reverts when gas limit is zero
+    function test_upgradeAndSetupRevShare_whenGasLimitIsZero_reverts() public {
+        RevShareContractsUpgrader.RevShareConfig[] memory configs = new RevShareContractsUpgrader.RevShareConfig[](1);
+        configs[0] = _createRevShareConfig(PORTAL_ONE, MIN_WITHDRAWAL_AMOUNT, L1_RECIPIENT_ONE, 0, CHAIN_FEES_RECIPIENT_ONE);
+
+        vm.expectRevert(RevShareContractsUpgrader.GasLimitCannotBeZero.selector);
+        upgrader.upgradeAndSetupRevShare(configs);
+    }
+
     /// @notice Fuzz test successful upgradeAndSetupRevShare with single chain
     function testFuzz_upgradeAndSetupRevShare_singleChain_succeeds(
         address _portal,
@@ -412,7 +421,7 @@ contract RevShareContractsUpgrader_UpgradeAndSetupRevShare_Test is RevShareContr
         _assumeValidAddress(_portal);
         _assumeValidAddress(_l1Recipient);
         _assumeValidAddress(_chainFeesRecipient);
-        bound(_gasLimit, 1, type(uint32).max);
+        _gasLimit = uint32(bound(_gasLimit, 1, type(uint32).max));
 
         RevShareContractsUpgrader.RevShareConfig[] memory configs = new RevShareContractsUpgrader.RevShareConfig[](1);
         configs[0] = _createRevShareConfig(_portal, _minWithdrawalAmount, _l1Recipient, _gasLimit, _chainFeesRecipient);
@@ -529,6 +538,15 @@ contract RevShareContractsUpgrader_SetupRevShare_Test is RevShareContractsUpgrad
         upgrader.setupRevShare(configs);
     }
 
+    /// @notice Test that setupRevShare reverts when gas limit is zero
+    function test_setupRevShare_whenGasLimitIsZero_reverts() public {
+        RevShareContractsUpgrader.RevShareConfig[] memory configs = new RevShareContractsUpgrader.RevShareConfig[](1);
+        configs[0] = _createRevShareConfig(PORTAL_ONE, MIN_WITHDRAWAL_AMOUNT, L1_RECIPIENT_ONE, 0, CHAIN_FEES_RECIPIENT_ONE);
+
+        vm.expectRevert(RevShareContractsUpgrader.GasLimitCannotBeZero.selector);
+        upgrader.setupRevShare(configs);
+    }
+
     /// @notice Fuzz test successful setupRevShare with single chain
     function testFuzz_setupRevShare_singleChain_succeeds(
         address _portal,
@@ -542,7 +560,7 @@ contract RevShareContractsUpgrader_SetupRevShare_Test is RevShareContractsUpgrad
         _assumeValidAddress(_portal);
         _assumeValidAddress(_l1Recipient);
         _assumeValidAddress(_chainFeesRecipient);
-        bound(_gasLimit, 1, type(uint32).max);
+        _gasLimit = uint32(bound(_gasLimit, 1, type(uint32).max));
 
         RevShareContractsUpgrader.RevShareConfig[] memory configs = new RevShareContractsUpgrader.RevShareConfig[](1);
         configs[0] = _createRevShareConfig(_portal, _minWithdrawalAmount, _l1Recipient, _gasLimit, _chainFeesRecipient);
