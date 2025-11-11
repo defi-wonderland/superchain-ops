@@ -7,8 +7,8 @@ l2chains = [{name = "OP Mainnet", chainId = 10}, {name = "Ink", chainId = 57073}
 
 safeAddress = "ProxyAdminOwner"
 
-# RevShareContractsManager address
-revShareManager = "0x0000000000000000000000000000000000001337"
+# RevShareContractsUpgrader address
+revShareUpgrader = "0x0000000000000000000000000000000000001337"
 
 # Portal addresses for each chain
 portals = [

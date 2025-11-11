@@ -16,7 +16,7 @@ contract RevShareUpgradeAndSetup is OPCMTaskBase {
     using EnumerableSet for EnumerableSet.AddressSet;
 
     /// @notice RevShareContractsUpgrader address
-    address public REV_SHARE_MANAGER;
+    address public REV_SHARE_UPGRADER;
 
     /// @notice Portal addresses for L2 chains.
     address[] internal portals;
@@ -51,12 +51,12 @@ contract RevShareUpgradeAndSetup is OPCMTaskBase {
         string memory tomlContent = vm.readFile(taskConfigFilePath);
 
         // Load RevShareContractsUpgrader address from TOML
-        REV_SHARE_MANAGER = tomlContent.readAddress(".revShareManager");
-        require(REV_SHARE_MANAGER.code.length > 0, "RevShareContractsUpgrader has no code");
-        vm.label(REV_SHARE_MANAGER, "RevShareContractsUpgrader");
+        REV_SHARE_UPGRADER = tomlContent.readAddress(".revShareUpgrader");
+        require(REV_SHARE_UPGRADER.code.length > 0, "RevShareContractsUpgrader has no code");
+        vm.label(REV_SHARE_UPGRADER, "RevShareContractsUpgrader");
 
         // Set RevShareContractsUpgrader as the allowed target for delegatecall
-        OPCM_TARGETS.push(REV_SHARE_MANAGER);
+        OPCM_TARGETS.push(REV_SHARE_UPGRADER);
 
         // Load portal addresses
         portals = abi.decode(tomlContent.parseRaw(".portals"), (address[]));
@@ -92,7 +92,7 @@ contract RevShareUpgradeAndSetup is OPCMTaskBase {
 
         // Delegatecall into RevShareContractsUpgrader
         // OPCMTaskBase uses Multicall3Delegatecall, so this delegatecall will be captured as an action
-        (bool success,) = REV_SHARE_MANAGER.delegatecall(
+        (bool success,) = REV_SHARE_UPGRADER.delegatecall(
             abi.encodeCall(
                 RevShareContractsUpgrader.upgradeAndSetupRevShare, (portals, l1WithdrawerConfigs, remainderRecipients)
             )
@@ -114,7 +114,7 @@ contract RevShareUpgradeAndSetup is OPCMTaskBase {
         for (uint256 i; i < _actions.length; i++) {
             Action memory action = _actions[i];
             // Check if this is a delegatecall to RevShareContractsUpgrader
-            if (action.target == REV_SHARE_MANAGER) {
+            if (action.target == REV_SHARE_UPGRADER) {
                 foundDelegatecall = true;
                 // Verify it's calling upgradeAndSetupRevShare
                 bytes4 selector = bytes4(action.arguments);

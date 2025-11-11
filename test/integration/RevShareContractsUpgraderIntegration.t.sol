@@ -16,7 +16,7 @@ import {IL1Withdrawer} from "src/interfaces/IL1Withdrawer.sol";
 import {ISuperchainRevSharesCalculator} from "src/interfaces/ISuperchainRevSharesCalculator.sol";
 
 contract RevShareContractsUpgraderIntegrationTest is IntegrationBase {
-    RevShareContractsUpgrader public revShareManager;
+    RevShareContractsUpgrader public revShareUpgrader;
     RevShareUpgradeAndSetup public revShareTask;
 
     // Fork IDs
@@ -28,7 +28,7 @@ contract RevShareContractsUpgraderIntegrationTest is IntegrationBase {
     address internal constant PROXY_ADMIN_OWNER = 0x5a0Aae59D09fccBdDb6C6CcEB07B7279367C3d2A;
     address internal constant OP_MAINNET_PORTAL = 0xbEb5Fc579115071764c7423A4f12eDde41f106Ed;
     address internal constant INK_MAINNET_PORTAL = 0x5d66C1782664115999C47c9fA5cd031f495D3e4F;
-    address internal constant REV_SHARE_MANAGER_ADDRESS = 0x0000000000000000000000000000000000001337;
+    address internal constant REV_SHARE_UPGRADER_ADDRESS = 0x0000000000000000000000000000000000001337;
 
     // L2 predeploys (same across all OP Stack chains)
     address internal constant SEQUENCER_FEE_VAULT = 0x4200000000000000000000000000000000000011;
@@ -68,9 +68,9 @@ contract RevShareContractsUpgraderIntegrationTest is IntegrationBase {
         vm.selectFork(_mainnetForkId);
 
         // Deploy RevShareContractsUpgrader and etch at predetermined address
-        revShareManager = new RevShareContractsUpgrader();
-        vm.etch(REV_SHARE_MANAGER_ADDRESS, address(revShareManager).code);
-        revShareManager = RevShareContractsUpgrader(REV_SHARE_MANAGER_ADDRESS);
+        revShareUpgrader = new RevShareContractsUpgrader();
+        vm.etch(REV_SHARE_UPGRADER_ADDRESS, address(revShareUpgrader).code);
+        revShareUpgrader = RevShareContractsUpgrader(REV_SHARE_UPGRADER_ADDRESS);
 
         // Deploy RevShareUpgradeAndSetup task
         revShareTask = new RevShareUpgradeAndSetup();
