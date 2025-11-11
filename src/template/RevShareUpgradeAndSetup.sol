@@ -18,8 +18,8 @@ contract RevShareUpgradeAndSetup is OPCMTaskBase {
     /// @notice RevShareContractsUpgrader address
     address public REV_SHARE_UPGRADER;
 
-    /// @notice RevShare configurations (stored as encoded bytes).
-    bytes internal revShareConfigsEncoded;
+    /// @notice RevShare configurations
+    RevShareContractsUpgrader.RevShareConfig[] internal revShareConfigs;
 
     /// @notice Names in the SimpleAddressRegistry that are expected to be written during this task.
     function _taskStorageWrites() internal pure virtual override returns (string[] memory) {
@@ -35,10 +35,8 @@ contract RevShareUpgradeAndSetup is OPCMTaskBase {
     function _setAllowedStorageAccesses() internal virtual override {
         super._setAllowedStorageAccesses();
         // Add portal addresses as they will have storage writes from depositTransaction calls
-        RevShareContractsUpgrader.RevShareConfig[] memory configs =
-            abi.decode(revShareConfigsEncoded, (RevShareContractsUpgrader.RevShareConfig[]));
-        for (uint256 i; i < configs.length; i++) {
-            _allowedStorageAccesses.add(configs[i].portal);
+        for (uint256 i; i < revShareConfigs.length; i++) {
+            _allowedStorageAccesses.add(revShareConfigs[i].portal);
         }
     }
 
@@ -62,12 +60,9 @@ contract RevShareUpgradeAndSetup is OPCMTaskBase {
         // Note: We can't use parseRaw + abi.decode directly because TOML inline tables
         // sort keys alphabetically, which doesn't match the struct field order
         // So we need to read each field separately and construct the struct manually
-        RevShareContractsUpgrader.RevShareConfig[] memory configs =
-            new RevShareContractsUpgrader.RevShareConfig[](portals.length);
-
         for (uint256 i; i < portals.length; i++) {
             string memory basePath = string.concat(".configs[", vm.toString(i), "]");
-            configs[i] = RevShareContractsUpgrader.RevShareConfig({
+            revShareConfigs.push(RevShareContractsUpgrader.RevShareConfig({
                 portal: tomlContent.readAddress(string.concat(basePath, ".portal")),
                 l1WithdrawerConfig: RevShareContractsUpgrader.L1WithdrawerConfig({
                     minWithdrawalAmount: tomlContent.readUint(string.concat(basePath, ".l1WithdrawerConfig.minWithdrawalAmount")),
@@ -75,21 +70,16 @@ contract RevShareUpgradeAndSetup is OPCMTaskBase {
                     gasLimit: uint32(tomlContent.readUint(string.concat(basePath, ".l1WithdrawerConfig.gasLimit")))
                 }),
                 chainFeesRecipient: tomlContent.readAddress(string.concat(basePath, ".chainFeesRecipient"))
-            });
+            }));
         }
-        revShareConfigsEncoded = abi.encode(configs);
     }
 
     /// @notice Builds the actions for executing the operations.
     function _build(address) internal override {
-        // Decode configs from storage
-        RevShareContractsUpgrader.RevShareConfig[] memory configs =
-            abi.decode(revShareConfigsEncoded, (RevShareContractsUpgrader.RevShareConfig[]));
-
         // Delegatecall into RevShareContractsUpgrader
         // OPCMTaskBase uses Multicall3Delegatecall, so this delegatecall will be captured as an action
         (bool success,) = REV_SHARE_UPGRADER.delegatecall(
-            abi.encodeCall(RevShareContractsUpgrader.upgradeAndSetupRevShare, (configs))
+            abi.encodeCall(RevShareContractsUpgrader.upgradeAndSetupRevShare, (revShareConfigs))
         );
         require(success, "RevShareUpgradeAndSetup: Delegatecall failed");
     }
