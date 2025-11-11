@@ -301,10 +301,10 @@ contract RevShareContractsUpgrader_TestInit is Test {
             RevShareLibrary.sequencerFeeVaultCreationCode
         );
         _mockAndExpectVaultUpgrade(
-            _portal, RevShareLibrary.BASE_FEE_VAULT, "BaseFeeVault", RevShareLibrary.baseFeeVaultCreationCode
+            _portal, RevShareLibrary.BASE_FEE_VAULT, "BaseFeeVault", RevShareLibrary.defaultFeeVaultCreationCode
         );
         _mockAndExpectVaultUpgrade(
-            _portal, RevShareLibrary.L1_FEE_VAULT, "L1FeeVault", RevShareLibrary.l1FeeVaultCreationCode
+            _portal, RevShareLibrary.L1_FEE_VAULT, "L1FeeVault", RevShareLibrary.defaultFeeVaultCreationCode
         );
     }
 
