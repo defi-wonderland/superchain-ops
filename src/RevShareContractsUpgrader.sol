@@ -172,91 +172,58 @@ contract RevShareContractsUpgrader {
     }
 
     /// @notice Upgrades all 4 vaults with RevShare configuration (recipient=FeeSplitter, minWithdrawal=0, network=L2).
-    ///         Deploys only 3 implementations: OperatorFeeVault, SequencerFeeVault, and a default FeeVault used for both BaseFeeVault and L1FeeVault.
+    ///         Deploys only 3 implementations: OperatorFeeVault, SequencerFeeVault, and the same FeeVault implementation is used for both BaseFeeVault and L1FeeVault (we use the same one for both to avoid making the deployment size bigger).
     /// @param _portal The OptimismPortal2 address for the target L2
     function _upgradeVaultsWithRevShareConfig(address _portal) private {
-        // Deploy OperatorFeeVault implementation
-        bytes32 operatorSalt = _getSalt("OperatorFeeVault");
-        address operatorImpl = Utils.getCreate2Address(operatorSalt, RevShareLibrary.operatorFeeVaultCreationCode, RevShareLibrary.CREATE2_DEPLOYER);
-        _depositCreate2(_portal, RevShareLibrary.FEE_VAULTS_DEPLOYMENT_GAS_LIMIT, operatorSalt, RevShareLibrary.operatorFeeVaultCreationCode);
-        _depositCall(
-            _portal,
-            address(RevShareLibrary.PROXY_ADMIN),
-            RevShareLibrary.UPGRADE_GAS_LIMIT,
-            abi.encodeCall(
-                IProxyAdmin.upgradeAndCall,
-                (
-                    payable(RevShareLibrary.OPERATOR_FEE_VAULT),
-                    operatorImpl,
-                    abi.encodeCall(
-                        IFeeVault.initialize,
-                        (RevShareLibrary.FEE_SPLITTER, 0, IFeeVault.WithdrawalNetwork.L2)
+        address[4] memory vaultProxies = [RevShareLibrary.OPERATOR_FEE_VAULT, RevShareLibrary.SEQUENCER_FEE_WALLET, RevShareLibrary.BASE_FEE_VAULT, RevShareLibrary.L1_FEE_VAULT];
+        bytes[4] memory creationCodes = [
+            RevShareLibrary.operatorFeeVaultCreationCode,
+            RevShareLibrary.sequencerFeeVaultCreationCode,
+            RevShareLibrary.defaultFeeVaultCreationCode,
+            RevShareLibrary.defaultFeeVaultCreationCode
+        ];
+        string[4] memory vaultNames = ["OperatorFeeVault", "SequencerFeeVault", "BaseFeeVault", "L1FeeVault"];
+
+        address defaultImpl;
+        for (uint256 i; i < vaultProxies.length; i++) {
+            bytes32 salt = _getSalt(vaultNames[i]);
+            address impl;
+
+            // Check if this is the BaseFeeVault or L1FeeVault (both use default implementation)
+            bool isBaseFeeVault = keccak256(bytes(vaultNames[i])) == keccak256(bytes("BaseFeeVault"));
+            bool isL1FeeVault = keccak256(bytes(vaultNames[i])) == keccak256(bytes("L1FeeVault"));
+
+            if (isBaseFeeVault) {
+                // Deploy default implementation for BaseFeeVault
+                impl = Utils.getCreate2Address(salt, creationCodes[i], RevShareLibrary.CREATE2_DEPLOYER);
+                defaultImpl = impl;
+                _depositCreate2(_portal, RevShareLibrary.FEE_VAULTS_DEPLOYMENT_GAS_LIMIT, salt, creationCodes[i]);
+            } else if (isL1FeeVault) {
+                // Reuse the default implementation for L1FeeVault
+                impl = defaultImpl;
+            } else {
+                // Deploy specific implementations for OperatorFeeVault and SequencerFeeVault
+                impl = Utils.getCreate2Address(salt, creationCodes[i], RevShareLibrary.CREATE2_DEPLOYER);
+                _depositCreate2(_portal, RevShareLibrary.FEE_VAULTS_DEPLOYMENT_GAS_LIMIT, salt, creationCodes[i]);
+            }
+
+            _depositCall(
+                _portal,
+                address(RevShareLibrary.PROXY_ADMIN),
+                RevShareLibrary.UPGRADE_GAS_LIMIT,
+                abi.encodeCall(
+                    IProxyAdmin.upgradeAndCall,
+                    (
+                        payable(vaultProxies[i]),
+                        impl,
+                        abi.encodeCall(
+                            IFeeVault.initialize,
+                            (RevShareLibrary.FEE_SPLITTER, 0, IFeeVault.WithdrawalNetwork.L2)
+                        )
                     )
                 )
-            )
-        );
-
-        // Deploy SequencerFeeVault implementation
-        bytes32 sequencerSalt = _getSalt("SequencerFeeVault");
-        address sequencerImpl = Utils.getCreate2Address(sequencerSalt, RevShareLibrary.sequencerFeeVaultCreationCode, RevShareLibrary.CREATE2_DEPLOYER);
-        _depositCreate2(_portal, RevShareLibrary.FEE_VAULTS_DEPLOYMENT_GAS_LIMIT, sequencerSalt, RevShareLibrary.sequencerFeeVaultCreationCode);
-        _depositCall(
-            _portal,
-            address(RevShareLibrary.PROXY_ADMIN),
-            RevShareLibrary.UPGRADE_GAS_LIMIT,
-            abi.encodeCall(
-                IProxyAdmin.upgradeAndCall,
-                (
-                    payable(RevShareLibrary.SEQUENCER_FEE_WALLET),
-                    sequencerImpl,
-                    abi.encodeCall(
-                        IFeeVault.initialize,
-                        (RevShareLibrary.FEE_SPLITTER, 0, IFeeVault.WithdrawalNetwork.L2)
-                    )
-                )
-            )
-        );
-
-        // Deploy default FeeVault implementation (used for both BaseFeeVault and L1FeeVault)
-        bytes32 defaultSalt = _getSalt("DefaultFeeVault");
-        address defaultImpl = Utils.getCreate2Address(defaultSalt, RevShareLibrary.defaultFeeVaultCreationCode, RevShareLibrary.CREATE2_DEPLOYER);
-        _depositCreate2(_portal, RevShareLibrary.FEE_VAULTS_DEPLOYMENT_GAS_LIMIT, defaultSalt, RevShareLibrary.defaultFeeVaultCreationCode);
-
-        // Upgrade BaseFeeVault with default implementation
-        _depositCall(
-            _portal,
-            address(RevShareLibrary.PROXY_ADMIN),
-            RevShareLibrary.UPGRADE_GAS_LIMIT,
-            abi.encodeCall(
-                IProxyAdmin.upgradeAndCall,
-                (
-                    payable(RevShareLibrary.BASE_FEE_VAULT),
-                    defaultImpl,
-                    abi.encodeCall(
-                        IFeeVault.initialize,
-                        (RevShareLibrary.FEE_SPLITTER, 0, IFeeVault.WithdrawalNetwork.L2)
-                    )
-                )
-            )
-        );
-
-        // Upgrade L1FeeVault with default implementation
-        _depositCall(
-            _portal,
-            address(RevShareLibrary.PROXY_ADMIN),
-            RevShareLibrary.UPGRADE_GAS_LIMIT,
-            abi.encodeCall(
-                IProxyAdmin.upgradeAndCall,
-                (
-                    payable(RevShareLibrary.L1_FEE_VAULT),
-                    defaultImpl,
-                    abi.encodeCall(
-                        IFeeVault.initialize,
-                        (RevShareLibrary.FEE_SPLITTER, 0, IFeeVault.WithdrawalNetwork.L2)
-                    )
-                )
-            )
-        );
+            );
+        }
     }
 
     /// @notice Helper for CREATE2 contract deployments via depositTransaction.
