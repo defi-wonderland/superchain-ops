@@ -16,16 +16,10 @@ contract RevShareUpgradeAndSetup is OPCMTaskBase {
     using EnumerableSet for EnumerableSet.AddressSet;
 
     /// @notice RevShareContractsUpgrader address
-    address public REV_SHARE_MANAGER;
+    address public REV_SHARE_UPGRADER;
 
-    /// @notice Portal addresses for L2 chains.
-    address[] internal portals;
-
-    /// @notice L1Withdrawer configurations (stored as encoded bytes).
-    bytes internal l1WithdrawerConfigsEncoded;
-
-    /// @notice Remainder recipients (chain fees recipients).
-    address[] internal remainderRecipients;
+    /// @notice RevShare configurations
+    RevShareContractsUpgrader.RevShareConfig[] internal revShareConfigs;
 
     /// @notice Names in the SimpleAddressRegistry that are expected to be written during this task.
     function _taskStorageWrites() internal pure virtual override returns (string[] memory) {
@@ -41,8 +35,8 @@ contract RevShareUpgradeAndSetup is OPCMTaskBase {
     function _setAllowedStorageAccesses() internal virtual override {
         super._setAllowedStorageAccesses();
         // Add portal addresses as they will have storage writes from depositTransaction calls
-        for (uint256 i; i < portals.length; i++) {
-            _allowedStorageAccesses.add(portals[i]);
+        for (uint256 i; i < revShareConfigs.length; i++) {
+            _allowedStorageAccesses.add(revShareConfigs[i].portal);
         }
     }
 
@@ -51,51 +45,41 @@ contract RevShareUpgradeAndSetup is OPCMTaskBase {
         string memory tomlContent = vm.readFile(taskConfigFilePath);
 
         // Load RevShareContractsUpgrader address from TOML
-        REV_SHARE_MANAGER = tomlContent.readAddress(".revShareManager");
-        require(REV_SHARE_MANAGER.code.length > 0, "RevShareContractsUpgrader has no code");
-        vm.label(REV_SHARE_MANAGER, "RevShareContractsUpgrader");
+        REV_SHARE_UPGRADER = tomlContent.readAddress(".revShareUpgrader");
+        require(REV_SHARE_UPGRADER.code.length > 0, "RevShareContractsUpgrader has no code");
+        vm.label(REV_SHARE_UPGRADER, "RevShareContractsUpgrader");
 
         // Set RevShareContractsUpgrader as the allowed target for delegatecall
-        OPCM_TARGETS.push(REV_SHARE_MANAGER);
+        OPCM_TARGETS.push(REV_SHARE_UPGRADER);
 
-        // Load portal addresses
-        portals = abi.decode(tomlContent.parseRaw(".portals"), (address[]));
-        require(portals.length > 0, "No portals configured");
+        // Get the length of the configs array by parsing just the portal addresses
+        address[] memory portals = abi.decode(tomlContent.parseRaw(".configs[*].portal"), (address[]));
+        require(portals.length > 0, "No configs found");
 
-        // Load L1Withdrawer configs by reading each field individually
+        // Load RevShare configs by reading each field individually
         // Note: We can't use parseRaw + abi.decode directly because TOML inline tables
         // sort keys alphabetically, which doesn't match the struct field order
         // So we need to read each field separately and construct the struct manually
-        RevShareContractsUpgrader.L1WithdrawerConfig[] memory configs =
-            new RevShareContractsUpgrader.L1WithdrawerConfig[](portals.length);
-
         for (uint256 i; i < portals.length; i++) {
-            string memory basePath = string.concat(".l1WithdrawerConfigs[", vm.toString(i), "]");
-            configs[i] = RevShareContractsUpgrader.L1WithdrawerConfig({
-                minWithdrawalAmount: tomlContent.readUint(string.concat(basePath, ".minWithdrawalAmount")),
-                recipient: tomlContent.readAddress(string.concat(basePath, ".recipient")),
-                gasLimit: uint32(tomlContent.readUint(string.concat(basePath, ".gasLimit")))
-            });
+            string memory basePath = string.concat(".configs[", vm.toString(i), "]");
+            revShareConfigs.push(RevShareContractsUpgrader.RevShareConfig({
+                portal: tomlContent.readAddress(string.concat(basePath, ".portal")),
+                l1WithdrawerConfig: RevShareContractsUpgrader.L1WithdrawerConfig({
+                    minWithdrawalAmount: tomlContent.readUint(string.concat(basePath, ".l1WithdrawerConfig.minWithdrawalAmount")),
+                    recipient: tomlContent.readAddress(string.concat(basePath, ".l1WithdrawerConfig.recipient")),
+                    gasLimit: uint32(tomlContent.readUint(string.concat(basePath, ".l1WithdrawerConfig.gasLimit")))
+                }),
+                chainFeesRecipient: tomlContent.readAddress(string.concat(basePath, ".chainFeesRecipient"))
+            }));
         }
-        l1WithdrawerConfigsEncoded = abi.encode(configs);
-
-        // Load remainder recipients
-        remainderRecipients = abi.decode(tomlContent.parseRaw(".remainderRecipients"), (address[]));
-        require(remainderRecipients.length == portals.length, "Remainder recipients length mismatch");
     }
 
     /// @notice Builds the actions for executing the operations.
     function _build(address) internal override {
-        // Decode configs from storage
-        RevShareContractsUpgrader.L1WithdrawerConfig[] memory l1WithdrawerConfigs =
-            abi.decode(l1WithdrawerConfigsEncoded, (RevShareContractsUpgrader.L1WithdrawerConfig[]));
-
         // Delegatecall into RevShareContractsUpgrader
         // OPCMTaskBase uses Multicall3Delegatecall, so this delegatecall will be captured as an action
-        (bool success,) = REV_SHARE_MANAGER.delegatecall(
-            abi.encodeCall(
-                RevShareContractsUpgrader.upgradeAndSetupRevShare, (portals, l1WithdrawerConfigs, remainderRecipients)
-            )
+        (bool success,) = REV_SHARE_UPGRADER.delegatecall(
+            abi.encodeCall(RevShareContractsUpgrader.upgradeAndSetupRevShare, (revShareConfigs))
         );
         require(success, "RevShareUpgradeAndSetup: Delegatecall failed");
     }
@@ -114,7 +98,7 @@ contract RevShareUpgradeAndSetup is OPCMTaskBase {
         for (uint256 i; i < _actions.length; i++) {
             Action memory action = _actions[i];
             // Check if this is a delegatecall to RevShareContractsUpgrader
-            if (action.target == REV_SHARE_MANAGER) {
+            if (action.target == REV_SHARE_UPGRADER) {
                 foundDelegatecall = true;
                 // Verify it's calling upgradeAndSetupRevShare
                 bytes4 selector = bytes4(action.arguments);
