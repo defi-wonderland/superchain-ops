@@ -30,9 +30,6 @@ contract RevShareContractsUpgrader {
     /// @notice Thrown when chain fees recipient is zero address
     error ChainFeesRecipientCannotBeZeroAddress();
 
-    /// @notice Thrown when array lengths don't match
-    error ArrayLengthMismatch();
-
     /// @notice Thrown when array is empty
     error EmptyArray();
 
@@ -46,28 +43,30 @@ contract RevShareContractsUpgrader {
         uint32 gasLimit;
     }
 
+    /// @notice Struct for RevShare setup configuration per chain.
+    /// @param portal OptimismPortal2 address for the target L2
+    /// @param l1WithdrawerConfig L1Withdrawer configuration
+    /// @param chainFeesRecipient Chain fees recipient address for the calculator
+    struct RevShareConfig {
+        address portal;
+        L1WithdrawerConfig l1WithdrawerConfig;
+        address chainFeesRecipient;
+    }
+
     /// @notice Upgrades vault and splitter contracts and sets up revenue sharing in one transaction for multiple chains.
     ///         This is the most efficient path as vaults are initialized with RevShare config from the start.
-    /// @param _portals Array of OptimismPortal2 addresses for the target L2s.
-    /// @param _l1WithdrawerConfigs Array of L1Withdrawer configurations.
-    /// @param _chainFeesRecipients Array of chain fees recipients for the calculators.
-    function upgradeAndSetupRevShare(
-        address[] calldata _portals,
-        L1WithdrawerConfig[] calldata _l1WithdrawerConfigs,
-        address[] calldata _chainFeesRecipients
-    ) external {
-        if (_portals.length == 0) revert EmptyArray();
-        if (_portals.length != _l1WithdrawerConfigs.length || _portals.length != _chainFeesRecipients.length) {
-            revert ArrayLengthMismatch();
-        }
+    /// @param _configs Array of RevShare configuration structs, one per chain.
+    function upgradeAndSetupRevShare(RevShareConfig[] calldata _configs) external {
+        if (_configs.length == 0) revert EmptyArray();
 
-        for (uint256 i; i < _portals.length; i++) {
-            if (_portals[i] == address(0)) revert PortalCannotBeZeroAddress();
-            if (_l1WithdrawerConfigs[i].recipient == address(0)) revert L1WithdrawerRecipientCannotBeZeroAddress();
-            if (_chainFeesRecipients[i] == address(0)) revert ChainFeesRecipientCannotBeZeroAddress();
+        for (uint256 i; i < _configs.length; i++) {
+            RevShareConfig calldata config = _configs[i];
+            if (config.portal == address(0)) revert PortalCannotBeZeroAddress();
+            if (config.l1WithdrawerConfig.recipient == address(0)) revert L1WithdrawerRecipientCannotBeZeroAddress();
+            if (config.chainFeesRecipient == address(0)) revert ChainFeesRecipientCannotBeZeroAddress();
 
             // Deploy L1Withdrawer and SuperchainRevenueShareCalculator
-            address calculator = _deployRevSharePeriphery(_portals[i], _l1WithdrawerConfigs[i], _chainFeesRecipients[i]);
+            address calculator = _deployRevSharePeriphery(config.portal, config.l1WithdrawerConfig, config.chainFeesRecipient);
 
             // Upgrade fee splitter and initialize with calculator FIRST
             // This prevents the edge case where fees could be sent to an uninitialized FeeSplitter
@@ -75,13 +74,13 @@ contract RevShareContractsUpgrader {
             address feeSplitterImpl =
                 Utils.getCreate2Address(feeSplitterSalt, RevShareLibrary.feeSplitterCreationCode, RevShareLibrary.CREATE2_DEPLOYER);
             _depositCreate2(
-                _portals[i],
+                config.portal,
                 RevShareLibrary.FEE_SPLITTER_DEPLOYMENT_GAS_LIMIT,
                 feeSplitterSalt,
                 RevShareLibrary.feeSplitterCreationCode
             );
             _depositCall(
-                _portals[i],
+                config.portal,
                 address(RevShareLibrary.PROXY_ADMIN),
                 RevShareLibrary.UPGRADE_GAS_LIMIT,
                 abi.encodeCall(
@@ -91,43 +90,35 @@ contract RevShareContractsUpgrader {
             );
 
             // Upgrade all 4 vaults with RevShare configuration (recipient=FeeSplitter, minWithdrawal=0, network=L2)
-            _upgradeVaultsWithRevShareConfig(_portals[i]);
+            _upgradeVaultsWithRevShareConfig(config.portal);
         }
     }
 
     /// @notice Enables revenue sharing after vaults have been upgraded and `FeeSplitter` initialized.
     ///         Deploys L1Withdrawer and calculator, then configures vaults and splitter for multiple chains.
-    /// @param _portals Array of OptimismPortal2 addresses for the target L2s.
-    /// @param _l1WithdrawerConfigs Array of L1Withdrawer configurations.
-    /// @param _chainFeesRecipients Array of chain fees recipients for the calculators.
-    function setupRevShare(
-        address[] calldata _portals,
-        L1WithdrawerConfig[] calldata _l1WithdrawerConfigs,
-        address[] calldata _chainFeesRecipients
-    ) external {
-        if (_portals.length == 0) revert EmptyArray();
-        if (_portals.length != _l1WithdrawerConfigs.length || _portals.length != _chainFeesRecipients.length) {
-            revert ArrayLengthMismatch();
-        }
+    /// @param _configs Array of RevShare configuration structs, one per chain.
+    function setupRevShare(RevShareConfig[] calldata _configs) external {
+        if (_configs.length == 0) revert EmptyArray();
 
-        for (uint256 i; i < _portals.length; i++) {
-            if (_portals[i] == address(0)) revert PortalCannotBeZeroAddress();
-            if (_l1WithdrawerConfigs[i].recipient == address(0)) revert L1WithdrawerRecipientCannotBeZeroAddress();
-            if (_chainFeesRecipients[i] == address(0)) revert ChainFeesRecipientCannotBeZeroAddress();
+        for (uint256 i; i < _configs.length; i++) {
+            RevShareConfig calldata config = _configs[i];
+            if (config.portal == address(0)) revert PortalCannotBeZeroAddress();
+            if (config.l1WithdrawerConfig.recipient == address(0)) revert L1WithdrawerRecipientCannotBeZeroAddress();
+            if (config.chainFeesRecipient == address(0)) revert ChainFeesRecipientCannotBeZeroAddress();
 
             // Deploy L1Withdrawer and SuperchainRevenueShareCalculator
-            address calculator = _deployRevSharePeriphery(_portals[i], _l1WithdrawerConfigs[i], _chainFeesRecipients[i]);
+            address calculator = _deployRevSharePeriphery(config.portal, config.l1WithdrawerConfig, config.chainFeesRecipient);
 
             // Set calculator on fee splitter
             _depositCall(
-                _portals[i],
+                config.portal,
                 RevShareLibrary.FEE_SPLITTER,
                 RevShareLibrary.SETTERS_GAS_LIMIT,
                 abi.encodeCall(IFeeSplitter.setSharesCalculator, (calculator))
             );
 
             // Configure all 4 vaults for revenue sharing
-            _configureVaultsForRevShare(_portals[i]);
+            _configureVaultsForRevShare(config.portal);
         }
     }
 

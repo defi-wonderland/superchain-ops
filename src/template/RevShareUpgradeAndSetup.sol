@@ -18,14 +18,8 @@ contract RevShareUpgradeAndSetup is OPCMTaskBase {
     /// @notice RevShareContractsUpgrader address
     address public REV_SHARE_UPGRADER;
 
-    /// @notice Portal addresses for L2 chains.
-    address[] internal portals;
-
-    /// @notice L1Withdrawer configurations (stored as encoded bytes).
-    bytes internal l1WithdrawerConfigsEncoded;
-
-    /// @notice Remainder recipients (chain fees recipients).
-    address[] internal remainderRecipients;
+    /// @notice RevShare configurations (stored as encoded bytes).
+    bytes internal revShareConfigsEncoded;
 
     /// @notice Names in the SimpleAddressRegistry that are expected to be written during this task.
     function _taskStorageWrites() internal pure virtual override returns (string[] memory) {
@@ -41,8 +35,10 @@ contract RevShareUpgradeAndSetup is OPCMTaskBase {
     function _setAllowedStorageAccesses() internal virtual override {
         super._setAllowedStorageAccesses();
         // Add portal addresses as they will have storage writes from depositTransaction calls
-        for (uint256 i; i < portals.length; i++) {
-            _allowedStorageAccesses.add(portals[i]);
+        RevShareContractsUpgrader.RevShareConfig[] memory configs =
+            abi.decode(revShareConfigsEncoded, (RevShareContractsUpgrader.RevShareConfig[]));
+        for (uint256 i; i < configs.length; i++) {
+            _allowedStorageAccesses.add(configs[i].portal);
         }
     }
 
@@ -59,43 +55,41 @@ contract RevShareUpgradeAndSetup is OPCMTaskBase {
         OPCM_TARGETS.push(REV_SHARE_UPGRADER);
 
         // Load portal addresses
-        portals = abi.decode(tomlContent.parseRaw(".portals"), (address[]));
+        address[] memory portals = abi.decode(tomlContent.parseRaw(".portals"), (address[]));
         require(portals.length > 0, "No portals configured");
 
-        // Load L1Withdrawer configs by reading each field individually
+        // Load RevShare configs by reading each field individually
         // Note: We can't use parseRaw + abi.decode directly because TOML inline tables
         // sort keys alphabetically, which doesn't match the struct field order
         // So we need to read each field separately and construct the struct manually
-        RevShareContractsUpgrader.L1WithdrawerConfig[] memory configs =
-            new RevShareContractsUpgrader.L1WithdrawerConfig[](portals.length);
+        RevShareContractsUpgrader.RevShareConfig[] memory configs =
+            new RevShareContractsUpgrader.RevShareConfig[](portals.length);
 
         for (uint256 i; i < portals.length; i++) {
-            string memory basePath = string.concat(".l1WithdrawerConfigs[", vm.toString(i), "]");
-            configs[i] = RevShareContractsUpgrader.L1WithdrawerConfig({
-                minWithdrawalAmount: tomlContent.readUint(string.concat(basePath, ".minWithdrawalAmount")),
-                recipient: tomlContent.readAddress(string.concat(basePath, ".recipient")),
-                gasLimit: uint32(tomlContent.readUint(string.concat(basePath, ".gasLimit")))
+            string memory basePath = string.concat(".configs[", vm.toString(i), "]");
+            configs[i] = RevShareContractsUpgrader.RevShareConfig({
+                portal: tomlContent.readAddress(string.concat(basePath, ".portal")),
+                l1WithdrawerConfig: RevShareContractsUpgrader.L1WithdrawerConfig({
+                    minWithdrawalAmount: tomlContent.readUint(string.concat(basePath, ".l1WithdrawerConfig.minWithdrawalAmount")),
+                    recipient: tomlContent.readAddress(string.concat(basePath, ".l1WithdrawerConfig.recipient")),
+                    gasLimit: uint32(tomlContent.readUint(string.concat(basePath, ".l1WithdrawerConfig.gasLimit")))
+                }),
+                chainFeesRecipient: tomlContent.readAddress(string.concat(basePath, ".chainFeesRecipient"))
             });
         }
-        l1WithdrawerConfigsEncoded = abi.encode(configs);
-
-        // Load remainder recipients
-        remainderRecipients = abi.decode(tomlContent.parseRaw(".remainderRecipients"), (address[]));
-        require(remainderRecipients.length == portals.length, "Remainder recipients length mismatch");
+        revShareConfigsEncoded = abi.encode(configs);
     }
 
     /// @notice Builds the actions for executing the operations.
     function _build(address) internal override {
         // Decode configs from storage
-        RevShareContractsUpgrader.L1WithdrawerConfig[] memory l1WithdrawerConfigs =
-            abi.decode(l1WithdrawerConfigsEncoded, (RevShareContractsUpgrader.L1WithdrawerConfig[]));
+        RevShareContractsUpgrader.RevShareConfig[] memory configs =
+            abi.decode(revShareConfigsEncoded, (RevShareContractsUpgrader.RevShareConfig[]));
 
         // Delegatecall into RevShareContractsUpgrader
         // OPCMTaskBase uses Multicall3Delegatecall, so this delegatecall will be captured as an action
         (bool success,) = REV_SHARE_UPGRADER.delegatecall(
-            abi.encodeCall(
-                RevShareContractsUpgrader.upgradeAndSetupRevShare, (portals, l1WithdrawerConfigs, remainderRecipients)
-            )
+            abi.encodeCall(RevShareContractsUpgrader.upgradeAndSetupRevShare, (configs))
         );
         require(success, "RevShareUpgradeAndSetup: Delegatecall failed");
     }
