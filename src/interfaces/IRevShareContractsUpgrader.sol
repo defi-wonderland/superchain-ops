@@ -8,6 +8,8 @@ interface IRevShareContractsUpgrader {
     error GasLimitCannotBeZero();
     error EmptyArray();
 
+    event ChainProcessed(address portal, uint256 chainIndex);
+
     struct L1WithdrawerConfig {
         uint256 minWithdrawalAmount;
         address recipient;

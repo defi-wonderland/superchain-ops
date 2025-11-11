@@ -21,6 +21,9 @@ import {IFeeVault} from "src/interfaces/IFeeVault.sol";
 /// @title RevShareContractsUpgrader_TestInit
 /// @notice Base test contract with shared setup and helpers for RevShareContractsUpgrader tests.
 contract RevShareContractsUpgrader_TestInit is Test {
+    // Events
+    event ChainProcessed(address portal, uint256 chainIndex);
+
     // Contract under test
     RevShareContractsUpgrader internal upgrader;
 
@@ -403,7 +406,8 @@ contract RevShareContractsUpgrader_UpgradeAndSetupRevShare_Test is RevShareContr
     /// @notice Test that upgradeAndSetupRevShare reverts when gas limit is zero
     function test_upgradeAndSetupRevShare_whenGasLimitIsZero_reverts() public {
         RevShareContractsUpgrader.RevShareConfig[] memory configs = new RevShareContractsUpgrader.RevShareConfig[](1);
-        configs[0] = _createRevShareConfig(PORTAL_ONE, MIN_WITHDRAWAL_AMOUNT, L1_RECIPIENT_ONE, 0, CHAIN_FEES_RECIPIENT_ONE);
+        configs[0] =
+            _createRevShareConfig(PORTAL_ONE, MIN_WITHDRAWAL_AMOUNT, L1_RECIPIENT_ONE, 0, CHAIN_FEES_RECIPIENT_ONE);
 
         vm.expectRevert(RevShareContractsUpgrader.GasLimitCannotBeZero.selector);
         upgrader.upgradeAndSetupRevShare(configs);
@@ -443,6 +447,10 @@ contract RevShareContractsUpgrader_UpgradeAndSetupRevShare_Test is RevShareContr
         _mockAndExpectCalculatorDeploy(_portal, expectedL1Withdrawer, _chainFeesRecipient);
         _mockAndExpectFeeSplitterDeployAndSetup(_portal, expectedCalculator);
         _mockAndExpectAllVaultUpgrades(_portal);
+
+        // Expect event
+        vm.expectEmit(address(upgrader));
+        emit ChainProcessed(_portal, 0);
 
         // Execute
         upgrader.upgradeAndSetupRevShare(configs);
@@ -490,6 +498,10 @@ contract RevShareContractsUpgrader_UpgradeAndSetupRevShare_Test is RevShareContr
             _mockAndExpectCalculatorDeploy(portal, expectedL1Withdrawer, chainFeeRecipient);
             _mockAndExpectFeeSplitterDeployAndSetup(portal, expectedCalculator);
             _mockAndExpectAllVaultUpgrades(portal);
+
+            // Expect event for this chain
+            vm.expectEmit(address(upgrader));
+            emit ChainProcessed(portal, i);
         }
 
         // Execute once with all chains
@@ -541,7 +553,8 @@ contract RevShareContractsUpgrader_SetupRevShare_Test is RevShareContractsUpgrad
     /// @notice Test that setupRevShare reverts when gas limit is zero
     function test_setupRevShare_whenGasLimitIsZero_reverts() public {
         RevShareContractsUpgrader.RevShareConfig[] memory configs = new RevShareContractsUpgrader.RevShareConfig[](1);
-        configs[0] = _createRevShareConfig(PORTAL_ONE, MIN_WITHDRAWAL_AMOUNT, L1_RECIPIENT_ONE, 0, CHAIN_FEES_RECIPIENT_ONE);
+        configs[0] =
+            _createRevShareConfig(PORTAL_ONE, MIN_WITHDRAWAL_AMOUNT, L1_RECIPIENT_ONE, 0, CHAIN_FEES_RECIPIENT_ONE);
 
         vm.expectRevert(RevShareContractsUpgrader.GasLimitCannotBeZero.selector);
         upgrader.setupRevShare(configs);
@@ -581,6 +594,10 @@ contract RevShareContractsUpgrader_SetupRevShare_Test is RevShareContractsUpgrad
         _mockAndExpectCalculatorDeploy(_portal, expectedL1Withdrawer, _chainFeesRecipient);
         _mockAndExpectFeeSplitterSetCalculator(_portal, expectedCalculator);
         _mockAndExpectAllVaultSetters(_portal);
+
+        // Expect event
+        vm.expectEmit(address(upgrader));
+        emit ChainProcessed(_portal, 0);
 
         // Execute
         upgrader.setupRevShare(configs);
@@ -628,6 +645,10 @@ contract RevShareContractsUpgrader_SetupRevShare_Test is RevShareContractsUpgrad
             _mockAndExpectCalculatorDeploy(portal, expectedL1Withdrawer, chainFeeRecipient);
             _mockAndExpectFeeSplitterSetCalculator(portal, expectedCalculator);
             _mockAndExpectAllVaultSetters(portal);
+
+            // Expect event for this chain
+            vm.expectEmit(address(upgrader));
+            emit ChainProcessed(portal, i);
         }
 
         // Execute once with all chains
