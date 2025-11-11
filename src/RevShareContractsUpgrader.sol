@@ -36,6 +36,11 @@ contract RevShareContractsUpgrader {
     /// @notice Thrown when array is empty
     error EmptyArray();
 
+    /// @notice Emitted when a chain's RevShare setup  deposits are completed
+    /// @param portal The portal address for the chain
+    /// @param chainIndex The index of the chain in the configs array
+    event ChainProcessed(address portal, uint256 chainIndex);
+
     /// @notice Struct for L1Withdrawer configuration.
     /// @param minWithdrawalAmount Minimum withdrawal amount
     /// @param recipient Recipient address for withdrawals
@@ -101,6 +106,8 @@ contract RevShareContractsUpgrader {
 
             // Upgrade all 4 vaults with RevShare configuration (recipient=FeeSplitter, minWithdrawal=0, network=L2)
             _upgradeVaultsWithRevShareConfig(config.portal);
+
+            emit ChainProcessed(config.portal, i);
         }
     }
 
@@ -131,6 +138,8 @@ contract RevShareContractsUpgrader {
 
             // Configure all 4 vaults for revenue sharing
             _configureVaultsForRevShare(config.portal);
+
+            emit ChainProcessed(config.portal, i);
         }
     }
 

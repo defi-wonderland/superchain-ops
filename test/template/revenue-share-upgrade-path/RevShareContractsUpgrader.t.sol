@@ -21,6 +21,9 @@ import {IFeeVault} from "src/interfaces/IFeeVault.sol";
 /// @title RevShareContractsUpgrader_TestInit
 /// @notice Base test contract with shared setup and helpers for RevShareContractsUpgrader tests.
 contract RevShareContractsUpgrader_TestInit is Test {
+    // Events
+    event ChainProcessed(address portal, uint256 chainIndex);
+
     // Contract under test
     RevShareContractsUpgrader internal upgrader;
 
@@ -444,6 +447,10 @@ contract RevShareContractsUpgrader_UpgradeAndSetupRevShare_Test is RevShareContr
         _mockAndExpectFeeSplitterDeployAndSetup(_portal, expectedCalculator);
         _mockAndExpectAllVaultUpgrades(_portal);
 
+        // Expect event
+        vm.expectEmit(true, true, true, true);
+        emit ChainProcessed(_portal, 0);
+
         // Execute
         upgrader.upgradeAndSetupRevShare(configs);
     }
@@ -490,6 +497,10 @@ contract RevShareContractsUpgrader_UpgradeAndSetupRevShare_Test is RevShareContr
             _mockAndExpectCalculatorDeploy(portal, expectedL1Withdrawer, chainFeeRecipient);
             _mockAndExpectFeeSplitterDeployAndSetup(portal, expectedCalculator);
             _mockAndExpectAllVaultUpgrades(portal);
+
+            // Expect event for this chain
+            vm.expectEmit(true, true, true, true);
+            emit ChainProcessed(portal, i);
         }
 
         // Execute once with all chains
@@ -582,6 +593,10 @@ contract RevShareContractsUpgrader_SetupRevShare_Test is RevShareContractsUpgrad
         _mockAndExpectFeeSplitterSetCalculator(_portal, expectedCalculator);
         _mockAndExpectAllVaultSetters(_portal);
 
+        // Expect event
+        vm.expectEmit(true, true, true, true);
+        emit ChainProcessed(_portal, 0);
+
         // Execute
         upgrader.setupRevShare(configs);
     }
@@ -628,6 +643,10 @@ contract RevShareContractsUpgrader_SetupRevShare_Test is RevShareContractsUpgrad
             _mockAndExpectCalculatorDeploy(portal, expectedL1Withdrawer, chainFeeRecipient);
             _mockAndExpectFeeSplitterSetCalculator(portal, expectedCalculator);
             _mockAndExpectAllVaultSetters(portal);
+
+            // Expect event for this chain
+            vm.expectEmit(true, true, true, true);
+            emit ChainProcessed(portal, i);
         }
 
         // Execute once with all chains
