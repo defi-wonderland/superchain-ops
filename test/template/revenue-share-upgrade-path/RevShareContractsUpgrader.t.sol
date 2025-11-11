@@ -286,25 +286,67 @@ contract RevShareContractsUpgrader_TestInit is Test {
         );
     }
 
-    /// @notice Helper to mock all vault upgrades (4 vaults)
+    /// @notice Helper to mock only a vault upgrade (no deployment) - for vaults that reuse another vault's implementation
+    /// @param _portal The portal address
+    /// @param _vault The vault proxy address to upgrade
+    /// @param _implVaultName The vault name whose implementation to reuse (e.g., "BaseFeeVault" for L1FeeVault)
+    /// @param _creationCode The creation code of the implementation being reused
+    function _mockAndExpectVaultUpgradeOnly(
+        address _portal,
+        address _vault,
+        string memory _implVaultName,
+        bytes memory _creationCode
+    ) internal {
+        // Calculate the implementation address (using the name of the vault whose impl we're reusing)
+        address vaultImpl = _calculateExpectedCreate2Address(_implVaultName, _creationCode);
+
+        // Mock vault upgrade call (no deployment, just upgrade)
+        bytes memory vaultUpgradeCall = abi.encodeCall(
+            IProxyAdmin.upgradeAndCall,
+            (
+                payable(_vault),
+                vaultImpl,
+                abi.encodeCall(IFeeVault.initialize, (RevShareLibrary.FEE_SPLITTER, 0, IFeeVault.WithdrawalNetwork.L2))
+            )
+        );
+
+        _mockAndExpect(
+            _portal,
+            abi.encodeCall(
+                IOptimismPortal2.depositTransaction,
+                (RevShareLibrary.PROXY_ADMIN, 0, RevShareLibrary.UPGRADE_GAS_LIMIT, false, vaultUpgradeCall)
+            ),
+            abi.encode()
+        );
+    }
+
+    /// @notice Helper to mock all vault upgrades (3 vault deployments + 4 upgrades)
+    /// @dev BaseFeeVault and L1FeeVault share the same implementation, so only BaseFeeVault is deployed
     function _mockAndExpectAllVaultUpgrades(address _portal) internal {
+        // Deploy and upgrade OperatorFeeVault
         _mockAndExpectVaultUpgrade(
             _portal,
             RevShareLibrary.OPERATOR_FEE_VAULT,
             "OperatorFeeVault",
             RevShareLibrary.operatorFeeVaultCreationCode
         );
+
+        // Deploy and upgrade SequencerFeeVault
         _mockAndExpectVaultUpgrade(
             _portal,
             RevShareLibrary.SEQUENCER_FEE_WALLET,
             "SequencerFeeVault",
             RevShareLibrary.sequencerFeeVaultCreationCode
         );
+
+        // Deploy and upgrade BaseFeeVault (this deployment is shared with L1FeeVault)
         _mockAndExpectVaultUpgrade(
             _portal, RevShareLibrary.BASE_FEE_VAULT, "BaseFeeVault", RevShareLibrary.defaultFeeVaultCreationCode
         );
-        _mockAndExpectVaultUpgrade(
-            _portal, RevShareLibrary.L1_FEE_VAULT, "L1FeeVault", RevShareLibrary.defaultFeeVaultCreationCode
+
+        // L1FeeVault upgrade only (reuses BaseFeeVault's implementation, no deployment)
+        _mockAndExpectVaultUpgradeOnly(
+            _portal, RevShareLibrary.L1_FEE_VAULT, "BaseFeeVault", RevShareLibrary.defaultFeeVaultCreationCode
         );
     }
 
