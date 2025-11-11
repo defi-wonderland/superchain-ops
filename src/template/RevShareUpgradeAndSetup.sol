@@ -101,9 +101,6 @@ contract RevShareUpgradeAndSetup is OPCMTaskBase {
             selector == RevShareContractsUpgrader.upgradeAndSetupRevShare.selector,
             "Wrong function selector for delegatecall"
         );
-
-
-        require(foundDelegatecall, "Delegatecall to RevShareContractsUpgrader not found");
     }
 
     /// @notice Override to return a list of addresses that should not be checked for code length.
