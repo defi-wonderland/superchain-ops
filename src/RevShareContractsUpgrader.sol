@@ -66,7 +66,7 @@ contract RevShareContractsUpgrader {
             if (config.chainFeesRecipient == address(0)) revert ChainFeesRecipientCannotBeZeroAddress();
 
             // Deploy L1Withdrawer and SuperchainRevenueShareCalculator
-            address calculator = _deployRevSharePeriphery(config.portal, config.l1WithdrawerConfig, config.chainFeesRecipient);
+            address precalculatedCalculator = _deployRevSharePeriphery(config.portal, config.l1WithdrawerConfig, config.chainFeesRecipient);
 
             // Upgrade fee splitter and initialize with calculator FIRST
             // This prevents the edge case where fees could be sent to an uninitialized FeeSplitter
@@ -85,7 +85,7 @@ contract RevShareContractsUpgrader {
                 RevShareLibrary.UPGRADE_GAS_LIMIT,
                 abi.encodeCall(
                     IProxyAdmin.upgradeAndCall,
-                    (payable(RevShareLibrary.FEE_SPLITTER), feeSplitterImpl, abi.encodeCall(IFeeSplitter.initialize, (calculator)))
+                    (payable(RevShareLibrary.FEE_SPLITTER), feeSplitterImpl, abi.encodeCall(IFeeSplitter.initialize, (precalculatedCalculator)))
                 )
             );
 
