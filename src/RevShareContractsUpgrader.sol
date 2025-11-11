@@ -66,7 +66,7 @@ contract RevShareContractsUpgrader {
             if (config.chainFeesRecipient == address(0)) revert ChainFeesRecipientCannotBeZeroAddress();
 
             // Deploy L1Withdrawer and SuperchainRevenueShareCalculator
-            address calculator = _deployRevSharePeriphery(config.portal, config.l1WithdrawerConfig, config.chainFeesRecipient);
+            address precalculatedCalculator = _deployRevSharePeriphery(config.portal, config.l1WithdrawerConfig, config.chainFeesRecipient);
 
             // Upgrade fee splitter and initialize with calculator FIRST
             // This prevents the edge case where fees could be sent to an uninitialized FeeSplitter
@@ -85,7 +85,7 @@ contract RevShareContractsUpgrader {
                 RevShareLibrary.UPGRADE_GAS_LIMIT,
                 abi.encodeCall(
                     IProxyAdmin.upgradeAndCall,
-                    (payable(RevShareLibrary.FEE_SPLITTER), feeSplitterImpl, abi.encodeCall(IFeeSplitter.initialize, (calculator)))
+                    (payable(RevShareLibrary.FEE_SPLITTER), feeSplitterImpl, abi.encodeCall(IFeeSplitter.initialize, (precalculatedCalculator)))
                 )
             );
 
@@ -138,14 +138,14 @@ contract RevShareContractsUpgrader {
             abi.encode(_l1WithdrawerConfig.minWithdrawalAmount, _l1WithdrawerConfig.recipient, _l1WithdrawerConfig.gasLimit)
         );
         bytes32 l1WithdrawerSalt = _getSalt("L1Withdrawer");
-        address l1Withdrawer = Utils.getCreate2Address(l1WithdrawerSalt, l1WithdrawerInitCode, RevShareLibrary.CREATE2_DEPLOYER);
+        address precalculatedL1Withdrawer = Utils.getCreate2Address(l1WithdrawerSalt, l1WithdrawerInitCode, RevShareLibrary.CREATE2_DEPLOYER);
         _depositCreate2(
             _portal, RevShareLibrary.L1_WITHDRAWER_DEPLOYMENT_GAS_LIMIT, l1WithdrawerSalt, l1WithdrawerInitCode
         );
 
         // Deploy SuperchainRevenueShareCalculator
         bytes memory calculatorInitCode =
-            bytes.concat(RevShareLibrary.scRevShareCalculatorCreationCode, abi.encode(l1Withdrawer, _chainFeesRecipient));
+            bytes.concat(RevShareLibrary.scRevShareCalculatorCreationCode, abi.encode(precalculatedL1Withdrawer, _chainFeesRecipient));
         bytes32 calculatorSalt = _getSalt("SCRevShareCalculator");
         calculator = Utils.getCreate2Address(calculatorSalt, calculatorInitCode, RevShareLibrary.CREATE2_DEPLOYER);
         _depositCreate2(
