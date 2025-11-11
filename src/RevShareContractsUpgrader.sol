@@ -30,6 +30,9 @@ contract RevShareContractsUpgrader {
     /// @notice Thrown when chain fees recipient is zero address
     error ChainFeesRecipientCannotBeZeroAddress();
 
+    /// @notice Thrown when gas limit is zero
+    error GasLimitCannotBeZero();
+
     /// @notice Thrown when array is empty
     error EmptyArray();
 
@@ -64,6 +67,7 @@ contract RevShareContractsUpgrader {
             if (config.portal == address(0)) revert PortalCannotBeZeroAddress();
             if (config.l1WithdrawerConfig.recipient == address(0)) revert L1WithdrawerRecipientCannotBeZeroAddress();
             if (config.chainFeesRecipient == address(0)) revert ChainFeesRecipientCannotBeZeroAddress();
+            if (config.l1WithdrawerConfig.gasLimit == 0) revert GasLimitCannotBeZero();
 
             // Deploy L1Withdrawer and SuperchainRevenueShareCalculator
             address precalculatedCalculator =
@@ -111,6 +115,7 @@ contract RevShareContractsUpgrader {
             if (config.portal == address(0)) revert PortalCannotBeZeroAddress();
             if (config.l1WithdrawerConfig.recipient == address(0)) revert L1WithdrawerRecipientCannotBeZeroAddress();
             if (config.chainFeesRecipient == address(0)) revert ChainFeesRecipientCannotBeZeroAddress();
+            if (config.l1WithdrawerConfig.gasLimit == 0) revert GasLimitCannotBeZero();
 
             // Deploy L1Withdrawer and SuperchainRevenueShareCalculator
             address calculator =
