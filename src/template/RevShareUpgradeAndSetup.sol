@@ -9,7 +9,7 @@ import {OPCMTaskBase} from "src/tasks/types/OPCMTaskBase.sol";
 import {Action} from "src/libraries/MultisigTypes.sol";
 import {MultisigTaskPrinter} from "src/libraries/MultisigTaskPrinter.sol";
 import {RevShareContractsUpgrader} from "src/RevShareContractsUpgrader.sol";
-import {RevShareLibrary} from "src/libraries/RevShareLibrary.sol";
+import {FeeSplitterSetup} from "src/libraries/FeeSplitterSetup.sol";
 
 /// @notice Task for setting up revenue sharing on OP Stack chains.
 contract RevShareUpgradeAndSetup is OPCMTaskBase {
@@ -74,11 +74,13 @@ contract RevShareUpgradeAndSetup is OPCMTaskBase {
         for (uint256 i; i < portals.length; i++) {
             revShareConfigs.push(
                 RevShareContractsUpgrader.RevShareConfig({
-                    portal: portals[i],
-                    l1WithdrawerConfig: RevShareLibrary.L1WithdrawerConfig({
-                        minWithdrawalAmount: minWithdrawalAmounts[i],
-                        recipient: l1WithdrawerRecipients[i],
-                        gasLimit: uint32(gasLimits[i])
+                    portal: tomlContent.readAddress(string.concat(basePath, ".portal")),
+                    l1WithdrawerConfig: FeeSplitterSetup.L1WithdrawerConfig({
+                        minWithdrawalAmount: tomlContent.readUint(
+                            string.concat(basePath, ".l1WithdrawerConfig.minWithdrawalAmount")
+                        ),
+                        recipient: tomlContent.readAddress(string.concat(basePath, ".l1WithdrawerConfig.recipient")),
+                        gasLimit: uint32(tomlContent.readUint(string.concat(basePath, ".l1WithdrawerConfig.gasLimit")))
                     }),
                     chainFeesRecipient: chainFeesRecipients[i]
                 })
