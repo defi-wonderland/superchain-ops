@@ -74,13 +74,11 @@ contract RevShareUpgradeAndSetup is OPCMTaskBase {
         for (uint256 i; i < portals.length; i++) {
             revShareConfigs.push(
                 RevShareContractsUpgrader.RevShareConfig({
-                    portal: tomlContent.readAddress(string.concat(basePath, ".portal")),
+                    portal: portals[i],
                     l1WithdrawerConfig: FeeSplitterSetup.L1WithdrawerConfig({
-                        minWithdrawalAmount: tomlContent.readUint(
-                            string.concat(basePath, ".l1WithdrawerConfig.minWithdrawalAmount")
-                        ),
-                        recipient: tomlContent.readAddress(string.concat(basePath, ".l1WithdrawerConfig.recipient")),
-                        gasLimit: uint32(tomlContent.readUint(string.concat(basePath, ".l1WithdrawerConfig.gasLimit")))
+                        minWithdrawalAmount: minWithdrawalAmounts[i],
+                        recipient: l1WithdrawerRecipients[i],
+                        gasLimit: uint32(gasLimits[i])
                     }),
                     chainFeesRecipient: chainFeesRecipients[i]
                 })
