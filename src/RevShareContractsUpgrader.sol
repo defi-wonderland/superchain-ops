@@ -12,7 +12,6 @@ import {IFeeSplitter} from "src/interfaces/IFeeSplitter.sol";
 import {IFeeVault} from "src/interfaces/IFeeVault.sol";
 
 /// @title RevShareContractsUpgrader
-/// @dev This conttract is not audited and not production ready. It's only for testing purposes.
 /// @notice Upgrader contract that manages RevShare deployments and configuration via delegatecall.
 /// @dev    Supports two operations:
 ///         1. setupRevShare() - Setup revenue sharing on already-upgraded contracts
@@ -66,8 +65,9 @@ contract RevShareContractsUpgrader {
             if (config.l1WithdrawerConfig.gasLimit == 0) revert GasLimitCannotBeZero();
 
             // Deploy L1Withdrawer and SuperchainRevenueShareCalculator
-            address precalculatedCalculator =
-                RevShareLibrary._deployRevSharePeriphery(config.portal, config.l1WithdrawerConfig, config.chainFeesRecipient);
+            address precalculatedCalculator = RevShareLibrary._deployRevSharePeriphery(
+                config.portal, config.l1WithdrawerConfig, config.chainFeesRecipient
+            );
 
             // Upgrade fee splitter and initialize with calculator FIRST
             // This prevents the edge case where fees could be sent to an uninitialized FeeSplitter
@@ -116,8 +116,9 @@ contract RevShareContractsUpgrader {
             if (config.l1WithdrawerConfig.gasLimit == 0) revert GasLimitCannotBeZero();
 
             // Deploy L1Withdrawer and SuperchainRevenueShareCalculator
-            address calculator =
-                RevShareLibrary._deployRevSharePeriphery(config.portal, config.l1WithdrawerConfig, config.chainFeesRecipient);
+            address calculator = RevShareLibrary._deployRevSharePeriphery(
+                config.portal, config.l1WithdrawerConfig, config.chainFeesRecipient
+            );
 
             // Set calculator on fee splitter
             RevShareLibrary._depositCall(
