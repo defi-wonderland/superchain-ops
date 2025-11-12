@@ -65,23 +65,23 @@ contract RevShareContractsUpgrader {
             if (config.l1WithdrawerConfig.gasLimit == 0) revert GasLimitCannotBeZero();
 
             // Deploy L1Withdrawer and SuperchainRevenueShareCalculator
-            address precalculatedCalculator = RevShareLibrary._deployRevSharePeriphery(
+            address precalculatedCalculator = RevShareLibrary.deployRevSharePeriphery(
                 config.portal, config.l1WithdrawerConfig, config.chainFeesRecipient
             );
 
             // Upgrade fee splitter and initialize with calculator FIRST
             // This prevents the edge case where fees could be sent to an uninitialized FeeSplitter
-            bytes32 feeSplitterSalt = RevShareLibrary._getSalt("FeeSplitter");
+            bytes32 feeSplitterSalt = RevShareLibrary.getSalt("FeeSplitter");
             address feeSplitterImpl = Utils.getCreate2Address(
                 feeSplitterSalt, RevShareLibrary.feeSplitterCreationCode, RevShareLibrary.CREATE2_DEPLOYER
             );
-            RevShareLibrary._depositCreate2(
+            RevShareLibrary.depositCreate2(
                 config.portal,
                 RevShareLibrary.FEE_SPLITTER_DEPLOYMENT_GAS_LIMIT,
                 feeSplitterSalt,
                 RevShareLibrary.feeSplitterCreationCode
             );
-            RevShareLibrary._depositCall(
+            RevShareLibrary.depositCall(
                 config.portal,
                 address(RevShareLibrary.PROXY_ADMIN),
                 RevShareLibrary.UPGRADE_GAS_LIMIT,
@@ -96,7 +96,7 @@ contract RevShareContractsUpgrader {
             );
 
             // Upgrade all 4 vaults with RevShare configuration (recipient=FeeSplitter, minWithdrawal=0, network=L2)
-            RevShareLibrary._upgradeVaultsWithRevShareConfig(config.portal);
+            RevShareLibrary.upgradeVaultsWithRevShareConfig(config.portal);
 
             emit ChainProcessed(config.portal, i);
         }
@@ -116,12 +116,12 @@ contract RevShareContractsUpgrader {
             if (config.l1WithdrawerConfig.gasLimit == 0) revert GasLimitCannotBeZero();
 
             // Deploy L1Withdrawer and SuperchainRevenueShareCalculator
-            address calculator = RevShareLibrary._deployRevSharePeriphery(
+            address calculator = RevShareLibrary.deployRevSharePeriphery(
                 config.portal, config.l1WithdrawerConfig, config.chainFeesRecipient
             );
 
             // Set calculator on fee splitter
-            RevShareLibrary._depositCall(
+            RevShareLibrary.depositCall(
                 config.portal,
                 RevShareLibrary.FEE_SPLITTER,
                 RevShareLibrary.SETTERS_GAS_LIMIT,
@@ -129,7 +129,7 @@ contract RevShareContractsUpgrader {
             );
 
             // Configure all 4 vaults for revenue sharing
-            RevShareLibrary._configureVaultsForRevShare(config.portal);
+            RevShareLibrary.configureVaultsForRevShare(config.portal);
 
             emit ChainProcessed(config.portal, i);
         }

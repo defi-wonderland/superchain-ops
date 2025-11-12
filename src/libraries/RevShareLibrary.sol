@@ -108,7 +108,7 @@ library RevShareLibrary {
     /// @param _l1WithdrawerConfig L1Withdrawer configuration
     /// @param _chainFeesRecipient Chain fees recipient address
     /// @return calculator The deployed calculator address
-    function _deployRevSharePeriphery(
+    function deployRevSharePeriphery(
         address _portal,
         L1WithdrawerConfig calldata _l1WithdrawerConfig,
         address _chainFeesRecipient
@@ -120,10 +120,10 @@ library RevShareLibrary {
                 _l1WithdrawerConfig.minWithdrawalAmount, _l1WithdrawerConfig.recipient, _l1WithdrawerConfig.gasLimit
             )
         );
-        bytes32 l1WithdrawerSalt = _getSalt("L1Withdrawer");
+        bytes32 l1WithdrawerSalt = getSalt("L1Withdrawer");
         address precalculatedL1Withdrawer =
             Utils.getCreate2Address(l1WithdrawerSalt, l1WithdrawerInitCode, RevShareLibrary.CREATE2_DEPLOYER);
-        _depositCreate2(
+        depositCreate2(
             _portal, RevShareLibrary.L1_WITHDRAWER_DEPLOYMENT_GAS_LIMIT, l1WithdrawerSalt, l1WithdrawerInitCode
         );
 
@@ -131,9 +131,9 @@ library RevShareLibrary {
         bytes memory calculatorInitCode = bytes.concat(
             RevShareLibrary.scRevShareCalculatorCreationCode, abi.encode(precalculatedL1Withdrawer, _chainFeesRecipient)
         );
-        bytes32 calculatorSalt = _getSalt("SCRevShareCalculator");
+        bytes32 calculatorSalt = getSalt("SCRevShareCalculator");
         calculator = Utils.getCreate2Address(calculatorSalt, calculatorInitCode, RevShareLibrary.CREATE2_DEPLOYER);
-        _depositCreate2(
+        depositCreate2(
             _portal, RevShareLibrary.SC_REV_SHARE_CALCULATOR_DEPLOYMENT_GAS_LIMIT, calculatorSalt, calculatorInitCode
         );
     }
@@ -141,7 +141,7 @@ library RevShareLibrary {
     /// @notice Upgrades all 4 vaults with RevShare configuration (recipient=FeeSplitter, minWithdrawal=0, network=L2).
     ///         Deploys only 3 implementations: OperatorFeeVault, SequencerFeeVault, and the same FeeVault implementation is used for both BaseFeeVault and L1FeeVault (we use the same one for both to avoid making the deployment size bigger).
     /// @param _portal The OptimismPortal2 address for the target L2
-    function _upgradeVaultsWithRevShareConfig(address _portal) public {
+    function upgradeVaultsWithRevShareConfig(address _portal) public {
         address[4] memory vaultProxies = [
             RevShareLibrary.OPERATOR_FEE_VAULT,
             RevShareLibrary.SEQUENCER_FEE_WALLET,
@@ -158,7 +158,7 @@ library RevShareLibrary {
 
         address defaultImpl;
         for (uint256 i; i < vaultProxies.length; i++) {
-            bytes32 salt = _getSalt(vaultNames[i]);
+            bytes32 salt = getSalt(vaultNames[i]);
             address impl;
 
             // Check if this is the BaseFeeVault or L1FeeVault (both use default implementation)
@@ -169,17 +169,17 @@ library RevShareLibrary {
                 // Deploy default implementation for BaseFeeVault
                 impl = Utils.getCreate2Address(salt, creationCodes[i], RevShareLibrary.CREATE2_DEPLOYER);
                 defaultImpl = impl;
-                _depositCreate2(_portal, RevShareLibrary.FEE_VAULTS_DEPLOYMENT_GAS_LIMIT, salt, creationCodes[i]);
+                depositCreate2(_portal, RevShareLibrary.FEE_VAULTS_DEPLOYMENT_GAS_LIMIT, salt, creationCodes[i]);
             } else if (isL1FeeVault) {
                 // Reuse the default implementation for L1FeeVault
                 impl = defaultImpl;
             } else {
                 // Deploy specific implementations for OperatorFeeVault and SequencerFeeVault
                 impl = Utils.getCreate2Address(salt, creationCodes[i], RevShareLibrary.CREATE2_DEPLOYER);
-                _depositCreate2(_portal, RevShareLibrary.FEE_VAULTS_DEPLOYMENT_GAS_LIMIT, salt, creationCodes[i]);
+                depositCreate2(_portal, RevShareLibrary.FEE_VAULTS_DEPLOYMENT_GAS_LIMIT, salt, creationCodes[i]);
             }
 
-            _depositCall(
+            depositCall(
                 _portal,
                 address(RevShareLibrary.PROXY_ADMIN),
                 RevShareLibrary.UPGRADE_GAS_LIMIT,
@@ -202,7 +202,7 @@ library RevShareLibrary {
     /// @param _gasLimit Gas limit for the transaction
     /// @param _salt CREATE2 salt
     /// @param _initCode Contract creation code with constructor args
-    function _depositCreate2(address _portal, uint64 _gasLimit, bytes32 _salt, bytes memory _initCode) public {
+    function depositCreate2(address _portal, uint64 _gasLimit, bytes32 _salt, bytes memory _initCode) public {
         IOptimismPortal2(payable(_portal)).depositTransaction(
             address(RevShareLibrary.CREATE2_DEPLOYER),
             0,
@@ -217,20 +217,20 @@ library RevShareLibrary {
     /// @param _target Target contract address
     /// @param _gasLimit Gas limit for the transaction
     /// @param _data Encoded function call data
-    function _depositCall(address _portal, address _target, uint64 _gasLimit, bytes memory _data) public {
+    function depositCall(address _portal, address _target, uint64 _gasLimit, bytes memory _data) public {
         IOptimismPortal2(payable(_portal)).depositTransaction(_target, 0, _gasLimit, false, _data);
     }
 
     /// @notice Generates a unique salt for CREATE2 deployments based on the contract suffix.
     /// @param _suffix The suffix to append to the base salt seed
     /// @return The generated salt as bytes32
-    function _getSalt(string memory _suffix) internal pure returns (bytes32) {
+    function getSalt(string memory _suffix) internal pure returns (bytes32) {
         return keccak256(abi.encodePacked(SALT_SEED, ":", _suffix));
     }
 
     /// @notice Configures all 4 vaults for revenue sharing (recipient=FeeSplitter, minWithdrawal=0, network=L2).
     /// @param _portal The OptimismPortal2 address for the target L2
-    function _configureVaultsForRevShare(address _portal) public {
+    function configureVaultsForRevShare(address _portal) public {
         address[4] memory vaults = [
             RevShareLibrary.OPERATOR_FEE_VAULT,
             RevShareLibrary.SEQUENCER_FEE_WALLET,
@@ -239,19 +239,19 @@ library RevShareLibrary {
         ];
 
         for (uint256 i; i < vaults.length; i++) {
-            _depositCall(
+            depositCall(
                 _portal,
                 vaults[i],
                 RevShareLibrary.SETTERS_GAS_LIMIT,
                 abi.encodeCall(IFeeVault.setRecipient, (RevShareLibrary.FEE_SPLITTER))
             );
-            _depositCall(
+            depositCall(
                 _portal,
                 vaults[i],
                 RevShareLibrary.SETTERS_GAS_LIMIT,
                 abi.encodeCall(IFeeVault.setMinWithdrawalAmount, (0))
             );
-            _depositCall(
+            depositCall(
                 _portal,
                 vaults[i],
                 RevShareLibrary.SETTERS_GAS_LIMIT,
