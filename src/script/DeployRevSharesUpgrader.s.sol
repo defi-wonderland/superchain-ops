@@ -13,6 +13,7 @@ import {RevShareContractsUpgrader} from "src/RevShareContractsUpgrader.sol";
 ///          --broadcast \
 ///          --verify --private-key $PRIVATE_KEY --verifier custom \
 ///          --verifier-url 'https://api.etherscan.io/v2/api?chainid=11155111&apikey={$API_KEY}'
+/// @dev The libraries were verified from the UI as single file using `forge flatten`
 contract DeployRevSharesUpgrader is Script {
     /// @notice Deploys the RevShareContractsUpgrader contract
     /// @return upgrader The deployed RevShareContractsUpgrader contract
