@@ -6,7 +6,7 @@ import {console} from "forge-std/console.sol";
 import {RevShareContractsUpgrader} from "src/RevShareContractsUpgrader.sol";
 
 /// @notice Deploys the RevShareContractsUpgrader contract.
-/// @dev Deployed at https://sepolia.etherscan.io/address/0x65d1b057EeFE204cAb3AC1607ba4b577eeA1515e
+/// @dev Deployed at https://sepolia.etherscan.io/address/0x9C524DcEa18587e24976A82f05c2065e14DB7B3A
 /// @dev Usage:
 ///      forge script src/script/DeployRevSharesUpgrader.s.sol:DeployRevSharesUpgrader \
 ///          --rpc-url https://ethereum-sepolia.rpc.subquery.network/public \
