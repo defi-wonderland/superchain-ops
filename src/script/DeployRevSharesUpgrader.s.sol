@@ -17,7 +17,7 @@ import {RevShareContractsUpgrader} from "src/RevShareContractsUpgrader.sol";
 /// @dev The libraries were verified from the etherscan's UI as single file using `forge flatten`
 contract DeployRevSharesUpgrader is Script {
     /// @notice Salt used for deterministic deployment
-    bytes32 internal constant SALT = keccak256("SaltRevShareContractsUpgrader"); // TODO: Update after audit
+    bytes32 internal constant SALT = keccak256("SaltRevShareContractsUpgrader");
 
     /// @notice Deploys the RevShareContractsUpgrader contract deterministically using CREATE2
     /// @return upgrader The deployed RevShareContractsUpgrader contract
