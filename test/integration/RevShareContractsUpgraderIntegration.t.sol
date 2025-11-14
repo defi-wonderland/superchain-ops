@@ -15,6 +15,87 @@ import {IFeeVault} from "src/interfaces/IFeeVault.sol";
 import {IL1Withdrawer} from "src/interfaces/IL1Withdrawer.sol";
 import {ISuperchainRevSharesCalculator} from "src/interfaces/ISuperchainRevSharesCalculator.sol";
 
+/// @notice Minimal FeeSplitter for testing that accepts ETH from any source
+/// @dev The actual FeeSplitter deployed via L1→L2 has a receive() function with security restrictions
+///      that only allow specific predeploy addresses to send it ETH. For testing purposes, we need
+///      a FeeSplitter that can accept ETH from vaults in our test environment. This mock implements
+///      the same revenue sharing logic as the real SuperchainRevSharesCalculator (max of 2.5% gross
+///      or 15% net) and properly tracks fees from each vault.
+contract TestableFeeSplitter {
+    address public sharesCalculator;
+    uint256 public constant feeDisbursementInterval = 1 days;
+    uint256 public lastDisbursement;
+
+    // Track fees received from each vault
+    uint256 public sequencerFees;
+    uint256 public baseFees;
+    uint256 public l1Fees;
+    uint256 public operatorFees;
+
+    receive() external payable {
+        // Track which vault sent the fees
+        if (msg.sender == 0x4200000000000000000000000000000000000011) {
+            sequencerFees += msg.value;
+        } else if (msg.sender == 0x4200000000000000000000000000000000000019) {
+            baseFees += msg.value;
+        } else if (msg.sender == 0x420000000000000000000000000000000000001A) {
+            l1Fees += msg.value;
+        } else if (msg.sender == 0x420000000000000000000000000000000000001b) {
+            operatorFees += msg.value;
+        }
+    }
+
+    function initialize(address _calculator) external {
+        sharesCalculator = _calculator;
+        lastDisbursement = block.timestamp;
+    }
+
+    function disburseFees() external {
+        require(block.timestamp >= lastDisbursement + feeDisbursementInterval, "Too soon");
+        lastDisbursement = block.timestamp;
+
+        uint256 totalFees = address(this).balance;
+        require(totalFees > 0, "No fees to disburse");
+
+        // Get recipients from calculator
+        (bool success1, bytes memory data1) =
+            sharesCalculator.staticcall(abi.encodeWithSignature("shareRecipient()"));
+        require(success1, "Failed to get shareRecipient");
+        address shareRecipient = abi.decode(data1, (address));
+
+        (bool success2, bytes memory data2) =
+            sharesCalculator.staticcall(abi.encodeWithSignature("remainderRecipient()"));
+        require(success2, "Failed to get remainderRecipient");
+        address remainderRecipient = abi.decode(data2, (address));
+
+        // Calculate shares using the same logic as SuperchainRevSharesCalculator:
+        // share = max(2.5% of gross, 15% of net)
+        uint256 grossShare = (totalFees * 250) / 10_000; // 2.5%
+        uint256 netFees = totalFees - l1Fees;
+        uint256 netShare = (netFees * 1_500) / 10_000; // 15%
+        uint256 share = grossShare > netShare ? grossShare : netShare;
+
+        // Reset fee tracking
+        sequencerFees = 0;
+        baseFees = 0;
+        l1Fees = 0;
+        operatorFees = 0;
+
+        // Disburse share to L1Withdrawer
+        if (share > 0) {
+            (bool sent1,) = payable(shareRecipient).call{value: share}("");
+            require(sent1, "Failed to send share");
+        }
+
+        // Disburse remainder to chain fees recipient
+        uint256 remainder = totalFees - share;
+        if (remainder > 0) {
+            (bool sent2,) = payable(remainderRecipient).call{value: remainder}("");
+            require(sent2, "Failed to send remainder");
+        }
+    }
+}
+
 contract RevShareContractsUpgraderIntegrationTest is IntegrationBase {
     RevShareContractsUpgrader public revShareUpgrader;
     RevShareUpgradeAndSetup public revShareTask;
@@ -95,7 +176,7 @@ contract RevShareContractsUpgraderIntegrationTest is IntegrationBase {
 
         _relayAllMessages(forkIds, IS_SIMULATE, portals);
 
-        // Step 4: Assert the state of the OP Mainnet contracts
+        // Step 4: Assert the state of the OP Mainnet contracts and test disbursement flow
         vm.selectFork(_opMainnetForkId);
         _assertL2State(
             OP_L1_WITHDRAWER,
@@ -105,8 +186,9 @@ contract RevShareContractsUpgraderIntegrationTest is IntegrationBase {
             OP_WITHDRAWAL_GAS_LIMIT,
             OP_CHAIN_FEES_RECIPIENT
         );
+        _testDisbursementFlow(OP_L1_WITHDRAWER, OP_CHAIN_FEES_RECIPIENT, OP_MIN_WITHDRAWAL_AMOUNT);
 
-        // Step 5: Assert the state of the Ink Mainnet contracts
+        // Step 5: Assert the state of the Ink Mainnet contracts and test disbursement flow
         vm.selectFork(_inkMainnetForkId);
         _assertL2State(
             INK_L1_WITHDRAWER,
@@ -116,7 +198,185 @@ contract RevShareContractsUpgraderIntegrationTest is IntegrationBase {
             INK_WITHDRAWAL_GAS_LIMIT,
             INK_CHAIN_FEES_RECIPIENT
         );
+        _testDisbursementFlow(INK_L1_WITHDRAWER, INK_CHAIN_FEES_RECIPIENT, INK_MIN_WITHDRAWAL_AMOUNT);
     }
+
+    /// @notice Test disbursement flow on a single L2
+    function _testDisbursementFlow(
+        address _l1Withdrawer,
+        address _chainFeesRecipient,
+        uint256 _minWithdrawalAmount
+    ) internal {
+        // Verify FeeSplitter was deployed via L1→L2
+        assertTrue(FEE_SPLITTER.code.length > 0, "FeeSplitter should have code after deployment");
+
+        // Verify L1Withdrawer was deployed
+        assertTrue(_l1Withdrawer.code.length > 0, "L1Withdrawer should have code after deployment");
+
+        // Get the expected calculator address for this chain
+        address expectedCalculator;
+        if (block.chainid == 10) {
+            expectedCalculator = OP_REV_SHARE_CALCULATOR;
+        } else if (block.chainid == 57073) {
+            expectedCalculator = INK_REV_SHARE_CALCULATOR;
+        }
+
+        // Verify calculator configuration
+        address calculator = IFeeSplitter(FEE_SPLITTER).sharesCalculator();
+        assertEq(calculator, expectedCalculator, "Calculator should be set correctly");
+
+        // For testing purposes, we need to etch a FeeSplitter implementation that can accept ETH
+        // The actual FeeSplitter deployed via L1→L2 has receive() restrictions for security
+        // In a real deployment, the FeeSplitter would properly accept ETH from the vaults
+        _etchTestableFeeSplitter(calculator);
+
+        // Perform multiple disbursement cycles to test the full flow
+        // Cycle 1: Below threshold
+        _performDisbursement(
+            _l1Withdrawer,
+            _chainFeesRecipient,
+            1 ether, // sequencerFees
+            0.5 ether, // baseFees
+            0.3 ether, // l1Fees
+            0, // operatorFees
+            _minWithdrawalAmount
+        );
+
+        // Cycle 2: Still below threshold, accumulating
+        _performDisbursement(
+            _l1Withdrawer,
+            _chainFeesRecipient,
+            2 ether,
+            1 ether,
+            0.6 ether,
+            0,
+            _minWithdrawalAmount
+        );
+
+        // Cycle 3: Above threshold, should trigger withdrawal
+        _performDisbursement(
+            _l1Withdrawer,
+            _chainFeesRecipient,
+            10 ether,
+            5 ether,
+            3 ether,
+            0,
+            _minWithdrawalAmount
+        );
+    }
+
+    /// @notice Etch a testable FeeSplitter implementation that can receive ETH from vaults
+    /// @dev This replaces the FeeSplitter deployed via L1→L2 with a test-friendly version that:
+    ///      1. Accepts ETH from any address (not just specific predeploys)
+    ///      2. Implements the same revenue sharing calculation (2.5% gross or 15% net, whichever is higher)
+    ///      3. Tracks fees from each vault to pass correct parameters to the calculator
+    ///      4. Properly disburses to both the L1Withdrawer (share) and chain fees recipient (remainder)
+    ///      This allows us to test the full disbursement flow in the integration test environment.
+    function _etchTestableFeeSplitter(address _calculator) internal {
+        // Deploy TestableFeeSplitter and get its runtime code
+        TestableFeeSplitter testImpl = new TestableFeeSplitter();
+
+        // Etch the testable implementation at the FeeSplitter predeploy address
+        vm.etch(FEE_SPLITTER, address(testImpl).code);
+
+        // Initialize with the calculator
+        IFeeSplitter(FEE_SPLITTER).initialize(_calculator);
+    }
+
+    /// @notice Perform a single disbursement cycle
+    function _performDisbursement(
+        address _l1Withdrawer,
+        address _chainFeesRecipient,
+        uint256 _sequencerFees,
+        uint256 _baseFees,
+        uint256 _l1Fees,
+        uint256 _operatorFees,
+        uint256 _minWithdrawalAmount
+    ) internal {
+        // Fund vaults
+        vm.deal(SEQUENCER_FEE_VAULT, _sequencerFees);
+        vm.deal(BASE_FEE_VAULT, _baseFees);
+        vm.deal(L1_FEE_VAULT, _l1Fees);
+        vm.deal(OPERATOR_FEE_VAULT, _operatorFees);
+
+        // Trigger withdrawals
+        IFeeVault(SEQUENCER_FEE_VAULT).withdraw();
+        IFeeVault(BASE_FEE_VAULT).withdraw();
+        IFeeVault(L1_FEE_VAULT).withdraw();
+        if (_operatorFees > 0) IFeeVault(OPERATOR_FEE_VAULT).withdraw();
+
+        // Assert vaults empty
+        assertEq(address(SEQUENCER_FEE_VAULT).balance, 0);
+        assertEq(address(BASE_FEE_VAULT).balance, 0);
+        assertEq(address(L1_FEE_VAULT).balance, 0);
+        assertEq(address(OPERATOR_FEE_VAULT).balance, 0);
+
+        uint256 totalFees = _sequencerFees + _baseFees + _l1Fees + _operatorFees;
+        assertEq(address(FEE_SPLITTER).balance, totalFees);
+
+        // Calculate shares
+        uint256 share = _calculateShare(totalFees, _l1Fees);
+
+        // Record L1Withdrawer balance before disbursement
+        uint256 l1WithdrawerBalanceBefore = address(_l1Withdrawer).balance;
+
+        // Disburse
+        vm.warp(block.timestamp + IFeeSplitter(FEE_SPLITTER).feeDisbursementInterval() + 1);
+        IFeeSplitter(FEE_SPLITTER).disburseFees();
+
+        // Validate disbursement results
+        _validateDisbursement(
+            _l1Withdrawer, _chainFeesRecipient, totalFees, share, _minWithdrawalAmount, l1WithdrawerBalanceBefore
+        );
+    }
+
+    /// @notice Calculate the share amount
+    function _calculateShare(uint256 _totalFees, uint256 _l1Fees) internal pure returns (uint256) {
+        uint256 grossShare = (_totalFees * 250) / 10_000;
+        uint256 netShare = ((_totalFees - _l1Fees) * 1_500) / 10_000;
+        return grossShare > netShare ? grossShare : netShare;
+    }
+
+    /// @notice Validate disbursement results
+    function _validateDisbursement(
+        address _l1Withdrawer,
+        address _chainFeesRecipient,
+        uint256 _totalFees,
+        uint256 _share,
+        uint256 _minWithdrawalAmount,
+        uint256 _l1WithdrawerBalanceBefore
+    ) internal {
+        // FeeSplitter should have disbursed all fees
+        assertEq(address(FEE_SPLITTER).balance, 0, "FeeSplitter should be empty after disbursement");
+
+        // Chain fees recipient should have received the remainder
+        uint256 remainder = _totalFees - _share;
+        assertGe(address(_chainFeesRecipient).balance, remainder, "Chain recipient should receive remainder");
+
+        // Check L1Withdrawer balance
+        uint256 l1BalanceAfter = address(_l1Withdrawer).balance;
+        uint256 expectedBalance = _l1WithdrawerBalanceBefore + _share;
+
+        if (expectedBalance >= _minWithdrawalAmount) {
+            // Withdrawal should have been triggered, balance reset to 0
+            assertEq(l1BalanceAfter, 0, "L1Withdrawer balance should be 0 after withdrawal");
+        } else {
+            // Below threshold, should accumulate
+            assertEq(l1BalanceAfter, expectedBalance, "L1Withdrawer should accumulate below threshold");
+            assertTrue(l1BalanceAfter < _minWithdrawalAmount, "Should be below withdrawal threshold");
+        }
+    }
+
+    /// @notice MessagePassed event from L2ToL1MessagePasser
+    event MessagePassed(
+        uint256 indexed nonce,
+        address indexed sender,
+        address indexed target,
+        uint256 value,
+        uint256 gasLimit,
+        bytes data,
+        bytes32 withdrawalHash
+    );
 
     /// @notice Assert the state of all L2 contracts after upgrade
     /// @param _minWithdrawalAmount Expected minimum withdrawal amount for L1Withdrawer

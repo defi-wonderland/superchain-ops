@@ -20,4 +20,5 @@ interface IFeeVault {
     function setRecipient(address _recipient) external;
     function setMinWithdrawalAmount(uint256 _minWithdrawalAmount) external;
     function setWithdrawalNetwork(WithdrawalNetwork _withdrawalNetwork) external;
+    function withdraw() external returns (uint256);
 }
