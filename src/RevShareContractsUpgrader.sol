@@ -19,7 +19,6 @@ import {IFeeVault} from "src/interfaces/IFeeVault.sol";
 ///         1. setupRevShare() - Setup revenue sharing on already-upgraded contracts
 ///         2. upgradeAndSetupRevShare() - Combined upgrade + setup (most efficient)
 ///         All operations use the default calculator (L1Withdrawer + SuperchainRevenueShareCalculator).
-///@dev     Not production ready. Deployed for audit purposes, will be re-deployed after audit
 contract RevShareContractsUpgrader {
     /// @notice Thrown when portal address is zero
     error PortalCannotBeZeroAddress();
