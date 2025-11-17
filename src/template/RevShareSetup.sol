@@ -11,7 +11,7 @@ import {MultisigTaskPrinter} from "src/libraries/MultisigTaskPrinter.sol";
 import {RevShareContractsUpgrader} from "src/RevShareContractsUpgrader.sol";
 import {FeeSplitterSetup} from "src/libraries/FeeSplitterSetup.sol";
 
-/// @notice Task for setting up revenue sharing on OP Stack chains (requires pre-upgraded vaults).
+/// @notice Task for setting up revenue sharing on OP Stack chains after predeploys upgrade.
 contract RevShareSetup is OPCMTaskBase {
     using stdToml for string;
     using EnumerableSet for EnumerableSet.AddressSet;
@@ -122,9 +122,8 @@ contract RevShareSetup is OPCMTaskBase {
     function _build(address) internal override {
         // Delegatecall into RevShareContractsUpgrader
         // OPCMTaskBase uses Multicall3Delegatecall, so this delegatecall will be captured as an action
-        (bool success,) = REV_SHARE_UPGRADER.delegatecall(
-            abi.encodeCall(RevShareContractsUpgrader.setupRevShare, (revShareConfigs))
-        );
+        (bool success,) =
+            REV_SHARE_UPGRADER.delegatecall(abi.encodeCall(RevShareContractsUpgrader.setupRevShare, (revShareConfigs)));
         require(success, "RevShareSetup: Delegatecall failed");
     }
 
@@ -144,8 +143,7 @@ contract RevShareSetup is OPCMTaskBase {
         // Verify it's calling setupRevShare
         bytes4 selector = bytes4(action.arguments);
         require(
-            selector == RevShareContractsUpgrader.setupRevShare.selector,
-            "Wrong function selector for delegatecall"
+            selector == RevShareContractsUpgrader.setupRevShare.selector, "Wrong function selector for delegatecall"
         );
 
         // Decode and validate the revShareConfigs argument
