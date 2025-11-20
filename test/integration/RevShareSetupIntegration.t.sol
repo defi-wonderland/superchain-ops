@@ -2,7 +2,7 @@
 pragma solidity 0.8.15;
 
 import {RevShareContractsUpgrader} from "src/RevShareContractsUpgrader.sol";
-import {RevShareUpgradeAndSetup} from "src/template/RevShareUpgradeAndSetup.sol";
+import {RevShareSetup} from "src/template/RevShareSetup.sol";
 import {IntegrationBase} from "./IntegrationBase.t.sol";
 import {Test} from "forge-std/Test.sol";
 import {FeeVaultUpgrader} from "src/libraries/FeeVaultUpgrader.sol";
@@ -22,7 +22,7 @@ import {ISuperchainRevSharesCalculator} from "src/interfaces/ISuperchainRevShare
 
 contract RevShareContractsUpgraderIntegrationTest is IntegrationBase {
     RevShareContractsUpgrader public revShareUpgrader;
-    RevShareUpgradeAndSetup public revShareTask;
+    RevShareSetup public revShareTask;
 
     // Events for testing
     event WithdrawalInitiated(address indexed recipient, uint256 amount);
@@ -91,14 +91,20 @@ contract RevShareContractsUpgraderIntegrationTest is IntegrationBase {
         vm.etch(REV_SHARE_UPGRADER_ADDRESS, address(revShareUpgrader).code);
         revShareUpgrader = RevShareContractsUpgrader(REV_SHARE_UPGRADER_ADDRESS);
 
-        // Deploy RevShareUpgradeAndSetup task
-        revShareTask = new RevShareUpgradeAndSetup();
+        // Deploy RevShareSetup task
+        revShareTask = new RevShareSetup();
 
-        // Deploy implementations once to get their addresses
+        // Deploy implementations once to get their addresses and bytecode
         address operatorFeeVaultImpl = _deployFromCreationCode(OPERATOR_FEE_VAULT_CREATION_CODE);
         address sequencerFeeVaultImpl = _deployFromCreationCode(SEQUENCER_FEE_VAULT_CREATION_CODE);
         address defaultFeeVaultImpl = _deployFromCreationCode(DEFAULT_FEE_VAULT_CREATION_CODE);
         address feeSplitterImpl = _deployFromCreationCode(FEE_SPLITTER_CREATION_CODE);
+
+        // Get implementation bytecodes
+        bytes memory operatorFeeVaultImplCode = operatorFeeVaultImpl.code;
+        bytes memory sequencerFeeVaultImplCode = sequencerFeeVaultImpl.code;
+        bytes memory defaultFeeVaultImplCode = defaultFeeVaultImpl.code;
+        bytes memory feeSplitterImplCode = feeSplitterImpl.code;
 
         // Deploy a proxy to get its bytecode
         Proxy proxyTemplate = new Proxy(address(this));
@@ -106,11 +112,35 @@ contract RevShareContractsUpgraderIntegrationTest is IntegrationBase {
 
         // Etch predeploys on OP Mainnet fork
         vm.selectFork(_opMainnetForkId);
-        _setupProxyPredeploys(proxyCode, operatorFeeVaultImpl, sequencerFeeVaultImpl, defaultFeeVaultImpl, feeSplitterImpl);
+        _etchImplementations(
+            operatorFeeVaultImpl,
+            sequencerFeeVaultImpl,
+            defaultFeeVaultImpl,
+            feeSplitterImpl,
+            operatorFeeVaultImplCode,
+            sequencerFeeVaultImplCode,
+            defaultFeeVaultImplCode,
+            feeSplitterImplCode
+        );
+        _setupProxyPredeploys(
+            proxyCode, operatorFeeVaultImpl, sequencerFeeVaultImpl, defaultFeeVaultImpl, feeSplitterImpl
+        );
 
         // Etch predeploys on Ink Mainnet fork
         vm.selectFork(_inkMainnetForkId);
-        _setupProxyPredeploys(proxyCode, operatorFeeVaultImpl, sequencerFeeVaultImpl, defaultFeeVaultImpl, feeSplitterImpl);
+        _etchImplementations(
+            operatorFeeVaultImpl,
+            sequencerFeeVaultImpl,
+            defaultFeeVaultImpl,
+            feeSplitterImpl,
+            operatorFeeVaultImplCode,
+            sequencerFeeVaultImplCode,
+            defaultFeeVaultImplCode,
+            feeSplitterImplCode
+        );
+        _setupProxyPredeploys(
+            proxyCode, operatorFeeVaultImpl, sequencerFeeVaultImpl, defaultFeeVaultImpl, feeSplitterImpl
+        );
 
         // Switch back to mainnet fork after setup
         vm.selectFork(_mainnetForkId);
@@ -317,6 +347,31 @@ contract RevShareContractsUpgraderIntegrationTest is IntegrationBase {
             deployed := create(0, add(_creationCode, 0x20), mload(_creationCode))
         }
         require(deployed != address(0), "Deployment failed");
+    }
+
+    /// @notice Etch implementation bytecode at addresses on the current fork
+    /// @param _operatorFeeVaultImpl OperatorFeeVault implementation address
+    /// @param _sequencerFeeVaultImpl SequencerFeeVault implementation address
+    /// @param _defaultFeeVaultImpl Default FeeVault implementation address
+    /// @param _feeSplitterImpl FeeSplitter implementation address
+    /// @param _operatorFeeVaultImplCode OperatorFeeVault implementation bytecode
+    /// @param _sequencerFeeVaultImplCode SequencerFeeVault implementation bytecode
+    /// @param _defaultFeeVaultImplCode Default FeeVault implementation bytecode
+    /// @param _feeSplitterImplCode FeeSplitter implementation bytecode
+    function _etchImplementations(
+        address _operatorFeeVaultImpl,
+        address _sequencerFeeVaultImpl,
+        address _defaultFeeVaultImpl,
+        address _feeSplitterImpl,
+        bytes memory _operatorFeeVaultImplCode,
+        bytes memory _sequencerFeeVaultImplCode,
+        bytes memory _defaultFeeVaultImplCode,
+        bytes memory _feeSplitterImplCode
+    ) internal {
+        vm.etch(_operatorFeeVaultImpl, _operatorFeeVaultImplCode);
+        vm.etch(_sequencerFeeVaultImpl, _sequencerFeeVaultImplCode);
+        vm.etch(_defaultFeeVaultImpl, _defaultFeeVaultImplCode);
+        vm.etch(_feeSplitterImpl, _feeSplitterImplCode);
     }
 
     /// @notice Execute disburseFees and assert that it triggers a withdrawal with the expected amount
