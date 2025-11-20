@@ -5,6 +5,10 @@ import {RevShareContractsUpgrader} from "src/RevShareContractsUpgrader.sol";
 import {RevShareUpgradeAndSetup} from "src/template/RevShareUpgradeAndSetup.sol";
 import {IntegrationBase} from "./IntegrationBase.t.sol";
 import {Test} from "forge-std/Test.sol";
+import {FeeVaultUpgrader} from "src/libraries/FeeVaultUpgrader.sol";
+import {FeeSplitterSetup} from "src/libraries/FeeSplitterSetup.sol";
+import {RevShareCommon} from "src/libraries/RevShareCommon.sol";
+import {Proxy} from "@eth-optimism-bedrock/src/universal/Proxy.sol";
 
 // Interfaces
 import {IOptimismPortal2} from "@eth-optimism-bedrock/interfaces/L1/IOptimismPortal2.sol";
@@ -37,6 +41,11 @@ contract RevShareContractsUpgraderIntegrationTest is IntegrationBase {
     address internal constant L1_FEE_VAULT = 0x420000000000000000000000000000000000001A;
     address internal constant FEE_SPLITTER = 0x420000000000000000000000000000000000002B;
 
+    // EIP-1967 storage slots for proxy
+    bytes32 internal constant PROXY_IMPLEMENTATION_SLOT =
+        0x360894a13ba1a3210667c828492db98dca3e2076cc3735a920a3ca505d382bbc;
+    bytes32 internal constant PROXY_OWNER_SLOT = 0xb53127684a568b3173ae13b9f8a6016e243e63b6e8ee1178d6a717850b5d6103;
+
     // Expected deployed contracts (deterministic CREATE2 addresses)
     address internal constant OP_L1_WITHDRAWER = 0xB3AeB34b88D73Fb4832f65BEa5Bd865017fB5daC;
     address internal constant OP_REV_SHARE_CALCULATOR = 0x3E806Fd8592366E850197FEC8D80608b5526Bba2;
@@ -58,6 +67,12 @@ contract RevShareContractsUpgraderIntegrationTest is IntegrationBase {
 
     bool internal constant IS_SIMULATE = true;
 
+    // Creation codes from libraries (cannot be constant as they reference library constants)
+    bytes internal OPERATOR_FEE_VAULT_CREATION_CODE = FeeVaultUpgrader.operatorFeeVaultCreationCode;
+    bytes internal SEQUENCER_FEE_VAULT_CREATION_CODE = FeeVaultUpgrader.sequencerFeeVaultCreationCode;
+    bytes internal DEFAULT_FEE_VAULT_CREATION_CODE = FeeVaultUpgrader.defaultFeeVaultCreationCode;
+    bytes internal FEE_SPLITTER_CREATION_CODE = FeeSplitterSetup.feeSplitterCreationCode;
+
     function setUp() public {
         // Create forks for L1 (mainnet) and L2 (OP Mainnet)
         _mainnetForkId = vm.createFork("http://127.0.0.1:8545");
@@ -75,12 +90,26 @@ contract RevShareContractsUpgraderIntegrationTest is IntegrationBase {
         // Deploy RevShareUpgradeAndSetup task
         revShareTask = new RevShareUpgradeAndSetup();
 
-        // Etch predeploys to simulate vaults and splitter previous upgrade
-        vm.etch(SEQUENCER_FEE_VAULT, vm.getDeployedCode("SequencerFeeVault.sol:SequencerFeeVault"));
-        vm.etch(OPERATOR_FEE_VAULT, vm.getDeployedCode("OperatorFeeVault.sol:OperatorFeeVault"));
-        vm.etch(BASE_FEE_VAULT, vm.getDeployedCode("BaseFeeVault.sol:BaseFeeVault"));
-        vm.etch(L1_FEE_VAULT, vm.getDeployedCode("L1FeeVault.sol:L1FeeVault"));
-        vm.etch(FEE_SPLITTER, vm.getDeployedCode("FeeSplitter.sol:FeeSplitter"));
+        // Deploy implementations once to get their addresses
+        address operatorFeeVaultImpl = _deployFromCreationCode(OPERATOR_FEE_VAULT_CREATION_CODE);
+        address sequencerFeeVaultImpl = _deployFromCreationCode(SEQUENCER_FEE_VAULT_CREATION_CODE);
+        address defaultFeeVaultImpl = _deployFromCreationCode(DEFAULT_FEE_VAULT_CREATION_CODE);
+        address feeSplitterImpl = _deployFromCreationCode(FEE_SPLITTER_CREATION_CODE);
+
+        // Deploy a proxy to get its bytecode
+        Proxy proxyTemplate = new Proxy(address(this));
+        bytes memory proxyCode = address(proxyTemplate).code;
+
+        // Etch predeploys on OP Mainnet fork
+        vm.selectFork(_opMainnetForkId);
+        _setupProxyPredeploys(proxyCode, operatorFeeVaultImpl, sequencerFeeVaultImpl, defaultFeeVaultImpl, feeSplitterImpl);
+
+        // Etch predeploys on Ink Mainnet fork
+        vm.selectFork(_inkMainnetForkId);
+        _setupProxyPredeploys(proxyCode, operatorFeeVaultImpl, sequencerFeeVaultImpl, defaultFeeVaultImpl, feeSplitterImpl);
+
+        // Switch back to mainnet fork after setup
+        vm.selectFork(_mainnetForkId);
     }
 
     /// @notice Test the integration of setupRevShare
@@ -211,5 +240,54 @@ contract RevShareContractsUpgraderIntegrationTest is IntegrationBase {
             _minWithdrawalAmount,
             "Vault MIN_WITHDRAWAL_AMOUNT (legacy) mismatch"
         );
+    }
+
+    /// @notice Setup proxy predeploys pointing to implementations
+    /// @param _proxyCode Proxy runtime bytecode
+    /// @param _operatorFeeVaultImpl OperatorFeeVault implementation address
+    /// @param _sequencerFeeVaultImpl SequencerFeeVault implementation address
+    /// @param _defaultFeeVaultImpl Default FeeVault implementation address (for Base and L1)
+    /// @param _feeSplitterImpl FeeSplitter implementation address
+    function _setupProxyPredeploys(
+        bytes memory _proxyCode,
+        address _operatorFeeVaultImpl,
+        address _sequencerFeeVaultImpl,
+        address _defaultFeeVaultImpl,
+        address _feeSplitterImpl
+    ) internal {
+        // Setup OperatorFeeVault proxy
+        vm.etch(OPERATOR_FEE_VAULT, _proxyCode);
+        vm.store(OPERATOR_FEE_VAULT, PROXY_IMPLEMENTATION_SLOT, bytes32(uint256(uint160(_operatorFeeVaultImpl))));
+        vm.store(OPERATOR_FEE_VAULT, PROXY_OWNER_SLOT, bytes32(uint256(uint160(RevShareCommon.PROXY_ADMIN))));
+
+        // Setup SequencerFeeVault proxy
+        vm.etch(SEQUENCER_FEE_VAULT, _proxyCode);
+        vm.store(SEQUENCER_FEE_VAULT, PROXY_IMPLEMENTATION_SLOT, bytes32(uint256(uint160(_sequencerFeeVaultImpl))));
+        vm.store(SEQUENCER_FEE_VAULT, PROXY_OWNER_SLOT, bytes32(uint256(uint160(RevShareCommon.PROXY_ADMIN))));
+
+        // Setup BaseFeeVault proxy
+        vm.etch(BASE_FEE_VAULT, _proxyCode);
+        vm.store(BASE_FEE_VAULT, PROXY_IMPLEMENTATION_SLOT, bytes32(uint256(uint160(_defaultFeeVaultImpl))));
+        vm.store(BASE_FEE_VAULT, PROXY_OWNER_SLOT, bytes32(uint256(uint160(RevShareCommon.PROXY_ADMIN))));
+
+        // Setup L1FeeVault proxy
+        vm.etch(L1_FEE_VAULT, _proxyCode);
+        vm.store(L1_FEE_VAULT, PROXY_IMPLEMENTATION_SLOT, bytes32(uint256(uint160(_defaultFeeVaultImpl))));
+        vm.store(L1_FEE_VAULT, PROXY_OWNER_SLOT, bytes32(uint256(uint160(RevShareCommon.PROXY_ADMIN))));
+
+        // Setup FeeSplitter proxy
+        vm.etch(FEE_SPLITTER, _proxyCode);
+        vm.store(FEE_SPLITTER, PROXY_IMPLEMENTATION_SLOT, bytes32(uint256(uint160(_feeSplitterImpl))));
+        vm.store(FEE_SPLITTER, PROXY_OWNER_SLOT, bytes32(uint256(uint160(RevShareCommon.PROXY_ADMIN))));
+    }
+
+    /// @notice Deploy a contract from creation code
+    /// @param _creationCode The creation code of the contract to deploy
+    /// @return deployed The address of the deployed contract
+    function _deployFromCreationCode(bytes memory _creationCode) internal returns (address deployed) {
+        assembly {
+            deployed := create(0, add(_creationCode, 0x20), mload(_creationCode))
+        }
+        require(deployed != address(0), "Deployment failed");
     }
 }
