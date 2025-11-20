@@ -28,7 +28,7 @@ contract RevShareContractsUpgraderIntegrationTest is IntegrationBase {
 
     /// @notice Test the integration of upgradeAndSetupRevShare
     function test_upgradeAndSetupRevShare_integration() public {
-        // Step 1: Record logs for L1→L2 message replay
+        // Step 1: Record logs for L1→L2 message relay
         vm.recordLogs();
 
         // Step 2: Execute task simulation
