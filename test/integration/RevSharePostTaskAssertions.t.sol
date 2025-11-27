@@ -1,34 +1,36 @@
 // SPDX-License-Identifier: MIT
 pragma solidity 0.8.15;
 
-import {RevShareContractsUpgrader} from "src/RevShareContractsUpgrader.sol";
-import {RevShareUpgradeAndSetup} from "src/template/RevShareUpgradeAndSetup.sol";
 import {IntegrationBase} from "./IntegrationBase.t.sol";
 
-contract RevShareContractsUpgraderIntegrationTest is IntegrationBase {
-    RevShareContractsUpgrader public revShareUpgrader;
-    RevShareUpgradeAndSetup public revShareTask;
-
+/// @title RevSharePostTaskAssertionsTest
+/// @notice Integration test for asserting Rev Share contract state after task execution.
+///         This test does NOT execute the task simulation or relay L1->L2 messages.
+///         It directly asserts the expected state on L2 chains after a real task execution.
+///         Set POST_REVSHARE_TASK_ASSERTIONS=true to run these tests.
+contract RevSharePostTaskAssertionsTest is IntegrationBase {
+    /// @notice Modifier to skip tests if POST_REVSHARE_TASK_ASSERTIONS env var is not set to "true"
+    modifier onlyIfEnabled() {
+        bool enabled = vm.envOr("POST_REVSHARE_TASK_ASSERTIONS", false);
+        if (!enabled) vm.skip(true);
+        _;
+    }
     // Fork IDs
-    uint256 internal _mainnetForkId;
+
     uint256 internal _opMainnetForkId;
     uint256 internal _inkMainnetForkId;
     uint256 internal _soneiumMainnetForkId;
 
-    // L1 addresses
+    // L1 Portal addresses (needed for L2ChainConfig)
     address internal constant OP_MAINNET_PORTAL = 0xbEb5Fc579115071764c7423A4f12eDde41f106Ed;
     address internal constant INK_MAINNET_PORTAL = 0x5d66C1782664115999C47c9fA5cd031f495D3e4F;
     address internal constant SONEIUM_MAINNET_PORTAL = 0x88e529A6ccd302c948689Cd5156C83D4614FAE92;
-    address internal constant REV_SHARE_UPGRADER_ADDRESS = 0x0000000000000000000000000000000000001337;
-
-    bool internal constant IS_SIMULATE = true;
 
     // Array to store all L2 chain configurations
     L2ChainConfig[] internal l2Chains;
 
     function setUp() public {
-        // Create forks for L1 (mainnet) and L2s
-        _mainnetForkId = vm.createFork("http://127.0.0.1:8545");
+        // Create L2 forks only (no L1 fork needed for assertions)
         _opMainnetForkId = vm.createFork("http://127.0.0.1:9545");
         _inkMainnetForkId = vm.createFork("http://127.0.0.1:9546");
         _soneiumMainnetForkId = vm.createFork("http://127.0.0.1:9547");
@@ -69,39 +71,10 @@ contract RevShareContractsUpgraderIntegrationTest is IntegrationBase {
                 name: "Soneium Mainnet"
             })
         );
-
-        // Deploy contracts on L1
-        vm.selectFork(_mainnetForkId);
-
-        // Deploy RevShareContractsUpgrader and etch at predetermined address
-        revShareUpgrader = new RevShareContractsUpgrader();
-        vm.etch(REV_SHARE_UPGRADER_ADDRESS, address(revShareUpgrader).code);
-        revShareUpgrader = RevShareContractsUpgrader(REV_SHARE_UPGRADER_ADDRESS);
-
-        // Deploy RevShareUpgradeAndSetup task
-        revShareTask = new RevShareUpgradeAndSetup();
     }
 
-    /// @notice Test the integration of upgradeAndSetupRevShare
-    function test_upgradeAndSetupRevShare_integration() public {
-        // Step 1: Record logs for L1→L2 message replay
-        vm.recordLogs();
-
-        // Step 2: Execute task simulation
-        revShareTask.simulate("test/tasks/example/eth/016-revshare-upgrade-and-setup/config.toml");
-
-        // Step 3: Relay deposit transactions from L1 to all L2s
-        uint256[] memory forkIds = new uint256[](l2Chains.length);
-        address[] memory portals = new address[](l2Chains.length);
-
-        for (uint256 i = 0; i < l2Chains.length; i++) {
-            forkIds[i] = l2Chains[i].forkId;
-            portals[i] = l2Chains[i].portal;
-        }
-
-        _relayAllMessages(forkIds, IS_SIMULATE, portals);
-
-        // Step 4: Assert L2 state for all chains
+    /// @notice Assert the Rev Share contract state on all L2 chains
+    function test_assertRevShareState() public onlyIfEnabled {
         for (uint256 i = 0; i < l2Chains.length; i++) {
             L2ChainConfig memory chain = l2Chains[i];
 
@@ -121,13 +94,16 @@ contract RevShareContractsUpgraderIntegrationTest is IntegrationBase {
                 chain.chainFeesRecipient
             );
         }
+    }
 
-        // Step 5: Fund vaults for all chains
+    /// @notice Test the withdrawal flow on all L2 chains
+    function test_withdrawalFlow() public onlyIfEnabled {
+        // Fund vaults for all chains
         for (uint256 i = 0; i < l2Chains.length; i++) {
             _fundVaults(1 ether, l2Chains[i].forkId);
         }
 
-        // Step 6: Disburse fees in all chains and assert withdrawals
+        // Disburse fees in all chains and assert withdrawals
         // Expected L1Withdrawer share = 3 ether * 15% = 0.45 ether
         // It is 3 ether instead of 4 because net revenue doesn't count L1FeeVault's balance
         // For details on the rev share calculation, check the SuperchainRevSharesCalculator contract.
