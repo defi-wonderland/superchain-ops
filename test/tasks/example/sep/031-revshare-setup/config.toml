@@ -1,9 +1,9 @@
 # RevShare Setup Configuration
 
-templateName = "RevShareSetup"
+templateName = "RevShareUpgradeAndSetup"
 
 # L2 chains to target
-l2chains = [{name = "OP Mainnet", chainId = 10}, {name = "Ink", chainId = 57073}, {name = "Soneium", chainId = 1868}]
+l2chains = [{name = "OP Sepolia", chainId = 11155420}, {name = "Ink Sepolia", chainId = 763373}, {name = "Soneium Testnet Minato", chainId = 1946}]
 
 safeAddress = "ProxyAdminOwner"
 
@@ -13,9 +13,9 @@ revShareUpgrader = "0x890C61C7F3f40B851EbCAacFA879C6075426419D"
 
 # RevShare configurations (one per chain) - flattened arrays
 portals = [
-  "0x16Fc5058F25648194471939df75CF27A2fdC48BC", # OP Mainnet Portal
-  "0x5c1d29C6c9C8b0800692acC95D700bcb4966A1d7", # Ink Mainnet Portal
-  "0x65ea1489741A5D72fFdD8e6485B216bBdcC15Af3"  # Soneium Mainnet Portal
+  "0x16Fc5058F25648194471939df75CF27A2fdC48BC", # OP Sepolia Portal
+  "0x5c1d29C6c9C8b0800692acC95D700bcb4966A1d7", # Ink Sepolia Portal
+  "0x65ea1489741A5D72fFdD8e6485B216bBdcC15Af3"  # Soneium Testnet Minato Portal
 ]
 chainFeesRecipients = [
   "0x0000000000000000000000000000000000000001", # TODO: Update to the corresponding address once defined
