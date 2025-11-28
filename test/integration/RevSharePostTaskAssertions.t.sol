@@ -37,28 +37,22 @@ contract RevSharePostTaskAssertionsTest is IntegrationBase {
     }
 
     function setUp() public {
-        // Try to read required env vars, skip if any are missing
-        try vm.envString("RPC_URL") returns (string memory rpcUrl) {
-            try vm.envAddress("OPTIMISM_PORTAL") returns (address portal) {
-                try vm.envUint("MIN_WITHDRAWAL_AMOUNT") returns (uint256 minWithdrawalAmount) {
-                    try vm.envAddress("CHAIN_FEES_RECIPIENT") returns (address chainFeesRecipient) {
-                        // All env vars present, configure the test
-                        _l2ForkId = vm.createFork(rpcUrl);
-                        _portal = portal;
-                        _minWithdrawalAmount = minWithdrawalAmount;
-                        _chainFeesRecipient = chainFeesRecipient;
-                        _isEnabled = true;
-                    } catch {
-                        _isEnabled = false;
-                    }
-                } catch {
-                    _isEnabled = false;
-                }
-            } catch {
-                _isEnabled = false;
-            }
-        } catch {
-            _isEnabled = false;
+        // Read env vars with defaults to detect if they're set
+        string memory rpcUrl = vm.envOr("RPC_URL", string(""));
+        _portal = vm.envOr("OPTIMISM_PORTAL", address(0));
+        _minWithdrawalAmount = vm.envOr("MIN_WITHDRAWAL_AMOUNT", uint256(0));
+        _chainFeesRecipient = vm.envOr("CHAIN_FEES_RECIPIENT", address(0));
+
+        // Check if all required env vars are set
+        bool hasRpcUrl = bytes(rpcUrl).length > 0;
+        bool hasPortal = _portal != address(0);
+        bool hasMinWithdrawal = _minWithdrawalAmount > 0;
+        bool hasChainFeesRecipient = _chainFeesRecipient != address(0);
+
+        _isEnabled = hasRpcUrl && hasPortal && hasMinWithdrawal && hasChainFeesRecipient;
+
+        if (_isEnabled) {
+            _l2ForkId = vm.createFork(rpcUrl);
         }
     }
 
