@@ -23,8 +23,14 @@ contract RevShareSetupIntegrationTest is IntegrationBase {
     bytes internal DEFAULT_FEE_VAULT_CREATION_CODE = FeeVaultUpgrader.defaultFeeVaultCreationCode;
     bytes internal FEE_SPLITTER_CREATION_CODE = FeeSplitterSetup.feeSplitterCreationCode;
 
+    // Implementation addresses (deployed and etched in setUp)
+    address internal _operatorFeeVaultImpl;
+    address internal _sequencerFeeVaultImpl;
+    address internal _defaultFeeVaultImpl;
+    address internal _feeSplitterImpl;
+
     function setUp() public {
-        // Create forks for L1 (mainnet) and L2s
+        // Create forks for L1 (mainnet) and L2s (OP Mainnet, Ink, Soneium)
         _mainnetForkId = vm.createFork("http://127.0.0.1:8545");
         _opMainnetForkId = vm.createFork("http://127.0.0.1:9545");
         _inkMainnetForkId = vm.createFork("http://127.0.0.1:9546");
@@ -42,16 +48,16 @@ contract RevShareSetupIntegrationTest is IntegrationBase {
         revShareTask = new RevShareSetup();
 
         // Deploy implementations once to get their addresses and bytecode
-        address operatorFeeVaultImpl = _deployFromCreationCode(OPERATOR_FEE_VAULT_CREATION_CODE);
-        address sequencerFeeVaultImpl = _deployFromCreationCode(SEQUENCER_FEE_VAULT_CREATION_CODE);
-        address defaultFeeVaultImpl = _deployFromCreationCode(DEFAULT_FEE_VAULT_CREATION_CODE);
-        address feeSplitterImpl = _deployFromCreationCode(FEE_SPLITTER_CREATION_CODE);
+        _operatorFeeVaultImpl = _deployFromCreationCode(OPERATOR_FEE_VAULT_CREATION_CODE);
+        _sequencerFeeVaultImpl = _deployFromCreationCode(SEQUENCER_FEE_VAULT_CREATION_CODE);
+        _defaultFeeVaultImpl = _deployFromCreationCode(DEFAULT_FEE_VAULT_CREATION_CODE);
+        _feeSplitterImpl = _deployFromCreationCode(FEE_SPLITTER_CREATION_CODE);
 
         // Get implementation bytecodes
-        bytes memory operatorFeeVaultImplCode = operatorFeeVaultImpl.code;
-        bytes memory sequencerFeeVaultImplCode = sequencerFeeVaultImpl.code;
-        bytes memory defaultFeeVaultImplCode = defaultFeeVaultImpl.code;
-        bytes memory feeSplitterImplCode = feeSplitterImpl.code;
+        bytes memory operatorFeeVaultImplCode = _operatorFeeVaultImpl.code;
+        bytes memory sequencerFeeVaultImplCode = _sequencerFeeVaultImpl.code;
+        bytes memory defaultFeeVaultImplCode = _defaultFeeVaultImpl.code;
+        bytes memory feeSplitterImplCode = _feeSplitterImpl.code;
 
         // Deploy a proxy to get its bytecode
         Proxy proxyTemplate = new Proxy(address(this));
@@ -60,33 +66,49 @@ contract RevShareSetupIntegrationTest is IntegrationBase {
         // Etch predeploys on OP Mainnet fork
         vm.selectFork(_opMainnetForkId);
         _etchImplementations(
-            operatorFeeVaultImpl,
-            sequencerFeeVaultImpl,
-            defaultFeeVaultImpl,
-            feeSplitterImpl,
+            _operatorFeeVaultImpl,
+            _sequencerFeeVaultImpl,
+            _defaultFeeVaultImpl,
+            _feeSplitterImpl,
             operatorFeeVaultImplCode,
             sequencerFeeVaultImplCode,
             defaultFeeVaultImplCode,
             feeSplitterImplCode
         );
         _setupProxyPredeploys(
-            proxyCode, operatorFeeVaultImpl, sequencerFeeVaultImpl, defaultFeeVaultImpl, feeSplitterImpl
+            proxyCode, _operatorFeeVaultImpl, _sequencerFeeVaultImpl, _defaultFeeVaultImpl, _feeSplitterImpl
         );
 
         // Etch predeploys on Ink Mainnet fork
         vm.selectFork(_inkMainnetForkId);
         _etchImplementations(
-            operatorFeeVaultImpl,
-            sequencerFeeVaultImpl,
-            defaultFeeVaultImpl,
-            feeSplitterImpl,
+            _operatorFeeVaultImpl,
+            _sequencerFeeVaultImpl,
+            _defaultFeeVaultImpl,
+            _feeSplitterImpl,
             operatorFeeVaultImplCode,
             sequencerFeeVaultImplCode,
             defaultFeeVaultImplCode,
             feeSplitterImplCode
         );
         _setupProxyPredeploys(
-            proxyCode, operatorFeeVaultImpl, sequencerFeeVaultImpl, defaultFeeVaultImpl, feeSplitterImpl
+            proxyCode, _operatorFeeVaultImpl, _sequencerFeeVaultImpl, _defaultFeeVaultImpl, _feeSplitterImpl
+        );
+
+        // Etch predeploys on Soneium Mainnet fork
+        vm.selectFork(_soneiumMainnetForkId);
+        _etchImplementations(
+            _operatorFeeVaultImpl,
+            _sequencerFeeVaultImpl,
+            _defaultFeeVaultImpl,
+            _feeSplitterImpl,
+            operatorFeeVaultImplCode,
+            sequencerFeeVaultImplCode,
+            defaultFeeVaultImplCode,
+            feeSplitterImplCode
+        );
+        _setupProxyPredeploys(
+            proxyCode, _operatorFeeVaultImpl, _sequencerFeeVaultImpl, _defaultFeeVaultImpl, _feeSplitterImpl
         );
 
         // Etch predeploys on Soneium Mainnet fork
