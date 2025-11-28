@@ -24,13 +24,11 @@ chainFeesRecipients = [
 ]
 l1WithdrawerMinWithdrawalAmounts = [350000, 500000, 500000]
 
+# FeesDepositor address in mainnet
 l1WithdrawerRecipients = [
-  # TODO: Update to the corresponding (e.g. FeesDepositor) address once defined
-  "0x0000000000000000000000000000000000000001",
-  # TODO: Update to the corresponding (e.g. FeesDepositor) address once defined
-  "0x0000000000000000000000000000000000000002",
-  # TODO: Update to the corresponding (e.g. FeesDepositor) address once defined
-  "0x0000000000000000000000000000000000000003"
+  "0xed9B99a703BaD32AC96FDdc313c0652e379251Fd",
+  "0xed9B99a703BaD32AC96FDdc313c0652e379251Fd",
+  "0xed9B99a703BaD32AC96FDdc313c0652e379251Fd"
 ]
 l1WithdrawerGasLimits = [800000, 800000, 800000]
 
