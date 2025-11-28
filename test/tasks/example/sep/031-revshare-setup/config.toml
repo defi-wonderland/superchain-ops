@@ -3,7 +3,7 @@
 templateName = "RevShareSetup"
 
 # L2 chains to target
-l2chains = [{name = "OP Sepolia Testnet", chainId = 11155420}]
+l2chains = [{name = "OP Mainnet", chainId = 10}, {name = "Ink", chainId = 57073}, {name = "Soneium", chainId = 1868}]
 
 safeAddress = "ProxyAdminOwner"
 
@@ -12,11 +12,25 @@ safeAddress = "ProxyAdminOwner"
 revShareUpgrader = "0x890C61C7F3f40B851EbCAacFA879C6075426419D"
 
 # RevShare configurations (one per chain) - flattened arrays
-portals = ["0x16Fc5058F25648194471939df75CF27A2fdC48BC"] # OP Sepolia Testnet Portal
-chainFeesRecipients = ["0x0000000000000000000000000000000000000001"] # OP Sepolia Testnet chain fees recipient
-l1WithdrawerMinWithdrawalAmounts = [350000]
-l1WithdrawerRecipients = ["0x0000000000000000000000000000000000000001"]
-l1WithdrawerGasLimits = [800000]
+portals = [
+  "0x16Fc5058F25648194471939df75CF27A2fdC48BC", # OP Mainnet Portal
+  "0x5c1d29C6c9C8b0800692acC95D700bcb4966A1d7", # Ink Mainnet Portal
+  "0x65ea1489741A5D72fFdD8e6485B216bBdcC15Af3"  # Soneium Mainnet Portal
+]
+chainFeesRecipients = [
+  "0x0000000000000000000000000000000000000001", # TODO: Update to the corresponding address once defined
+  "0x0000000000000000000000000000000000000002", # TODO: Update to the corresponding address once defined
+  "0x0000000000000000000000000000000000000003"  # TODO: Update to the corresponding address once defined
+]
+l1WithdrawerMinWithdrawalAmounts = [350000, 500000, 500000]
+
+# FeesDepositor address in mainnet
+l1WithdrawerRecipients = [
+  "0xed9B99a703BaD32AC96FDdc313c0652e379251Fd",
+  "0xed9B99a703BaD32AC96FDdc313c0652e379251Fd",
+  "0xed9B99a703BaD32AC96FDdc313c0652e379251Fd"
+]
+l1WithdrawerGasLimits = [800000, 800000, 800000]
 
 [addresses]
 ProxyAdminOwner = "0x1Eb2fFc903729a0F03966B917003800b145F56E2"
