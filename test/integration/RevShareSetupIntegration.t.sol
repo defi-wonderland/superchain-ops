@@ -127,22 +127,6 @@ contract RevShareSetupIntegrationTest is IntegrationBase {
             proxyCode, _operatorFeeVaultImpl, _sequencerFeeVaultImpl, _defaultFeeVaultImpl, _feeSplitterImpl
         );
 
-        // Etch predeploys on Soneium Mainnet fork
-        vm.selectFork(_soneiumMainnetForkId);
-        _etchImplementations(
-            _operatorFeeVaultImpl,
-            _sequencerFeeVaultImpl,
-            _defaultFeeVaultImpl,
-            _feeSplitterImpl,
-            operatorFeeVaultImplCode,
-            sequencerFeeVaultImplCode,
-            defaultFeeVaultImplCode,
-            feeSplitterImplCode
-        );
-        _setupProxyPredeploys(
-            proxyCode, _operatorFeeVaultImpl, _sequencerFeeVaultImpl, _defaultFeeVaultImpl, _feeSplitterImpl
-        );
-
         // Switch back to mainnet fork after setup
         vm.selectFork(_mainnetForkId);
     }
