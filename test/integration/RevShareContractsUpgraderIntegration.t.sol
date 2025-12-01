@@ -96,16 +96,17 @@ contract RevShareContractsUpgraderIntegrationTest is IntegrationBase {
         // Step 7: Do a withdrawal flow
 
         // Fund vaults with amount > minWithdrawalAmount
-        _fundVaults(1 ether, _opMainnetForkId);
-        _fundVaults(1 ether, _inkMainnetForkId);
-        _fundVaults(1 ether, _soneiumMainnetForkId);
+        // It disburse 5 ether to each of the 4 vaults, so total sent is 20 ether
+        _fundVaults(5 ether, _opMainnetForkId);
+        _fundVaults(5 ether, _inkMainnetForkId);
+        _fundVaults(5 ether, _soneiumMainnetForkId);
 
         // Disburse fees in all chains and expect the L1Withdrawer to trigger the withdrawal
-        // Expected L1Withdrawer share = 3 ether * 15% = 0.45 ether
-        // It is 3 ether instead of 4 because net revenue doesn't count L1FeeVault's balance
+        // Expected L1Withdrawer share = 15 ether * 15% = 2.25 ether
+        // It is 15 ether instead of 20 because net revenue doesn't count L1FeeVault's balance
         // For details on the rev share calculation, check the SuperchainRevSharesCalculator contract.
         // https://github.com/ethereum-optimism/optimism/blob/f392d4b7e8bc5d1c8d38fcf19c8848764f8bee3b/packages/contracts-bedrock/src/L2/SuperchainRevSharesCalculator.sol#L67-L101
-        uint256 expectedWithdrawalAmount = 0.45 ether;
+        uint256 expectedWithdrawalAmount = 2.25 ether;
 
         _executeDisburseAndAssertWithdrawal(_opMainnetForkId, OP_L1_WITHDRAWAL_RECIPIENT, expectedWithdrawalAmount);
         _executeDisburseAndAssertWithdrawal(_inkMainnetForkId, INK_L1_WITHDRAWAL_RECIPIENT, expectedWithdrawalAmount);
