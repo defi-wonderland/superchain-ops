@@ -47,23 +47,23 @@ abstract contract IntegrationBase is Test {
     // Test configuration - Globals
     uint256 internal constant DEFAULT_MIN_WITHDRAWAL_AMOUNT = 2 ether;
     uint32 internal constant DEFAULT_WITHDRAWAL_GAS_LIMIT = 800000;
-    address internal constant DEFAULT_L1_WITHDRAWAL_RECIPIENT = 0xed9B99a703BaD32AC96FDdc313c0652e379251Fd;
+    address internal constant FEES_DEPOSITOR = 0xed9B99a703BaD32AC96FDdc313c0652e379251Fd;
 
     // Test configuration - OP Mainnet
     uint256 internal constant OP_MIN_WITHDRAWAL_AMOUNT = DEFAULT_MIN_WITHDRAWAL_AMOUNT;
-    address internal constant OP_L1_WITHDRAWAL_RECIPIENT = DEFAULT_L1_WITHDRAWAL_RECIPIENT;
+    address internal constant OP_L1_WITHDRAWAL_RECIPIENT = FEES_DEPOSITOR;
     uint32 internal constant OP_WITHDRAWAL_GAS_LIMIT = DEFAULT_WITHDRAWAL_GAS_LIMIT;
     address internal constant OP_CHAIN_FEES_RECIPIENT = 0xa3d596EAfaB6B13Ab18D40FaE1A962700C84ADEa;
 
     // Test configuration - Ink Mainnet
     uint256 internal constant INK_MIN_WITHDRAWAL_AMOUNT = DEFAULT_MIN_WITHDRAWAL_AMOUNT;
-    address internal constant INK_L1_WITHDRAWAL_RECIPIENT = DEFAULT_L1_WITHDRAWAL_RECIPIENT;
+    address internal constant INK_L1_WITHDRAWAL_RECIPIENT = FEES_DEPOSITOR;
     uint32 internal constant INK_WITHDRAWAL_GAS_LIMIT = DEFAULT_WITHDRAWAL_GAS_LIMIT;
     address internal constant INK_CHAIN_FEES_RECIPIENT = 0xa6f0F94C13C4255231958079E7331694205F6c93;
 
     // Test configuration - Soneium Mainnet
     uint256 internal constant SONEIUM_MIN_WITHDRAWAL_AMOUNT = DEFAULT_MIN_WITHDRAWAL_AMOUNT;
-    address internal constant SONEIUM_L1_WITHDRAWAL_RECIPIENT = DEFAULT_L1_WITHDRAWAL_RECIPIENT;
+    address internal constant SONEIUM_L1_WITHDRAWAL_RECIPIENT = FEES_DEPOSITOR;
     uint32 internal constant SONEIUM_WITHDRAWAL_GAS_LIMIT = DEFAULT_WITHDRAWAL_GAS_LIMIT;
     address internal constant SONEIUM_CHAIN_FEES_RECIPIENT = 0xF07b3169ffF67A8AECdBb18d9761AEeE34591112;
 
