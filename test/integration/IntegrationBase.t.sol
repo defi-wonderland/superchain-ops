@@ -53,7 +53,7 @@ abstract contract IntegrationBase is Test {
     uint256 internal constant OP_MIN_WITHDRAWAL_AMOUNT = DEFAULT_MIN_WITHDRAWAL_AMOUNT;
     address internal constant OP_L1_WITHDRAWAL_RECIPIENT = FEES_DEPOSITOR;
     uint32 internal constant OP_WITHDRAWAL_GAS_LIMIT = DEFAULT_WITHDRAWAL_GAS_LIMIT;
-    address internal constant OP_CHAIN_FEES_RECIPIENT = 0xa3d596EAfaB6B13Ab18D40FaE1A962700C84ADEa;
+    address internal constant OP_CHAIN_FEES_RECIPIENT = 0x16A27462B4D61BDD72CbBabd3E43e11791F7A28c;
 
     // Test configuration - Ink Mainnet
     uint256 internal constant INK_MIN_WITHDRAWAL_AMOUNT = DEFAULT_MIN_WITHDRAWAL_AMOUNT;
