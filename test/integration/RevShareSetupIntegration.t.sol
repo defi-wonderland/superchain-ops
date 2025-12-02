@@ -258,7 +258,7 @@ contract RevShareSetupIntegrationTest is IntegrationBase {
         // Step 7: Do a withdrawal flow
 
         // Fund vaults with amount > minWithdrawalAmount
-        // It disburse 5 ether to each of the 4 vaults, so total sent is 20 ether
+        // It disburse 5 ether to each of the 4 vaults, so total sent is 20 ether per chain
         _fundVaults(5 ether, _opMainnetForkId);
         _fundVaults(5 ether, _inkMainnetForkId);
         _fundVaults(5 ether, _soneiumMainnetForkId);
