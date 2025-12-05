@@ -5,11 +5,11 @@ import {Test} from "forge-std/Test.sol";
 import {Vm} from "forge-std/Vm.sol";
 import {console2} from "forge-std/console2.sol";
 import {AddressAliasHelper} from "@eth-optimism-bedrock/src/vendor/AddressAliasHelper.sol";
+import {Predeploys} from "@eth-optimism-bedrock/src/libraries/Predeploys.sol";
 import {FeeSplitterSetup} from "src/libraries/FeeSplitterSetup.sol";
 import {RevShareCommon} from "src/libraries/RevShareCommon.sol";
 import {Utils} from "src/libraries/Utils.sol";
 import {RevShareContractsUpgrader} from "src/RevShareContractsUpgrader.sol";
-import {Predeploys} from "@eth-optimism-bedrock/src/libraries/Predeploys.sol";
 import {IFeeSplitter} from "src/interfaces/IFeeSplitter.sol";
 import {IFeeVault} from "src/interfaces/IFeeVault.sol";
 import {IL1Withdrawer} from "src/interfaces/IL1Withdrawer.sol";
@@ -31,10 +31,6 @@ abstract contract IntegrationBase is Test {
     RevShareContractsUpgrader public revShareUpgrader;
 
     // L1 addresses
-    address internal constant PROXY_ADMIN_OWNER = 0x5a0Aae59D09fccBdDb6C6CcEB07B7279367C3d2A;
-    address internal constant OP_MAINNET_PORTAL = 0xbEb5Fc579115071764c7423A4f12eDde41f106Ed;
-    address internal constant INK_MAINNET_PORTAL = 0x5d66C1782664115999C47c9fA5cd031f495D3e4F;
-    address internal constant SONEIUM_MAINNET_PORTAL = 0x88e529A6ccd302c948689Cd5156C83D4614FAE92;
     address internal constant REV_SHARE_UPGRADER_ADDRESS = 0x0000000000000000000000000000000000001337;
 
     // L2 predeploys (same across all OP Stack chains)
@@ -44,25 +40,17 @@ abstract contract IntegrationBase is Test {
     address internal constant L1_FEE_VAULT = 0x420000000000000000000000000000000000001A;
     address internal constant FEE_SPLITTER = 0x420000000000000000000000000000000000002B;
 
-    // Test configuration - OP Mainnet
-    uint256 internal constant OP_MIN_WITHDRAWAL_AMOUNT = 350000;
-    address internal constant OP_L1_WITHDRAWAL_RECIPIENT = 0x0000000000000000000000000000000000000001;
-    uint32 internal constant OP_WITHDRAWAL_GAS_LIMIT = 800000;
-    address internal constant OP_CHAIN_FEES_RECIPIENT = 0x0000000000000000000000000000000000000001;
+    // L2 chain configuration struct
+    struct L2ChainConfig {
+        uint256 forkId;
+        address portal;
+        uint256 minWithdrawalAmount;
+        address l1WithdrawalRecipient;
+        uint32 withdrawalGasLimit;
+        address chainFeesRecipient;
+        string name;
+    }
 
-    // Test configuration - Ink Mainnet
-    uint256 internal constant INK_MIN_WITHDRAWAL_AMOUNT = 500000;
-    address internal constant INK_L1_WITHDRAWAL_RECIPIENT = 0x0000000000000000000000000000000000000002;
-    uint32 internal constant INK_WITHDRAWAL_GAS_LIMIT = 800000;
-    address internal constant INK_CHAIN_FEES_RECIPIENT = 0x0000000000000000000000000000000000000002;
-
-    // Test configuration - Soneium Mainnet
-    uint256 internal constant SONEIUM_MIN_WITHDRAWAL_AMOUNT = 500000;
-    address internal constant SONEIUM_L1_WITHDRAWAL_RECIPIENT = 0x0000000000000000000000000000000000000003;
-    uint32 internal constant SONEIUM_WITHDRAWAL_GAS_LIMIT = 800000;
-    address internal constant SONEIUM_CHAIN_FEES_RECIPIENT = 0x0000000000000000000000000000000000000003;
-
-    bool internal constant IS_SIMULATE = true;
     /// @notice Relay all deposit transactions from L1 to multiple L2s
     /// @param _forkIds Array of fork IDs for each L2 chain
     /// @param _isSimulate If true, only process the second half of logs to avoid duplicates.
@@ -71,7 +59,6 @@ abstract contract IntegrationBase is Test {
     ///                    we only process the final simulation results.
     /// @param _portals Array of Portal addresses corresponding to each fork.
     ///                 Only events emitted by each portal will be relayed on its corresponding L2.
-
     function _relayAllMessages(uint256[] memory _forkIds, bool _isSimulate, address[] memory _portals) internal {
         require(_forkIds.length == _portals.length, "Fork IDs and portals length mismatch");
 
@@ -204,10 +191,10 @@ abstract contract IntegrationBase is Test {
         bytes32 _salt = RevShareCommon.getSalt("SCRevShareCalculator");
         return Utils.getCreate2Address(_salt, _initCode, RevShareCommon.CREATE2_DEPLOYER);
     }
-    /// @notice Fund all fee vaults with specified amount
-    /// @param _amount Amount to fund each vault with
-    /// @param _forkId Fork ID to execute on
 
+    /// @notice Fund all fee vaults with a specified amount
+    /// @param _amount The amount to fund each vault with
+    /// @param _forkId The fork ID of the chain to fund
     function _fundVaults(uint256 _amount, uint256 _forkId) internal {
         vm.selectFork(_forkId);
         vm.deal(SEQUENCER_FEE_VAULT, _amount);
