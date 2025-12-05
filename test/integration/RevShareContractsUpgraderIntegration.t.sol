@@ -6,20 +6,12 @@ import {RevShareUpgradeAndSetup} from "src/template/RevShareUpgradeAndSetup.sol"
 import {IntegrationBase} from "./IntegrationBase.t.sol";
 
 contract RevShareContractsUpgraderIntegrationTest is IntegrationBase {
-    RevShareContractsUpgrader public revShareUpgrader;
     RevShareUpgradeAndSetup public revShareTask;
-
-    // Fork IDs
-    uint256 internal _mainnetForkId;
-    uint256 internal _opMainnetForkId;
-    uint256 internal _inkMainnetForkId;
-    uint256 internal _soneiumMainnetForkId;
 
     // L1 addresses
     address internal constant OP_MAINNET_PORTAL = 0xbEb5Fc579115071764c7423A4f12eDde41f106Ed;
     address internal constant INK_MAINNET_PORTAL = 0x5d66C1782664115999C47c9fA5cd031f495D3e4F;
     address internal constant SONEIUM_MAINNET_PORTAL = 0x88e529A6ccd302c948689Cd5156C83D4614FAE92;
-    address internal constant REV_SHARE_UPGRADER_ADDRESS = 0x0000000000000000000000000000000000001337;
 
     bool internal constant IS_SIMULATE = true;
 
@@ -33,7 +25,7 @@ contract RevShareContractsUpgraderIntegrationTest is IntegrationBase {
         _inkMainnetForkId = vm.createFork("http://127.0.0.1:9546");
         _soneiumMainnetForkId = vm.createFork("http://127.0.0.1:9547");
 
-        // Configure all L2 chains
+        // Configure all L2 chains (values match config.toml)
         l2Chains.push(
             L2ChainConfig({
                 forkId: _opMainnetForkId,
@@ -84,7 +76,7 @@ contract RevShareContractsUpgraderIntegrationTest is IntegrationBase {
 
     /// @notice Test the integration of upgradeAndSetupRevShare
     function test_upgradeAndSetupRevShare_integration() public {
-        // Step 1: Record logs for L1→L2 message replay
+        // Step 1: Record logs for L1→L2 message relay
         vm.recordLogs();
 
         // Step 2: Execute task simulation

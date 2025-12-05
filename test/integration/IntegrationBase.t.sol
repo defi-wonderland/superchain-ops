@@ -9,6 +9,7 @@ import {Predeploys} from "@eth-optimism-bedrock/src/libraries/Predeploys.sol";
 import {FeeSplitterSetup} from "src/libraries/FeeSplitterSetup.sol";
 import {RevShareCommon} from "src/libraries/RevShareCommon.sol";
 import {Utils} from "src/libraries/Utils.sol";
+import {RevShareContractsUpgrader} from "src/RevShareContractsUpgrader.sol";
 import {IFeeSplitter} from "src/interfaces/IFeeSplitter.sol";
 import {IFeeVault} from "src/interfaces/IFeeVault.sol";
 import {IL1Withdrawer} from "src/interfaces/IL1Withdrawer.sol";
@@ -19,6 +20,18 @@ import {ISuperchainRevSharesCalculator} from "src/interfaces/ISuperchainRevShare
 abstract contract IntegrationBase is Test {
     // Events for testing
     event WithdrawalInitiated(address indexed recipient, uint256 amount);
+
+    // Fork IDs
+    uint256 internal _mainnetForkId;
+    uint256 internal _opMainnetForkId;
+    uint256 internal _inkMainnetForkId;
+    uint256 internal _soneiumMainnetForkId;
+
+    // Shared upgrader contract
+    RevShareContractsUpgrader public revShareUpgrader;
+
+    // L1 addresses
+    address internal constant REV_SHARE_UPGRADER_ADDRESS = 0x0000000000000000000000000000000000001337;
 
     // L2 predeploys (same across all OP Stack chains)
     address internal constant SEQUENCER_FEE_VAULT = 0x4200000000000000000000000000000000000011;
@@ -37,6 +50,7 @@ abstract contract IntegrationBase is Test {
         address chainFeesRecipient;
         string name;
     }
+
     /// @notice Relay all deposit transactions from L1 to multiple L2s
     /// @param _forkIds Array of fork IDs for each L2 chain
     /// @param _isSimulate If true, only process the second half of logs to avoid duplicates.
@@ -45,7 +59,6 @@ abstract contract IntegrationBase is Test {
     ///                    we only process the final simulation results.
     /// @param _portals Array of Portal addresses corresponding to each fork.
     ///                 Only events emitted by each portal will be relayed on its corresponding L2.
-
     function _relayAllMessages(uint256[] memory _forkIds, bool _isSimulate, address[] memory _portals) internal {
         require(_forkIds.length == _portals.length, "Fork IDs and portals length mismatch");
 
