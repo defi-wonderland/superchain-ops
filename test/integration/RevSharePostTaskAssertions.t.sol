@@ -46,10 +46,9 @@ contract RevSharePostTaskAssertionsTest is IntegrationBase {
         // Check if all required env vars are set
         bool hasRpcUrl = bytes(rpcUrl).length > 0;
         bool hasPortal = _portal != address(0);
-        bool hasMinWithdrawal = _minWithdrawalAmount > 0;
         bool hasChainFeesRecipient = _chainFeesRecipient != address(0);
 
-        _isEnabled = hasRpcUrl && hasPortal && hasMinWithdrawal && hasChainFeesRecipient;
+        _isEnabled = hasRpcUrl && hasPortal && hasChainFeesRecipient;
 
         if (_isEnabled) {
             _l2ForkId = vm.createFork(rpcUrl);
