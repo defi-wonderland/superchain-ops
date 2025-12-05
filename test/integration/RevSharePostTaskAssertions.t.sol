@@ -12,6 +12,14 @@ import {IntegrationBase} from "./IntegrationBase.t.sol";
 ///      - OPTIMISM_PORTAL: Portal address for the chain
 ///      - MIN_WITHDRAWAL_AMOUNT: Min withdrawal amount for L1Withdrawer
 ///      - CHAIN_FEES_RECIPIENT: Chain fees recipient address
+/// @dev Example command:
+/// ```sh
+/// RPC_URL="https://mainnet.optimism.io" \
+/// OPTIMISM_PORTAL="0xbEb5Fc579115071764c7423A4f12eDde41f106Ed" \
+/// MIN_WITHDRAWAL_AMOUNT="350000" \
+/// CHAIN_FEES_RECIPIENT="0x0000000000000000000000000000000000000001" \
+/// forge test --match-contract RevSharePostTaskAssertionsTest
+/// ```
 contract RevSharePostTaskAssertionsTest is IntegrationBase {
     // Fork ID
     uint256 internal _l2ForkId;
