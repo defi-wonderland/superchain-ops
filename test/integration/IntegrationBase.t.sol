@@ -295,10 +295,12 @@ abstract contract IntegrationBase is Test {
 
     /// @notice Execute disburseFees and assert that it triggers a withdrawal with the expected amount
     /// @param _forkId The fork ID of the chain to test
+    /// @param _l1Withdrawer The L1Withdrawer address that emits the WithdrawalInitiated event
     /// @param _l1WithdrawalRecipient The expected recipient of the withdrawal
     /// @param _expectedWithdrawalAmount The expected withdrawal amount
     function _executeDisburseAndAssertWithdrawal(
         uint256 _forkId,
+        address _l1Withdrawer,
         address _l1WithdrawalRecipient,
         uint256 _expectedWithdrawalAmount
     ) internal {
@@ -307,7 +309,7 @@ abstract contract IntegrationBase is Test {
 
         uint256 balanceBefore = Predeploys.L2_TO_L1_MESSAGE_PASSER.balance;
 
-        vm.expectEmit(true, true, true, true);
+        vm.expectEmit(true, true, true, true, _l1Withdrawer);
         emit WithdrawalInitiated(_l1WithdrawalRecipient, _expectedWithdrawalAmount);
         IFeeSplitter(FEE_SPLITTER).disburseFees();
 

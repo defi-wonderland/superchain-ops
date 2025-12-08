@@ -127,8 +127,12 @@ contract RevShareContractsUpgraderIntegrationTest is IntegrationBase {
         uint256 expectedWithdrawalAmount = 0.45 ether;
 
         for (uint256 i = 0; i < l2Chains.length; i++) {
+            L2ChainConfig memory chain = l2Chains[i];
+            address l1Withdrawer = _computeL1WithdrawerAddress(
+                chain.minWithdrawalAmount, chain.l1WithdrawalRecipient, chain.withdrawalGasLimit
+            );
             _executeDisburseAndAssertWithdrawal(
-                l2Chains[i].forkId, l2Chains[i].l1WithdrawalRecipient, expectedWithdrawalAmount
+                chain.forkId, l1Withdrawer, chain.l1WithdrawalRecipient, expectedWithdrawalAmount
             );
         }
     }

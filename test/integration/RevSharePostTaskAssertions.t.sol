@@ -86,6 +86,10 @@ contract RevSharePostTaskAssertionsTest is IntegrationBase {
         // Fund vaults
         _fundVaults(1 ether, _l2ForkId);
 
+        // Compute L1Withdrawer address
+        address l1Withdrawer =
+            _computeL1WithdrawerAddress(_minWithdrawalAmount, L1_WITHDRAWAL_RECIPIENT, WITHDRAWAL_GAS_LIMIT);
+
         // Disburse fees and assert withdrawal
         // Expected L1Withdrawer share = 3 ether * 15% = 0.45 ether
         // It is 3 ether instead of 4 because net revenue doesn't count L1FeeVault's balance
@@ -93,6 +97,6 @@ contract RevSharePostTaskAssertionsTest is IntegrationBase {
         // https://github.com/ethereum-optimism/optimism/blob/f392d4b7e8bc5d1c8d38fcf19c8848764f8bee3b/packages/contracts-bedrock/src/L2/SuperchainRevSharesCalculator.sol#L67-L101
         uint256 expectedWithdrawalAmount = 0.45 ether;
 
-        _executeDisburseAndAssertWithdrawal(_l2ForkId, L1_WITHDRAWAL_RECIPIENT, expectedWithdrawalAmount);
+        _executeDisburseAndAssertWithdrawal(_l2ForkId, l1Withdrawer, L1_WITHDRAWAL_RECIPIENT, expectedWithdrawalAmount);
     }
 }
