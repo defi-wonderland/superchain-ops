@@ -1,10 +1,12 @@
-# RevShare Setup Configuration
-# NOTE: This configuration is for TESTING PURPOSES ONLY with OP.
+# RevShare Upgrade and Setup Configuration
 
-templateName = "RevShareSetup"
+templateName = "RevShareUpgradeAndSetup"
 
 # L2 chains to target
-l2chains = [{name = "OP Sepolia", chainId = 11155420}, {name = "Ink Sepolia", chainId = 763373}, {name = "Soneium Testnet Minato", chainId = 1946}]
+l2chains = [
+  {name = "Ink Sepolia", chainId = 763373},
+  {name = "Soneium Testnet Minato", chainId = 1946}
+]
 
 safeAddress = "ProxyAdminOwner"
 
@@ -13,26 +15,26 @@ revShareUpgrader = "0x71241bbae674967dD523e621c272Ea32cf33119A"
 
 # RevShare configurations (one per chain) - flattened arrays
 portals = [
-  "0x16Fc5058F25648194471939df75CF27A2fdC48BC", # OP Sepolia Portal
   "0x5c1d29C6c9C8b0800692acC95D700bcb4966A1d7", # Ink Sepolia Portal
   "0x65ea1489741A5D72fFdD8e6485B216bBdcC15Af3"  # Soneium Testnet Minato Portal
 ]
+
+# TODO: We need ink and sony to provide the chain fees recipients
 chainFeesRecipients = [
-  "0x7ca800c55ad9C745AC84FdeEfaf4522F4Df07577",
   "0xBeA2Bc852a160B8547273660E22F4F08C2fa9Bbb",
   "0x7CE93e2bEa4D52e7d7C6870F294874ef034C31Cd"
 ]
 
 # 2 ether
-l1WithdrawerMinWithdrawalAmounts = [2000000000000000000, 2000000000000000000, 2000000000000000000]
+l1WithdrawerMinWithdrawalAmounts = [2000000000000000000, 2000000000000000000]
 
 # FeesDepositor address in mainnet
 l1WithdrawerRecipients = [
   "0xed9B99a703BaD32AC96FDdc313c0652e379251Fd",
-  "0xed9B99a703BaD32AC96FDdc313c0652e379251Fd",
   "0xed9B99a703BaD32AC96FDdc313c0652e379251Fd"
 ]
-l1WithdrawerGasLimits = [800000, 800000, 800000]
+l1WithdrawerGasLimits = [800000, 800000]
 
 [addresses]
 ProxyAdminOwner = "0x1Eb2fFc903729a0F03966B917003800b145F56E2"
+
