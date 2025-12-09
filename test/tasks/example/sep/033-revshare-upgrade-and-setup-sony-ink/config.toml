@@ -19,10 +19,9 @@ portals = [
   "0x65ea1489741A5D72fFdD8e6485B216bBdcC15Af3"  # Soneium Testnet Minato Portal
 ]
 
-# TODO: We need ink and sony to provide the chain fees recipients
 chainFeesRecipients = [
   "0xBeA2Bc852a160B8547273660E22F4F08C2fa9Bbb",
-  "0x7CE93e2bEa4D52e7d7C6870F294874ef034C31Cd"
+  "0x660203DD7E933646905DfDc2C3c0Bb156d51000A"
 ]
 
 # 2 ether

@@ -16,9 +16,9 @@ portals = [
   "0x88e529A6ccd302c948689Cd5156C83D4614FAE92"  # Soneium Mainnet Portal
 ]
 
-# TODO: We need ink and sony to provide the chain fees recipients
 chainFeesRecipients = [
-  "0xa6f0F94C13C4255231958079E7331694205F6c93",
+  # L1Withdrawer to send funds in Mainnet to address 0xa6f0F94C13C4255231958079E7331694205F6c93
+  "0x5f077b4c3509C2c192e50B6654d924Fcb8126A60",
   "0xF07b3169ffF67A8AECdBb18d9761AEeE34591112"
 ]
 

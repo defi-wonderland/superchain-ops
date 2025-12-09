@@ -59,7 +59,7 @@ abstract contract IntegrationBase is Test {
     uint256 internal constant INK_MIN_WITHDRAWAL_AMOUNT = DEFAULT_MIN_WITHDRAWAL_AMOUNT;
     address internal constant INK_L1_WITHDRAWAL_RECIPIENT = FEES_DEPOSITOR;
     uint32 internal constant INK_WITHDRAWAL_GAS_LIMIT = DEFAULT_WITHDRAWAL_GAS_LIMIT;
-    address internal constant INK_CHAIN_FEES_RECIPIENT = 0xa6f0F94C13C4255231958079E7331694205F6c93;
+    address internal constant INK_CHAIN_FEES_RECIPIENT = 0x5f077b4c3509C2c192e50B6654d924Fcb8126A60;
 
     // Test configuration - Soneium Mainnet
     uint256 internal constant SONEIUM_MIN_WITHDRAWAL_AMOUNT = DEFAULT_MIN_WITHDRAWAL_AMOUNT;
