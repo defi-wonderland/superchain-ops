@@ -8,69 +8,9 @@ import {IntegrationBase} from "./IntegrationBase.t.sol";
 contract RevShareContractsUpgraderIntegrationTest is IntegrationBase {
     RevShareUpgradeAndSetup public revShareTask;
 
-    // L1 addresses
-    address internal constant OP_MAINNET_PORTAL = 0xbEb5Fc579115071764c7423A4f12eDde41f106Ed;
-    address internal constant INK_MAINNET_PORTAL = 0x5d66C1782664115999C47c9fA5cd031f495D3e4F;
-    address internal constant SONEIUM_MAINNET_PORTAL = 0x88e529A6ccd302c948689Cd5156C83D4614FAE92;
-
-    bool internal constant IS_SIMULATE = true;
-
-    // Array to store all L2 chain configurations
-    L2ChainConfig[] internal l2Chains;
-
     function setUp() public {
-        // Create forks for L1 (mainnet) and L2s
-        _mainnetForkId = vm.createFork("http://127.0.0.1:8545");
-        _opMainnetForkId = vm.createFork("http://127.0.0.1:9545");
-        _inkMainnetForkId = vm.createFork("http://127.0.0.1:9546");
-        _soneiumMainnetForkId = vm.createFork("http://127.0.0.1:9547");
-
-        // Configure all L2 chains (values match config.toml)
-        l2Chains.push(
-            L2ChainConfig({
-                forkId: _opMainnetForkId,
-                portal: OP_MAINNET_PORTAL,
-                minWithdrawalAmount: 350000,
-                l1WithdrawalRecipient: address(0x1),
-                withdrawalGasLimit: 800000,
-                chainFeesRecipient: address(0x1),
-                name: "OP Mainnet"
-            })
-        );
-
-        l2Chains.push(
-            L2ChainConfig({
-                forkId: _inkMainnetForkId,
-                portal: INK_MAINNET_PORTAL,
-                minWithdrawalAmount: 500000,
-                l1WithdrawalRecipient: address(0x2),
-                withdrawalGasLimit: 800000,
-                chainFeesRecipient: address(0x2),
-                name: "Ink Mainnet"
-            })
-        );
-
-        l2Chains.push(
-            L2ChainConfig({
-                forkId: _soneiumMainnetForkId,
-                portal: SONEIUM_MAINNET_PORTAL,
-                minWithdrawalAmount: 500000,
-                l1WithdrawalRecipient: address(0x3),
-                withdrawalGasLimit: 800000,
-                chainFeesRecipient: address(0x3),
-                name: "Soneium Mainnet"
-            })
-        );
-
-        // Deploy contracts on L1
-        vm.selectFork(_mainnetForkId);
-
-        // Deploy RevShareContractsUpgrader and etch at predetermined address
-        revShareUpgrader = new RevShareContractsUpgrader();
-        vm.etch(REV_SHARE_UPGRADER_ADDRESS, address(revShareUpgrader).code);
-        revShareUpgrader = RevShareContractsUpgrader(REV_SHARE_UPGRADER_ADDRESS);
-
-        // Deploy RevShareUpgradeAndSetup task
+        _setupDefaultL2Chains();
+        _deployRevShareUpgrader();
         revShareTask = new RevShareUpgradeAndSetup();
     }
 

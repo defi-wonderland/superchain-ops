@@ -32,6 +32,12 @@ abstract contract IntegrationBase is Test {
 
     // L1 addresses
     address internal constant REV_SHARE_UPGRADER_ADDRESS = 0x0000000000000000000000000000000000001337;
+    address internal constant OP_MAINNET_PORTAL = 0xbEb5Fc579115071764c7423A4f12eDde41f106Ed;
+    address internal constant INK_MAINNET_PORTAL = 0x5d66C1782664115999C47c9fA5cd031f495D3e4F;
+    address internal constant SONEIUM_MAINNET_PORTAL = 0x88e529A6ccd302c948689Cd5156C83D4614FAE92;
+
+    // Simulation flag for task execution
+    bool internal constant IS_SIMULATE = true;
 
     // L2 predeploys (same across all OP Stack chains)
     address internal constant SEQUENCER_FEE_VAULT = 0x4200000000000000000000000000000000000011;
@@ -50,6 +56,9 @@ abstract contract IntegrationBase is Test {
         address chainFeesRecipient;
         string name;
     }
+
+    // Array to store all L2 chain configurations
+    L2ChainConfig[] internal l2Chains;
 
     /// @notice Relay all deposit transactions from L1 to multiple L2s
     /// @param _forkIds Array of fork IDs for each L2 chain
@@ -190,6 +199,65 @@ abstract contract IntegrationBase is Test {
         );
         bytes32 _salt = RevShareCommon.getSalt("SCRevShareCalculator");
         return Utils.getCreate2Address(_salt, _initCode, RevShareCommon.CREATE2_DEPLOYER);
+    }
+
+    /// @notice Sets up the default L2 chain configurations for OP, Ink, and Soneium mainnets.
+    /// @dev This function populates the `l2Chains` array with default test configurations.
+    ///      If your test requires different chain configurations (different portals, amounts,
+    ///      recipients, etc.), do NOT call this function. Instead, populate `l2Chains` directly
+    ///      in your test's setUp() function with your custom configurations.
+    function _setupDefaultL2Chains() internal {
+        // Create forks for L1 (mainnet) and L2s
+        _mainnetForkId = vm.createFork("http://127.0.0.1:8545");
+        _opMainnetForkId = vm.createFork("http://127.0.0.1:9545");
+        _inkMainnetForkId = vm.createFork("http://127.0.0.1:9546");
+        _soneiumMainnetForkId = vm.createFork("http://127.0.0.1:9547");
+
+        // Configure all L2 chains
+        l2Chains.push(
+            L2ChainConfig({
+                forkId: _opMainnetForkId,
+                portal: OP_MAINNET_PORTAL,
+                minWithdrawalAmount: 350000,
+                l1WithdrawalRecipient: address(0x1),
+                withdrawalGasLimit: 800000,
+                chainFeesRecipient: address(0x1),
+                name: "OP Mainnet"
+            })
+        );
+
+        l2Chains.push(
+            L2ChainConfig({
+                forkId: _inkMainnetForkId,
+                portal: INK_MAINNET_PORTAL,
+                minWithdrawalAmount: 500000,
+                l1WithdrawalRecipient: address(0x2),
+                withdrawalGasLimit: 800000,
+                chainFeesRecipient: address(0x2),
+                name: "Ink Mainnet"
+            })
+        );
+
+        l2Chains.push(
+            L2ChainConfig({
+                forkId: _soneiumMainnetForkId,
+                portal: SONEIUM_MAINNET_PORTAL,
+                minWithdrawalAmount: 500000,
+                l1WithdrawalRecipient: address(0x3),
+                withdrawalGasLimit: 800000,
+                chainFeesRecipient: address(0x3),
+                name: "Soneium Mainnet"
+            })
+        );
+    }
+
+    /// @notice Deploys RevShareContractsUpgrader and etches it at the predetermined address.
+    /// @dev Must be called after forks are created and while on the mainnet fork.
+    function _deployRevShareUpgrader() internal {
+        vm.selectFork(_mainnetForkId);
+        revShareUpgrader = new RevShareContractsUpgrader();
+        vm.etch(REV_SHARE_UPGRADER_ADDRESS, address(revShareUpgrader).code);
+        revShareUpgrader = RevShareContractsUpgrader(REV_SHARE_UPGRADER_ADDRESS);
     }
 
     /// @notice Fund all fee vaults with a specified amount
