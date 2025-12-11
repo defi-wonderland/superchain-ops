@@ -6,6 +6,9 @@ import {Vm} from "forge-std/Vm.sol";
 import {console2} from "forge-std/console2.sol";
 import {AddressAliasHelper} from "@eth-optimism-bedrock/src/vendor/AddressAliasHelper.sol";
 import {Predeploys} from "@eth-optimism-bedrock/src/libraries/Predeploys.sol";
+import {IL1CrossDomainMessenger} from "@eth-optimism-bedrock/interfaces/L1/IL1CrossDomainMessenger.sol";
+import {IOptimismPortal2} from "@eth-optimism-bedrock/interfaces/L1/IOptimismPortal2.sol";
+import {StdStorage, stdStorage} from "forge-std/StdStorage.sol";
 import {FeeSplitterSetup} from "src/libraries/FeeSplitterSetup.sol";
 import {RevShareCommon} from "src/libraries/RevShareCommon.sol";
 import {Utils} from "src/libraries/Utils.sol";
@@ -18,6 +21,7 @@ import {ISuperchainRevSharesCalculator} from "src/interfaces/ISuperchainRevShare
 /// @title IntegrationBase
 /// @notice Base contract for integration tests with L1->L2 deposit transaction relay functionality
 abstract contract IntegrationBase is Test {
+    using stdStorage for StdStorage;
     // Events for testing
     event WithdrawalInitiated(address indexed recipient, uint256 amount);
 
@@ -35,6 +39,9 @@ abstract contract IntegrationBase is Test {
     address internal constant OP_MAINNET_PORTAL = 0xbEb5Fc579115071764c7423A4f12eDde41f106Ed;
     address internal constant INK_MAINNET_PORTAL = 0x5d66C1782664115999C47c9fA5cd031f495D3e4F;
     address internal constant SONEIUM_MAINNET_PORTAL = 0x88e529A6ccd302c948689Cd5156C83D4614FAE92;
+    address internal constant OP_MAINNET_L1_MESSENGER = 0x25ace71c97B33Cc4729CF772ae268934F7ab5fA1;
+    address internal constant INK_MAINNET_L1_MESSENGER = 0x69d3Cf86B2Bf1a9e99875B7e2D9B6a84426c171f;
+    address internal constant SONEIUM_MAINNET_L1_MESSENGER = 0x9CF951E3F74B644e621b36Ca9cea147a78D4c39f;
 
     // Simulation flag for task execution
     bool internal constant IS_SIMULATE = true;
@@ -50,12 +57,22 @@ abstract contract IntegrationBase is Test {
     struct L2ChainConfig {
         uint256 forkId;
         address portal;
+        address l1Messenger;
         uint256 minWithdrawalAmount;
         address l1WithdrawalRecipient;
         uint32 withdrawalGasLimit;
         address chainFeesRecipient;
         string name;
     }
+
+    // L2 predeploys for cross-domain messaging
+    address internal constant L2_CROSS_DOMAIN_MESSENGER = 0x4200000000000000000000000000000000000007;
+    /// @notice Value used for the L2 sender storage slot in both the OptimismPortal and the
+    ///         CrossDomainMessenger contracts before an actual sender is set. This value is
+    ///         non-zero to reduce the gas cost of message passing transactions.
+    address internal constant DEFAULT_L2_SENDER = 0x000000000000000000000000000000000000dEaD;
+    /// @notice Extra gas buffer added to the minimum gas limit for the relayMessage function
+    uint64 internal constant RELAY_GAS_OVERHEAD = 700_000;
 
     // Array to store all L2 chain configurations
     L2ChainConfig[] internal l2Chains;
@@ -218,6 +235,7 @@ abstract contract IntegrationBase is Test {
             L2ChainConfig({
                 forkId: _opMainnetForkId,
                 portal: OP_MAINNET_PORTAL,
+                l1Messenger: OP_MAINNET_L1_MESSENGER,
                 minWithdrawalAmount: 350000,
                 l1WithdrawalRecipient: address(0x1),
                 withdrawalGasLimit: 800000,
@@ -230,6 +248,7 @@ abstract contract IntegrationBase is Test {
             L2ChainConfig({
                 forkId: _inkMainnetForkId,
                 portal: INK_MAINNET_PORTAL,
+                l1Messenger: INK_MAINNET_L1_MESSENGER,
                 minWithdrawalAmount: 500000,
                 l1WithdrawalRecipient: address(0x2),
                 withdrawalGasLimit: 800000,
@@ -242,6 +261,7 @@ abstract contract IntegrationBase is Test {
             L2ChainConfig({
                 forkId: _soneiumMainnetForkId,
                 portal: SONEIUM_MAINNET_PORTAL,
+                l1Messenger: SONEIUM_MAINNET_L1_MESSENGER,
                 minWithdrawalAmount: 500000,
                 l1WithdrawalRecipient: address(0x3),
                 withdrawalGasLimit: 800000,
@@ -362,15 +382,23 @@ abstract contract IntegrationBase is Test {
     }
 
     /// @notice Execute disburseFees and assert that it triggers a withdrawal with the expected amount
-    /// @param _forkId The fork ID of the chain to test
+    /// @param _l1ForkId The L1 fork ID
+    /// @param _forkId The fork ID of the L2 chain to test
     /// @param _l1Withdrawer The L1Withdrawer address that emits the WithdrawalInitiated event
     /// @param _l1WithdrawalRecipient The expected recipient of the withdrawal
     /// @param _expectedWithdrawalAmount The expected withdrawal amount
+    /// @param _portal The OptimismPortal address for this L2 chain
+    /// @param _l1Messenger The L1CrossDomainMessenger address for this L2 chain
+    /// @param _withdrawalGasLimit The gas limit used for L1 withdrawals
     function _executeDisburseAndAssertWithdrawal(
+        uint256 _l1ForkId,
         uint256 _forkId,
         address _l1Withdrawer,
         address _l1WithdrawalRecipient,
-        uint256 _expectedWithdrawalAmount
+        uint256 _expectedWithdrawalAmount,
+        address _portal,
+        address _l1Messenger,
+        uint32 _withdrawalGasLimit
     ) internal {
         vm.selectFork(_forkId);
         vm.warp(block.timestamp + IFeeSplitter(FEE_SPLITTER).feeDisbursementInterval() + 1);
@@ -384,5 +412,70 @@ abstract contract IntegrationBase is Test {
         uint256 balanceAfter = Predeploys.L2_TO_L1_MESSAGE_PASSER.balance;
 
         assertEq(balanceAfter - balanceBefore, _expectedWithdrawalAmount);
+
+        // Relay the withdrawal message to L1
+        vm.selectFork(_l1ForkId);
+
+        uint256 recipientBalanceBefore = _l1WithdrawalRecipient.balance;
+
+        // The L1Withdrawer sends ETH to the recipient via the L2CrossDomainMessenger
+        // The message data is empty since it's a simple ETH transfer
+        _relayL2ToL1Message(
+            _portal,
+            _l1Messenger,
+            _l1Withdrawer, // sender on L2
+            _l1WithdrawalRecipient, // target on L1
+            _expectedWithdrawalAmount, // value
+            _withdrawalGasLimit, // minGasLimit
+            "" // data (empty for ETH transfer)
+        );
+
+        uint256 recipientBalanceAfter = _l1WithdrawalRecipient.balance;
+        assertEq(
+            recipientBalanceAfter - recipientBalanceBefore,
+            _expectedWithdrawalAmount,
+            "L1 recipient should receive the withdrawal amount"
+        );
+    }
+
+    /// @notice Relay a message from L2 to L1 via the CrossDomainMessenger
+    /// @dev This simulates the L2->L1 message relay by:
+    ///      1. Setting the portal's l2Sender to the L2CrossDomainMessenger
+    ///      2. Calling relayMessage on the L1CrossDomainMessenger from the portal
+    ///      3. Resetting the l2Sender back to the default value
+    /// @param _portal The OptimismPortal address
+    /// @param _l1Messenger The L1CrossDomainMessenger address
+    /// @param _sender The sender address on L2
+    /// @param _target The target address on L1
+    /// @param _value The ETH value to send
+    /// @param _minGasLimit The minimum gas limit for the message
+    /// @param _data The message data
+    function _relayL2ToL1Message(
+        address _portal,
+        address _l1Messenger,
+        address _sender,
+        address _target,
+        uint256 _value,
+        uint256 _minGasLimit,
+        bytes memory _data
+    ) internal {
+        // Get the message nonce from the L1 messenger
+        uint256 _messageNonce = IL1CrossDomainMessenger(_l1Messenger).messageNonce();
+
+        // Set the l2Sender on the portal to the L2CrossDomainMessenger
+        // This is required for the L1CrossDomainMessenger to accept the message
+        stdstore.target(_portal).sig("l2Sender()").checked_write(L2_CROSS_DOMAIN_MESSENGER);
+
+        // Deal ETH to the portal so it can send value with the message
+        vm.deal(_portal, _value);
+
+        // Call relayMessage from the portal with the ETH value
+        vm.prank(_portal);
+        IL1CrossDomainMessenger(_l1Messenger).relayMessage{gas: _minGasLimit + RELAY_GAS_OVERHEAD, value: _value}(
+            _messageNonce, _sender, _target, _value, _minGasLimit, _data
+        );
+
+        // Reset the l2Sender back to the default value
+        stdstore.target(_portal).sig("l2Sender()").checked_write(DEFAULT_L2_SENDER);
     }
 }

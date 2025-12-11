@@ -206,7 +206,14 @@ contract RevShareSetupIntegrationTest is IntegrationBase {
                 chain.minWithdrawalAmount, chain.l1WithdrawalRecipient, chain.withdrawalGasLimit
             );
             _executeDisburseAndAssertWithdrawal(
-                chain.forkId, l1Withdrawer, chain.l1WithdrawalRecipient, expectedWithdrawalAmount
+                _mainnetForkId,
+                chain.forkId,
+                l1Withdrawer,
+                chain.l1WithdrawalRecipient,
+                expectedWithdrawalAmount,
+                chain.portal,
+                chain.l1Messenger,
+                chain.withdrawalGasLimit
             );
         }
     }

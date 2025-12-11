@@ -9,7 +9,9 @@ import {IntegrationBase} from "./IntegrationBase.t.sol";
 ///         It directly asserts the expected state on L2 chains after a real task execution.
 /// @dev Required environment variables:
 ///      - RPC_URL: L2 RPC URL to create fork
+///      - L1_RPC_URL: L1 RPC URL to create fork (for withdrawal relay tests)
 ///      - OPTIMISM_PORTAL: Portal address for the chain
+///      - L1_MESSENGER: L1CrossDomainMessenger address for the chain
 ///      - MIN_WITHDRAWAL_AMOUNT: Min withdrawal amount for L1Withdrawer
 ///      - L1_WITHDRAWAL_RECIPIENT: L1 withdrawal recipient address
 ///      - WITHDRAWAL_GAS_LIMIT: Gas limit for withdrawals
@@ -17,7 +19,9 @@ import {IntegrationBase} from "./IntegrationBase.t.sol";
 /// @dev Example command:
 /// ```sh
 /// RPC_URL="https://mainnet.optimism.io" \
+/// L1_RPC_URL="https://eth-mainnet.g.alchemy.com/v2/<key>" \
 /// OPTIMISM_PORTAL="0xbEb5Fc579115071764c7423A4f12eDde41f106Ed" \
+/// L1_MESSENGER="0x25ace71c97B33Cc4729CF772ae268934F7ab5fA1" \
 /// MIN_WITHDRAWAL_AMOUNT="2000000000000000000" \
 /// L1_WITHDRAWAL_RECIPIENT="0xed9B99a703BaD32AC96FDdc313c0652e379251Fd" \
 /// WITHDRAWAL_GAS_LIMIT="800000" \
@@ -30,6 +34,7 @@ contract RevSharePostTaskAssertionsTest is IntegrationBase {
 
     // Chain configuration from env vars
     address internal _portal;
+    address internal _l1Messenger;
     uint256 internal _minWithdrawalAmount;
     address internal _l1WithdrawalRecipient;
     uint32 internal _withdrawalGasLimit;
@@ -49,7 +54,9 @@ contract RevSharePostTaskAssertionsTest is IntegrationBase {
     function setUp() public {
         // Read env vars with defaults to detect if they're set
         string memory rpcUrl = vm.envOr("RPC_URL", string(""));
+        string memory l1RpcUrl = vm.envOr("L1_RPC_URL", string(""));
         _portal = vm.envOr("OPTIMISM_PORTAL", address(0));
+        _l1Messenger = vm.envOr("L1_MESSENGER", address(0));
         _minWithdrawalAmount = vm.envOr("MIN_WITHDRAWAL_AMOUNT", uint256(0));
         _l1WithdrawalRecipient = vm.envOr("L1_WITHDRAWAL_RECIPIENT", address(0));
         _withdrawalGasLimit = uint32(vm.envOr("WITHDRAWAL_GAS_LIMIT", uint256(0)));
@@ -57,15 +64,18 @@ contract RevSharePostTaskAssertionsTest is IntegrationBase {
 
         // Check if all required env vars are set
         bool hasRpcUrl = bytes(rpcUrl).length > 0;
+        bool hasL1RpcUrl = bytes(l1RpcUrl).length > 0;
         bool hasPortal = _portal != address(0);
+        bool hasL1Messenger = _l1Messenger != address(0);
         bool hasL1WithdrawalRecipient = _l1WithdrawalRecipient != address(0);
         bool hasWithdrawalGasLimit = _withdrawalGasLimit != 0;
         bool hasChainFeesRecipient = _chainFeesRecipient != address(0);
 
-        _isEnabled =
-            hasRpcUrl && hasPortal && hasL1WithdrawalRecipient && hasWithdrawalGasLimit && hasChainFeesRecipient;
+        _isEnabled = hasRpcUrl && hasL1RpcUrl && hasPortal && hasL1Messenger && hasL1WithdrawalRecipient
+            && hasWithdrawalGasLimit && hasChainFeesRecipient;
 
         if (_isEnabled) {
+            _mainnetForkId = vm.createFork(l1RpcUrl);
             _l2ForkId = vm.createFork(rpcUrl);
         }
     }
@@ -104,6 +114,15 @@ contract RevSharePostTaskAssertionsTest is IntegrationBase {
         // https://github.com/ethereum-optimism/optimism/blob/f392d4b7e8bc5d1c8d38fcf19c8848764f8bee3b/packages/contracts-bedrock/src/L2/SuperchainRevSharesCalculator.sol#L67-L101
         uint256 expectedWithdrawalAmount = 0.45 ether;
 
-        _executeDisburseAndAssertWithdrawal(_l2ForkId, l1Withdrawer, _l1WithdrawalRecipient, expectedWithdrawalAmount);
+        _executeDisburseAndAssertWithdrawal(
+            _mainnetForkId,
+            _l2ForkId,
+            l1Withdrawer,
+            _l1WithdrawalRecipient,
+            expectedWithdrawalAmount,
+            _portal,
+            _l1Messenger,
+            _withdrawalGasLimit
+        );
     }
 }
