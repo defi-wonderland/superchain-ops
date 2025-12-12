@@ -148,13 +148,13 @@ contract RevShareSetupIntegrationTest is IntegrationBase {
         vm.store(FEE_SPLITTER, PROXY_OWNER_SLOT, bytes32(uint256(uint160(RevShareCommon.PROXY_ADMIN))));
     }
 
-    /// @notice Test the integration of setupRevShare
+    /// @notice Test the integration of setupRevShare (OP Mainnet only - proxies already upgraded)
     function test_setupRevShare_integration() public {
         // Step 1: Record logs for L1→L2 message replay
         vm.recordLogs();
 
         // Step 2: Execute task simulation
-        revShareTask.simulate("test/tasks/example/eth/017-revshare-setup/config.toml");
+        revShareTask.simulate("test/tasks/example/eth/016-revshare-setup/config.toml");
 
         // Step 3: Relay deposit transactions from L1 to all L2s
         uint256[] memory forkIds = new uint256[](l2Chains.length);
@@ -198,7 +198,7 @@ contract RevShareSetupIntegrationTest is IntegrationBase {
         // It is 3 ether instead of 4 because net revenue doesn't count L1FeeVault's balance
         // For details on the rev share calculation, check the SuperchainRevSharesCalculator contract.
         // https://github.com/ethereum-optimism/optimism/blob/f392d4b7e8bc5d1c8d38fcf19c8848764f8bee3b/packages/contracts-bedrock/src/L2/SuperchainRevSharesCalculator.sol#L67-L101
-        uint256 expectedWithdrawalAmount = 0.45 ether;
+        uint256 expectedWithdrawalAmount = 2.25 ether;
 
         for (uint256 i = 0; i < l2Chains.length; i++) {
             L2ChainConfig memory chain = l2Chains[i];
