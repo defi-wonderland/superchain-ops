@@ -37,7 +37,6 @@ abstract contract IntegrationBase is Test {
         RevShareContractsUpgrader(0x71241bbae674967dD523e621c272Ea32cf33119A);
 
     // L1 addresses
-    address internal constant REV_SHARE_UPGRADER_ADDRESS = 0x0000000000000000000000000000000000001337;
     address internal constant OP_MAINNET_PORTAL = 0xbEb5Fc579115071764c7423A4f12eDde41f106Ed;
     address internal constant INK_MAINNET_PORTAL = 0x5d66C1782664115999C47c9fA5cd031f495D3e4F;
     address internal constant SONEIUM_MAINNET_PORTAL = 0x88e529A6ccd302c948689Cd5156C83D4614FAE92;
@@ -59,6 +58,13 @@ abstract contract IntegrationBase is Test {
     address internal constant BASE_FEE_VAULT = 0x4200000000000000000000000000000000000019;
     address internal constant L1_FEE_VAULT = 0x420000000000000000000000000000000000001A;
     address internal constant FEE_SPLITTER = 0x420000000000000000000000000000000000002B;
+    address internal constant L2_CROSS_DOMAIN_MESSENGER = 0x4200000000000000000000000000000000000007;
+
+    // Default L2 sender address
+    address internal constant DEFAULT_L2_SENDER = 0x000000000000000000000000000000000000dEaD;
+
+    // Extra gas buffer added to the minimum gas limit for the relayMessage function
+    uint64 internal constant RELAY_GAS_OVERHEAD = 700_000;
 
     // L2 chain configuration struct
     struct L2ChainConfig {
@@ -71,15 +77,6 @@ abstract contract IntegrationBase is Test {
         address chainFeesRecipient;
         string name;
     }
-
-    // L2 predeploys for cross-domain messaging
-    address internal constant L2_CROSS_DOMAIN_MESSENGER = 0x4200000000000000000000000000000000000007;
-    /// @notice Value used for the L2 sender storage slot in both the OptimismPortal and the
-    ///         CrossDomainMessenger contracts before an actual sender is set. This value is
-    ///         non-zero to reduce the gas cost of message passing transactions.
-    address internal constant DEFAULT_L2_SENDER = 0x000000000000000000000000000000000000dEaD;
-    /// @notice Extra gas buffer added to the minimum gas limit for the relayMessage function
-    uint64 internal constant RELAY_GAS_OVERHEAD = 700_000;
 
     // Array to store all L2 chain configurations
     L2ChainConfig[] internal l2Chains;
@@ -360,6 +357,7 @@ abstract contract IntegrationBase is Test {
             uint256 lockboxBalanceBefore = ETH_LOCKBOX.balance;
 
             // Expect TransactionDeposited event from OP Mainnet Portal
+            // Note: FeesDepositor always deposits to OP Mainnet regardless of which L2 initiated the withdrawal
             vm.expectEmit(true, true, true, false, OP_MAINNET_PORTAL);
             emit TransactionDeposited(
                 FEES_DEPOSITOR_ALIASED_ADDRESS, // aliased FeesDepositor address
