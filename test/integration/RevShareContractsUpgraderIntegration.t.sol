@@ -1,7 +1,6 @@
 // SPDX-License-Identifier: MIT
 pragma solidity 0.8.15;
 
-import {RevShareContractsUpgrader} from "src/RevShareContractsUpgrader.sol";
 import {RevShareUpgradeAndSetup} from "src/template/RevShareUpgradeAndSetup.sol";
 import {IntegrationBase} from "./IntegrationBase.t.sol";
 

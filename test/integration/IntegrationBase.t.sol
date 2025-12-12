@@ -4,14 +4,11 @@ pragma solidity 0.8.15;
 import {Test} from "forge-std/Test.sol";
 import {Vm} from "forge-std/Vm.sol";
 import {console2} from "forge-std/console2.sol";
-import {AddressAliasHelper} from "@eth-optimism-bedrock/src/vendor/AddressAliasHelper.sol";
 import {IL1CrossDomainMessenger} from "@eth-optimism-bedrock/interfaces/L1/IL1CrossDomainMessenger.sol";
-import {IOptimismPortal2} from "@eth-optimism-bedrock/interfaces/L1/IOptimismPortal2.sol";
 import {StdStorage, stdStorage} from "forge-std/StdStorage.sol";
 import {FeeSplitterSetup} from "src/libraries/FeeSplitterSetup.sol";
 import {RevShareCommon} from "src/libraries/RevShareCommon.sol";
 import {Utils} from "src/libraries/Utils.sol";
-import {RevShareContractsUpgrader} from "src/RevShareContractsUpgrader.sol";
 import {IFeeSplitter} from "src/interfaces/IFeeSplitter.sol";
 import {IFeeVault} from "src/interfaces/IFeeVault.sol";
 import {IL1Withdrawer} from "src/interfaces/IL1Withdrawer.sol";
@@ -31,10 +28,6 @@ abstract contract IntegrationBase is Test {
     uint256 internal _opMainnetForkId;
     uint256 internal _inkMainnetForkId;
     uint256 internal _soneiumMainnetForkId;
-
-    // Shared upgrader contract
-    RevShareContractsUpgrader public revShareUpgrader =
-        RevShareContractsUpgrader(0x71241bbae674967dD523e621c272Ea32cf33119A);
 
     // L1 addresses
     address internal constant OP_MAINNET_PORTAL = 0xbEb5Fc579115071764c7423A4f12eDde41f106Ed;
