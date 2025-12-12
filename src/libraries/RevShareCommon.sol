@@ -17,7 +17,7 @@ library RevShareCommon {
     address internal constant FEE_SPLITTER = 0x420000000000000000000000000000000000002B;
 
     /// @notice The gas limit for the upgrade calls on L2.
-    uint64 internal constant UPGRADE_GAS_LIMIT = 125_000;
+    uint64 internal constant UPGRADE_GAS_LIMIT = 150_000;
 
     /// @notice The gas limit for setter calls on L2.
     uint64 internal constant SETTERS_GAS_LIMIT = 75_000;
