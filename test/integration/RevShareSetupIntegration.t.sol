@@ -49,8 +49,6 @@ contract RevShareSetupIntegrationTest is IntegrationBase {
             })
         );
 
-        _deployRevShareUpgrader();
-
         // Deploy RevShareSetup task
         revShareTask = new RevShareSetup();
 

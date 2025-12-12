@@ -42,8 +42,10 @@ contract RevShareContractsUpgraderIntegrationTest is IntegrationBase {
             })
         );
 
-        _deployRevShareUpgrader();
         revShareTask = new RevShareUpgradeAndSetup();
+
+        // Switch to mainnet fork for task execution
+        vm.selectFork(_mainnetForkId);
     }
 
     /// @notice Test the integration of upgradeAndSetupRevShare (Ink and Soneium only - need proxy upgrade)

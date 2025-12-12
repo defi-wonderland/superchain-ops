@@ -33,7 +33,8 @@ abstract contract IntegrationBase is Test {
     uint256 internal _soneiumMainnetForkId;
 
     // Shared upgrader contract
-    RevShareContractsUpgrader public revShareUpgrader;
+    RevShareContractsUpgrader public revShareUpgrader =
+        RevShareContractsUpgrader(0x71241bbae674967dD523e621c272Ea32cf33119A);
 
     // L1 addresses
     address internal constant REV_SHARE_UPGRADER_ADDRESS = 0x0000000000000000000000000000000000001337;
@@ -222,15 +223,6 @@ abstract contract IntegrationBase is Test {
         );
         bytes32 _salt = RevShareCommon.getSalt("SCRevShareCalculator");
         return Utils.getCreate2Address(_salt, _initCode, RevShareCommon.CREATE2_DEPLOYER);
-    }
-
-    /// @notice Deploys RevShareContractsUpgrader and etches it at the predetermined address.
-    /// @dev Must be called after forks are created and while on the mainnet fork.
-    function _deployRevShareUpgrader() internal {
-        vm.selectFork(_mainnetForkId);
-        revShareUpgrader = new RevShareContractsUpgrader();
-        vm.etch(REV_SHARE_UPGRADER_ADDRESS, address(revShareUpgrader).code);
-        revShareUpgrader = RevShareContractsUpgrader(REV_SHARE_UPGRADER_ADDRESS);
     }
 
     /// @notice Fund all fee vaults with a specified amount
