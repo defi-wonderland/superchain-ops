@@ -5,7 +5,6 @@ import {Test} from "forge-std/Test.sol";
 import {Vm} from "forge-std/Vm.sol";
 import {console2} from "forge-std/console2.sol";
 import {AddressAliasHelper} from "@eth-optimism-bedrock/src/vendor/AddressAliasHelper.sol";
-import {Predeploys} from "@eth-optimism-bedrock/src/libraries/Predeploys.sol";
 import {IL1CrossDomainMessenger} from "@eth-optimism-bedrock/interfaces/L1/IL1CrossDomainMessenger.sol";
 import {IOptimismPortal2} from "@eth-optimism-bedrock/interfaces/L1/IOptimismPortal2.sol";
 import {StdStorage, stdStorage} from "forge-std/StdStorage.sol";
@@ -23,7 +22,9 @@ import {ISuperchainRevSharesCalculator} from "src/interfaces/ISuperchainRevShare
 abstract contract IntegrationBase is Test {
     using stdStorage for StdStorage;
     // Events for testing
+
     event WithdrawalInitiated(address indexed recipient, uint256 amount);
+    event TransactionDeposited(address indexed from, address indexed to, uint256 indexed version, bytes opaqueData);
 
     // Fork IDs
     uint256 internal _mainnetForkId;
@@ -42,6 +43,11 @@ abstract contract IntegrationBase is Test {
     address internal constant OP_MAINNET_L1_MESSENGER = 0x25ace71c97B33Cc4729CF772ae268934F7ab5fA1;
     address internal constant INK_MAINNET_L1_MESSENGER = 0x69d3Cf86B2Bf1a9e99875B7e2D9B6a84426c171f;
     address internal constant SONEIUM_MAINNET_L1_MESSENGER = 0x9CF951E3F74B644e621b36Ca9cea147a78D4c39f;
+
+    // FeesDepositor configuration (triggers deposit to OP Mainnet when balance >= threshold)
+    address internal constant FEES_DEPOSITOR_ALIASED_ADDRESS = 0x36BDE71C97B33Cc4729cf772aE268934f7AB70B2;
+    uint256 internal constant FEES_DEPOSITOR_THRESHOLD = 2 ether;
+    address internal constant ETH_LOCKBOX = 0x322b47Ff1FA8D5611F761e3E275C45B71b294D43;
 
     // Simulation flag for task execution
     bool internal constant IS_SIMULATE = true;
@@ -218,59 +224,6 @@ abstract contract IntegrationBase is Test {
         return Utils.getCreate2Address(_salt, _initCode, RevShareCommon.CREATE2_DEPLOYER);
     }
 
-    /// @notice Sets up the default L2 chain configurations for OP, Ink, and Soneium mainnets.
-    /// @dev This function populates the `l2Chains` array with default test configurations.
-    ///      If your test requires different chain configurations (different portals, amounts,
-    ///      recipients, etc.), do NOT call this function. Instead, populate `l2Chains` directly
-    ///      in your test's setUp() function with your custom configurations.
-    function _setupDefaultL2Chains() internal {
-        // Create forks for L1 (mainnet) and L2s
-        _mainnetForkId = vm.createFork("http://127.0.0.1:8545");
-        _opMainnetForkId = vm.createFork("http://127.0.0.1:9545");
-        _inkMainnetForkId = vm.createFork("http://127.0.0.1:9546");
-        _soneiumMainnetForkId = vm.createFork("http://127.0.0.1:9547");
-
-        // Configure all L2 chains
-        l2Chains.push(
-            L2ChainConfig({
-                forkId: _opMainnetForkId,
-                portal: OP_MAINNET_PORTAL,
-                l1Messenger: OP_MAINNET_L1_MESSENGER,
-                minWithdrawalAmount: 350000,
-                l1WithdrawalRecipient: address(0x1),
-                withdrawalGasLimit: 800000,
-                chainFeesRecipient: address(0x1),
-                name: "OP Mainnet"
-            })
-        );
-
-        l2Chains.push(
-            L2ChainConfig({
-                forkId: _inkMainnetForkId,
-                portal: INK_MAINNET_PORTAL,
-                l1Messenger: INK_MAINNET_L1_MESSENGER,
-                minWithdrawalAmount: 500000,
-                l1WithdrawalRecipient: address(0x2),
-                withdrawalGasLimit: 800000,
-                chainFeesRecipient: address(0x2),
-                name: "Ink Mainnet"
-            })
-        );
-
-        l2Chains.push(
-            L2ChainConfig({
-                forkId: _soneiumMainnetForkId,
-                portal: SONEIUM_MAINNET_PORTAL,
-                l1Messenger: SONEIUM_MAINNET_L1_MESSENGER,
-                minWithdrawalAmount: 500000,
-                l1WithdrawalRecipient: address(0x3),
-                withdrawalGasLimit: 800000,
-                chainFeesRecipient: address(0x3),
-                name: "Soneium Mainnet"
-            })
-        );
-    }
-
     /// @notice Deploys RevShareContractsUpgrader and etches it at the predetermined address.
     /// @dev Must be called after forks are created and while on the mainnet fork.
     function _deployRevShareUpgrader() internal {
@@ -403,39 +356,63 @@ abstract contract IntegrationBase is Test {
         vm.selectFork(_forkId);
         vm.warp(block.timestamp + IFeeSplitter(FEE_SPLITTER).feeDisbursementInterval() + 1);
 
-        uint256 balanceBefore = Predeploys.L2_TO_L1_MESSAGE_PASSER.balance;
-
         vm.expectEmit(true, true, true, true, _l1Withdrawer);
         emit WithdrawalInitiated(_l1WithdrawalRecipient, _expectedWithdrawalAmount);
         IFeeSplitter(FEE_SPLITTER).disburseFees();
 
-        uint256 balanceAfter = Predeploys.L2_TO_L1_MESSAGE_PASSER.balance;
-
-        assertEq(balanceAfter - balanceBefore, _expectedWithdrawalAmount);
-
         // Relay the withdrawal message to L1
         vm.selectFork(_l1ForkId);
 
-        uint256 recipientBalanceBefore = _l1WithdrawalRecipient.balance;
+        if (_expectedWithdrawalAmount >= FEES_DEPOSITOR_THRESHOLD) {
+            // FeesDepositor will auto-forward to OP Mainnet ETH Lockbox
+            uint256 lockboxBalanceBefore = ETH_LOCKBOX.balance;
 
-        // The L1Withdrawer sends ETH to the recipient via the L2CrossDomainMessenger
-        // The message data is empty since it's a simple ETH transfer
-        _relayL2ToL1Message(
-            _portal,
-            _l1Messenger,
-            _l1Withdrawer, // sender on L2
-            _l1WithdrawalRecipient, // target on L1
-            _expectedWithdrawalAmount, // value
-            _withdrawalGasLimit, // minGasLimit
-            "" // data (empty for ETH transfer)
-        );
+            // Expect TransactionDeposited event from OP Mainnet Portal
+            vm.expectEmit(true, true, true, false, OP_MAINNET_PORTAL);
+            emit TransactionDeposited(
+                FEES_DEPOSITOR_ALIASED_ADDRESS, // aliased FeesDepositor address
+                L2_CROSS_DOMAIN_MESSENGER, // L2 CrossDomainMessenger
+                0,
+                ""
+            );
 
-        uint256 recipientBalanceAfter = _l1WithdrawalRecipient.balance;
-        assertEq(
-            recipientBalanceAfter - recipientBalanceBefore,
-            _expectedWithdrawalAmount,
-            "L1 recipient should receive the withdrawal amount"
-        );
+            _relayL2ToL1Message(
+                _portal,
+                _l1Messenger,
+                _l1Withdrawer, // sender on L2
+                _l1WithdrawalRecipient, // target on L1
+                _expectedWithdrawalAmount, // value
+                _withdrawalGasLimit, // minGasLimit
+                "" // data (empty for ETH transfer)
+            );
+
+            uint256 lockboxBalanceAfter = ETH_LOCKBOX.balance;
+            assertEq(
+                lockboxBalanceAfter - lockboxBalanceBefore,
+                _expectedWithdrawalAmount,
+                "ETH Lockbox should receive the withdrawal amount"
+            );
+        } else {
+            // FeesDepositor holds the ETH (below threshold)
+            uint256 recipientBalanceBefore = _l1WithdrawalRecipient.balance;
+
+            _relayL2ToL1Message(
+                _portal,
+                _l1Messenger,
+                _l1Withdrawer, // sender on L2
+                _l1WithdrawalRecipient, // target on L1
+                _expectedWithdrawalAmount, // value
+                _withdrawalGasLimit, // minGasLimit
+                "" // data (empty for ETH transfer)
+            );
+
+            uint256 recipientBalanceAfter = _l1WithdrawalRecipient.balance;
+            assertEq(
+                recipientBalanceAfter - recipientBalanceBefore,
+                _expectedWithdrawalAmount,
+                "L1 recipient should receive the withdrawal amount"
+            );
+        }
     }
 
     /// @notice Relay a message from L2 to L1 via the CrossDomainMessenger
