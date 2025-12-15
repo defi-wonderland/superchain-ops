@@ -222,6 +222,7 @@ contract RevShareSetupIntegrationTest is IntegrationBase {
             _executeDisburseAndAssertWithdrawal(
                 _mainnetForkId,
                 chain.forkId,
+                _opMainnetForkId,
                 l1Withdrawer,
                 chain.l1WithdrawalRecipient,
                 expectedWithdrawalAmount,

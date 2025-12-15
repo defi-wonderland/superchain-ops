@@ -5,6 +5,7 @@ import {Test} from "forge-std/Test.sol";
 import {Vm} from "forge-std/Vm.sol";
 import {console2} from "forge-std/console2.sol";
 import {IL1CrossDomainMessenger} from "@eth-optimism-bedrock/interfaces/L1/IL1CrossDomainMessenger.sol";
+import {ICrossDomainMessenger} from "@eth-optimism-bedrock/interfaces/universal/ICrossDomainMessenger.sol";
 import {StdStorage, stdStorage} from "forge-std/StdStorage.sol";
 import {FeeSplitterSetup} from "src/libraries/FeeSplitterSetup.sol";
 import {RevShareCommon} from "src/libraries/RevShareCommon.sol";
@@ -42,6 +43,10 @@ abstract contract IntegrationBase is Test {
     uint256 internal constant FEES_DEPOSITOR_THRESHOLD = 2 ether;
     address internal constant ETH_LOCKBOX = 0x322b47Ff1FA8D5611F761e3E275C45B71b294D43;
 
+    // Aliased OP Mainnet L1 Messenger for L1→L2 message relay
+    // Computed: OP_MAINNET_L1_MESSENGER + 0x1111000000000000000000000000000000001111
+    address internal constant OP_ALIASED_L1_MESSENGER = 0x36BDE71C97B33Cc4729cf772aE268934f7AB70B2;
+
     // Simulation flag for task execution
     bool internal constant IS_SIMULATE = true;
 
@@ -58,6 +63,9 @@ abstract contract IntegrationBase is Test {
 
     // Extra gas buffer added to the minimum gas limit for the relayMessage function
     uint64 internal constant RELAY_GAS_OVERHEAD = 700_000;
+
+    // Counter for unique L1→L2 message nonces (to avoid collisions on forks)
+    uint240 internal _l1ToL2NonceCounter;
 
     // L2 chain configuration struct
     struct L2ChainConfig {
@@ -319,6 +327,7 @@ abstract contract IntegrationBase is Test {
     /// @notice Execute disburseFees and assert that it triggers a withdrawal with the expected amount
     /// @param _l1ForkId The L1 fork ID
     /// @param _forkId The fork ID of the L2 chain to test
+    /// @param _opL2ForkId The OP Mainnet L2 fork ID (for relaying L1→L2 deposits)
     /// @param _l1Withdrawer The L1Withdrawer address that emits the WithdrawalInitiated event
     /// @param _l1WithdrawalRecipient The expected recipient of the withdrawal
     /// @param _expectedWithdrawalAmount The expected withdrawal amount
@@ -328,6 +337,7 @@ abstract contract IntegrationBase is Test {
     function _executeDisburseAndAssertWithdrawal(
         uint256 _l1ForkId,
         uint256 _forkId,
+        uint256 _opL2ForkId,
         address _l1Withdrawer,
         address _l1WithdrawalRecipient,
         uint256 _expectedWithdrawalAmount,
@@ -346,9 +356,6 @@ abstract contract IntegrationBase is Test {
         vm.selectFork(_l1ForkId);
 
         if (_expectedWithdrawalAmount >= FEES_DEPOSITOR_THRESHOLD) {
-            // FeesDepositor will auto-forward to OP Mainnet ETH Lockbox
-            uint256 lockboxBalanceBefore = ETH_LOCKBOX.balance;
-
             // Expect TransactionDeposited event from OP Mainnet Portal
             // Note: FeesDepositor always deposits to OP Mainnet regardless of which L2 initiated the withdrawal
             vm.expectEmit(true, true, true, false, OP_MAINNET_PORTAL);
@@ -367,6 +374,21 @@ abstract contract IntegrationBase is Test {
                 _expectedWithdrawalAmount, // value
                 _withdrawalGasLimit, // minGasLimit
                 "" // data (empty for ETH transfer)
+            );
+
+            // Now relay the deposit from L1 to OP Mainnet L2
+            vm.selectFork(_opL2ForkId);
+
+            uint256 lockboxBalanceBefore = ETH_LOCKBOX.balance;
+
+            // Relay the L1→L2 message (simple ETH transfer to ETH Lockbox)
+            _relayL1ToL2Message(
+                OP_ALIASED_L1_MESSENGER,
+                _l1WithdrawalRecipient, // sender (FeesDepositor)
+                ETH_LOCKBOX, // target
+                _expectedWithdrawalAmount,
+                100_000, // gas limit for simple ETH transfer
+                "" // empty data for ETH transfer
             );
 
             uint256 lockboxBalanceAfter = ETH_LOCKBOX.balance;
@@ -437,5 +459,35 @@ abstract contract IntegrationBase is Test {
 
         // Reset the l2Sender back to the default value
         stdstore.target(_portal).sig("l2Sender()").checked_write(DEFAULT_L2_SENDER);
+    }
+
+    /// @notice Relay a message from L1 to L2 via the CrossDomainMessenger
+    /// @dev This simulates the L1->L2 message relay by calling relayMessage on the L2CrossDomainMessenger.
+    ///      Uses a unique nonce based on block.timestamp to avoid collisions with already-relayed messages on forks.
+    /// @param _aliasedL1Messenger The aliased L1 messenger address (sender on L2)
+    /// @param _sender The original sender on L1
+    /// @param _target The target address on L2
+    /// @param _value The ETH value to send
+    /// @param _minGasLimit The minimum gas limit for the message
+    /// @param _data The message data
+    function _relayL1ToL2Message(
+        address _aliasedL1Messenger,
+        address _sender,
+        address _target,
+        uint256 _value,
+        uint256 _minGasLimit,
+        bytes memory _data
+    ) internal {
+        // Use a unique nonce to avoid "message already relayed" errors on forked networks.
+        // The nonce format is: version (16 bits) | nonce (240 bits)
+        // Version 1 is used for L1->L2 messages. We combine block.timestamp with a counter for uniqueness.
+        _l1ToL2NonceCounter++;
+        uint256 _messageNonce = (uint256(1) << 240) | uint240(uint256(keccak256(abi.encode(block.timestamp, _l1ToL2NonceCounter))));
+        vm.deal(_aliasedL1Messenger, _value);
+        vm.prank(_aliasedL1Messenger);
+        // OP adds some extra gas for the relayMessage logic
+        ICrossDomainMessenger(L2_CROSS_DOMAIN_MESSENGER).relayMessage{gas: _minGasLimit + RELAY_GAS_OVERHEAD, value: _value}(
+            _messageNonce, _sender, _target, _value, _minGasLimit, _data
+        );
     }
 }

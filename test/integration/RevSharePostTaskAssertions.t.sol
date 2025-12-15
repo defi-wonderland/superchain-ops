@@ -10,6 +10,7 @@ import {IntegrationBase} from "./IntegrationBase.t.sol";
 /// @dev Required environment variables:
 ///      - RPC_URL: L2 RPC URL to create fork
 ///      - L1_RPC_URL: L1 RPC URL to create fork (for withdrawal relay tests)
+///      - OP_MAINNET_RPC_URL: OP Mainnet L2 RPC URL (for L1→L2 relay tests, defaults to RPC_URL)
 ///      - OPTIMISM_PORTAL: Portal address for the chain
 ///      - L1_MESSENGER: L1CrossDomainMessenger address for the chain
 ///      - MIN_WITHDRAWAL_AMOUNT: Min withdrawal amount for L1Withdrawer
@@ -20,6 +21,7 @@ import {IntegrationBase} from "./IntegrationBase.t.sol";
 /// ```sh
 /// RPC_URL="https://mainnet.optimism.io" \
 /// L1_RPC_URL="https://eth.llamarpc.com" \
+/// OP_MAINNET_RPC_URL="https://mainnet.optimism.io" \
 /// OPTIMISM_PORTAL="0xbEb5Fc579115071764c7423A4f12eDde41f106Ed" \
 /// L1_MESSENGER="0x25ace71c97B33Cc4729CF772ae268934F7ab5fA1" \
 /// MIN_WITHDRAWAL_AMOUNT="2000000000000000000" \
@@ -55,6 +57,7 @@ contract RevSharePostTaskAssertionsTest is IntegrationBase {
         // Read env vars with defaults to detect if they're set
         string memory rpcUrl = vm.envOr("RPC_URL", string(""));
         string memory l1RpcUrl = vm.envOr("L1_RPC_URL", string(""));
+        string memory opMainnetRpcUrl = vm.envOr("OP_MAINNET_RPC_URL", rpcUrl); // Defaults to RPC_URL
         _portal = vm.envOr("OPTIMISM_PORTAL", address(0));
         _l1Messenger = vm.envOr("L1_MESSENGER", address(0));
         _minWithdrawalAmount = vm.envOr("MIN_WITHDRAWAL_AMOUNT", uint256(0));
@@ -76,6 +79,7 @@ contract RevSharePostTaskAssertionsTest is IntegrationBase {
 
         if (_isEnabled) {
             _mainnetForkId = vm.createFork(l1RpcUrl);
+            _opMainnetForkId = vm.createFork(opMainnetRpcUrl);
             _l2ForkId = vm.createFork(rpcUrl);
         }
     }
@@ -117,6 +121,7 @@ contract RevSharePostTaskAssertionsTest is IntegrationBase {
         _executeDisburseAndAssertWithdrawal(
             _mainnetForkId,
             _l2ForkId,
+            _opMainnetForkId,
             l1Withdrawer,
             _l1WithdrawalRecipient,
             expectedWithdrawalAmount,

@@ -10,6 +10,7 @@ contract RevShareContractsUpgraderIntegrationTest is IntegrationBase {
     function setUp() public {
         // Create forks for L1 (mainnet) and L2s (Ink and Soneium only - need proxy upgrade)
         _mainnetForkId = vm.createFork("http://127.0.0.1:8545");
+        _opMainnetForkId = vm.createFork("http://127.0.0.1:9545");
         _inkMainnetForkId = vm.createFork("http://127.0.0.1:9546");
         _soneiumMainnetForkId = vm.createFork("http://127.0.0.1:9547");
 
@@ -107,6 +108,7 @@ contract RevShareContractsUpgraderIntegrationTest is IntegrationBase {
             _executeDisburseAndAssertWithdrawal(
                 _mainnetForkId,
                 chain.forkId,
+                _opMainnetForkId,
                 l1Withdrawer,
                 chain.l1WithdrawalRecipient,
                 expectedWithdrawalAmount,
