@@ -19,7 +19,7 @@ import {IntegrationBase} from "./IntegrationBase.t.sol";
 /// @dev Example command:
 /// ```sh
 /// RPC_URL="https://mainnet.optimism.io" \
-/// L1_RPC_URL="https://eth-mainnet.g.alchemy.com/v2/<key>" \
+/// L1_RPC_URL="https://eth.llamarpc.com" \
 /// OPTIMISM_PORTAL="0xbEb5Fc579115071764c7423A4f12eDde41f106Ed" \
 /// L1_MESSENGER="0x25ace71c97B33Cc4729CF772ae268934F7ab5fA1" \
 /// MIN_WITHDRAWAL_AMOUNT="2000000000000000000" \
