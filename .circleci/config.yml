@@ -70,7 +70,7 @@ jobs:
           mentions: "@evm-safety-team"
 
   stacked_simulation:
-    description: "Runs a stacked simulation"
+    description: "Runs a stacked simulation for both foundation and council nested safes"
     parameters:
       network:
         type: string
@@ -83,15 +83,23 @@ jobs:
     steps:
       - utils/checkout-with-mise
       - run:
-          name: "Run stacked simulation for network: <<parameters.network>>"
+          name: "Run stacked simulation for network: <<parameters.network>> (foundation)"
           # This may need to be increased in the future. We should focus on fixing the performance first before bumping this.
           no_output_timeout: 30m
           command: |
             just install
             cd src/
-            just simulate-stack <<parameters.network>> > stack-simulation-output.txt
+            just simulate-stack <<parameters.network>> "" foundation > stack-simulation-foundation.txt
+      - run:
+          name: "Run stacked simulation for network: <<parameters.network>> (council)"
+          no_output_timeout: 30m
+          command: |
+            cd src/
+            just simulate-stack <<parameters.network>> "" council > stack-simulation-council.txt
       - store_artifacts:
-          path: src/stack-simulation-output.txt
+          path: src/stack-simulation-foundation.txt
+      - store_artifacts:
+          path: src/stack-simulation-council.txt
       - notify-failures-on-main:
           mentions: "@evm-safety-team"
 
