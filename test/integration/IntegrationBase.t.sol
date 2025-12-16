@@ -41,7 +41,9 @@ abstract contract IntegrationBase is Test {
     // FeesDepositor configuration (triggers deposit to OP Mainnet when balance >= threshold)
     address internal constant FEES_DEPOSITOR_ALIASED_ADDRESS = 0x36BDE71C97B33Cc4729cf772aE268934f7AB70B2;
     uint256 internal constant FEES_DEPOSITOR_THRESHOLD = 2 ether;
-    address internal constant ETH_LOCKBOX = 0x322b47Ff1FA8D5611F761e3E275C45B71b294D43;
+
+    // OP Mainnet fees recipient (OPM multisig) - target for FeesDepositor deposits
+    address internal constant OP_MAINNET_FEES_RECIPIENT = 0x16A27462B4D61BDD72CbBabd3E43e11791F7A28c;
 
     // Aliased OP Mainnet L1 Messenger for L1→L2 message relay
     // Computed: OP_MAINNET_L1_MESSENGER + 0x1111000000000000000000000000000000001111
@@ -379,23 +381,23 @@ abstract contract IntegrationBase is Test {
             // Now relay the deposit from L1 to OP Mainnet L2
             vm.selectFork(_opL2ForkId);
 
-            uint256 lockboxBalanceBefore = ETH_LOCKBOX.balance;
+            uint256 recipientBalanceBefore = OP_MAINNET_FEES_RECIPIENT.balance;
 
-            // Relay the L1→L2 message (simple ETH transfer to ETH Lockbox)
+            // Relay the L1→L2 message (simple ETH transfer to OPM multisig)
             _relayL1ToL2Message(
                 OP_ALIASED_L1_MESSENGER,
                 _l1WithdrawalRecipient, // sender (FeesDepositor)
-                ETH_LOCKBOX, // target
+                OP_MAINNET_FEES_RECIPIENT, // target (OPM multisig)
                 _expectedWithdrawalAmount,
                 100_000, // gas limit for simple ETH transfer
                 "" // empty data for ETH transfer
             );
 
-            uint256 lockboxBalanceAfter = ETH_LOCKBOX.balance;
+            uint256 recipientBalanceAfter = OP_MAINNET_FEES_RECIPIENT.balance;
             assertEq(
-                lockboxBalanceAfter - lockboxBalanceBefore,
+                recipientBalanceAfter - recipientBalanceBefore,
                 _expectedWithdrawalAmount,
-                "ETH Lockbox should receive the withdrawal amount"
+                "OP Mainnet fees recipient should receive the withdrawal amount"
             );
         } else {
             // FeesDepositor holds the ETH (below threshold)
