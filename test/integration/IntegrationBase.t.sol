@@ -389,7 +389,7 @@ abstract contract IntegrationBase is Test {
                 _l1WithdrawalRecipient, // sender (FeesDepositor)
                 OP_MAINNET_FEES_RECIPIENT, // target (OPM multisig)
                 _expectedWithdrawalAmount,
-                100_000, // gas limit for simple ETH transfer
+                200_000, // gas limit for simple ETH transfer
                 "" // empty data for ETH transfer
             );
 
@@ -484,12 +484,14 @@ abstract contract IntegrationBase is Test {
         // The nonce format is: version (16 bits) | nonce (240 bits)
         // Version 1 is used for L1->L2 messages. We combine block.timestamp with a counter for uniqueness.
         _l1ToL2NonceCounter++;
-        uint256 _messageNonce = (uint256(1) << 240) | uint240(uint256(keccak256(abi.encode(block.timestamp, _l1ToL2NonceCounter))));
+        uint256 _messageNonce =
+            (uint256(1) << 240) | uint240(uint256(keccak256(abi.encode(block.timestamp, _l1ToL2NonceCounter))));
         vm.deal(_aliasedL1Messenger, _value);
         vm.prank(_aliasedL1Messenger);
         // OP adds some extra gas for the relayMessage logic
-        ICrossDomainMessenger(L2_CROSS_DOMAIN_MESSENGER).relayMessage{gas: _minGasLimit + RELAY_GAS_OVERHEAD, value: _value}(
-            _messageNonce, _sender, _target, _value, _minGasLimit, _data
-        );
+        ICrossDomainMessenger(L2_CROSS_DOMAIN_MESSENGER).relayMessage{
+            gas: _minGasLimit + RELAY_GAS_OVERHEAD,
+            value: _value
+        }(_messageNonce, _sender, _target, _value, _minGasLimit, _data);
     }
 }
