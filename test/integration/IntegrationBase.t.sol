@@ -10,6 +10,7 @@ import {StdStorage, stdStorage} from "forge-std/StdStorage.sol";
 import {FeeSplitterSetup} from "src/libraries/FeeSplitterSetup.sol";
 import {RevShareCommon} from "src/libraries/RevShareCommon.sol";
 import {Utils} from "src/libraries/Utils.sol";
+import {AddressAliasHelper} from "@eth-optimism-bedrock/src/vendor/AddressAliasHelper.sol";
 import {IFeeSplitter} from "src/interfaces/IFeeSplitter.sol";
 import {IFeeVault} from "src/interfaces/IFeeVault.sol";
 import {IL1Withdrawer} from "src/interfaces/IL1Withdrawer.sol";
@@ -39,15 +40,13 @@ abstract contract IntegrationBase is Test {
     address internal constant SONEIUM_MAINNET_L1_MESSENGER = 0x9CF951E3F74B644e621b36Ca9cea147a78D4c39f;
 
     // FeesDepositor configuration (triggers deposit to OP Mainnet when balance >= threshold)
-    address internal constant FEES_DEPOSITOR_ALIASED_ADDRESS = 0x36BDE71C97B33Cc4729cf772aE268934f7AB70B2;
     uint256 internal constant FEES_DEPOSITOR_THRESHOLD = 2 ether;
 
     // OP Mainnet fees recipient (OPM multisig) - target for FeesDepositor deposits
     address internal constant OP_MAINNET_FEES_RECIPIENT = 0x16A27462B4D61BDD72CbBabd3E43e11791F7A28c;
 
-    // Aliased OP Mainnet L1 Messenger for L1→L2 message relay
-    // Computed: OP_MAINNET_L1_MESSENGER + 0x1111000000000000000000000000000000001111
-    address internal constant OP_ALIASED_L1_MESSENGER = 0x36BDE71C97B33Cc4729cf772aE268934f7AB70B2;
+    // Aliased address for L1→L2 message relay
+    address internal immutable OP_ALIASED_L1_MESSENGER = AddressAliasHelper.applyL1ToL2Alias(OP_MAINNET_L1_MESSENGER);
 
     // Simulation flag for task execution
     bool internal constant IS_SIMULATE = true;
@@ -359,10 +358,11 @@ abstract contract IntegrationBase is Test {
 
         if (_expectedWithdrawalAmount >= FEES_DEPOSITOR_THRESHOLD) {
             // Expect TransactionDeposited event from OP Mainnet Portal
-            // Note: FeesDepositor always deposits to OP Mainnet regardless of which L2 initiated the withdrawal
+            // Note: FeesDepositor calls L1CrossDomainMessenger.sendMessage(), which calls OptimismPortal.depositTransaction()
+            // The 'from' address in TransactionDeposited is the aliased L1CrossDomainMessenger (not the FeesDepositor)
             vm.expectEmit(true, true, true, false, OP_MAINNET_PORTAL);
             emit TransactionDeposited(
-                FEES_DEPOSITOR_ALIASED_ADDRESS, // aliased FeesDepositor address
+                OP_ALIASED_L1_MESSENGER, // aliased L1CrossDomainMessenger (caller of depositTransaction)
                 L2_CROSS_DOMAIN_MESSENGER, // L2 CrossDomainMessenger
                 0,
                 ""
