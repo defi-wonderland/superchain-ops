@@ -68,7 +68,7 @@ contract RevShareSetupIntegrationTest is IntegrationBase {
         Proxy proxyTemplate = new Proxy(address(this));
         bytes memory proxyCode = address(proxyTemplate).code;
 
-        // Etch predeploys on OP Mainnet fork
+        // Etch predeploys on OP Mainnet fork (proxies already upgraded, just need setup)
         vm.selectFork(_opMainnetForkId);
         _etchImplementations(
             _operatorFeeVaultImpl,
