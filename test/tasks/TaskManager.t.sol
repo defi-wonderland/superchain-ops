@@ -212,7 +212,7 @@ contract TaskManagerUnitTest is StateOverrideManager, Test {
         TaskManager tm = new TaskManager();
         L2Chain[] memory l2Chains = new L2Chain[](1);
         l2Chains[0] = L2Chain({chainId: 10, name: "OP Mainnet"});
-        (, bytes memory dataToSign) = tm.executeTask(
+        (, bytes[] memory dataToSign) = tm.executeTask(
             TaskConfig({
                 optionalL2Chains: l2Chains,
                 basePath: "test/tasks/example/eth/006-system-config-gas-params",
@@ -226,7 +226,7 @@ contract TaskManagerUnitTest is StateOverrideManager, Test {
         );
         bytes memory expectedDataToSign =
             hex"1901a4a9c312badf3fcaa05eafe5dc9bee8bd9316c78ee8b0bebe3115bb21b73267249771935e440b6212f2f0a8302967dcac81b52ea7573563fd25b9b7ee33d8b3e";
-        assertEq(keccak256(dataToSign), keccak256(expectedDataToSign));
+        assertEq(keccak256(dataToSign[0]), keccak256(expectedDataToSign));
     }
 }
 
