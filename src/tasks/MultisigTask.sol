@@ -674,7 +674,7 @@ abstract contract MultisigTask is Test, Script, StateOverrideManager, TaskManage
     /// @notice Creates multicall3 calldata for a safe to approve a given hash.
     /// @param _safe The safe that will execute the approveHash call.
     /// @param _hash The hash to approve.
-    /// @param _value The ETH value to send with the approval (typically 0).
+    /// @param _value The ETH value to send with the approval.
     function _generateApproveHashCalldata(address _safe, bytes32 _hash, uint256 _value)
         internal
         pure
