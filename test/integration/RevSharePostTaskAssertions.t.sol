@@ -123,20 +123,17 @@ contract RevSharePostTaskAssertionsTest is IntegrationBase {
     }
 
     /// @notice Test the withdrawal flow on the L2 chain - tests both below and above threshold paths
-    // Fund vaults with half the minWithdrawalAmount so that:
-    // - First disburse: share = minWithdrawalAmount / 2 (below threshold, no withdrawal)
-    // - Second disburse: total = minWithdrawalAmount (at threshold, triggers withdrawal)
+    // Fund vaults so that:
+    // - First disburse: share < minWithdrawalAmount (below threshold, no withdrawal)
+    // - Second disburse: total >= minWithdrawalAmount (triggers withdrawal)
     function test_withdrawalFlow() public onlyIfEnabled {
-        // L1Withdrawer share = netRevenue * 15% = vaultFunding * 3 * 15 / 100 = vaultFunding * 45 / 100
-        // To get share = minWithdrawalAmount / 2, we need vaultFunding = minWithdrawalAmount / 2 * 100 / 45
-        uint256 sharePerDisburse = _expectedMinWithdrawalAmount / 2;
-        uint256 vaultFunding = (sharePerDisburse * 100) / 45;
-
         // ==================== PART 1: Below threshold - no withdrawal ====================
         vm.selectFork(_l2ForkId);
 
-        // Fund vaults for first disburse
-        _fundVaults(vaultFunding, _l2ForkId);
+        // Fund vaults to get ~half threshold as share
+        // L1Withdrawer share = netRevenue * 15% = vaultFunding * 3 * 15 / 100 = vaultFunding * 45 / 100
+        uint256 firstVaultFunding = (_expectedMinWithdrawalAmount * 100) / 90;
+        _fundVaults(firstVaultFunding, _l2ForkId);
 
         // Warp time to allow disbursement
         vm.warp(block.timestamp + IFeeSplitter(FEE_SPLITTER).feeDisbursementInterval() + 1);
@@ -149,23 +146,29 @@ contract RevSharePostTaskAssertionsTest is IntegrationBase {
 
         // Verify funds accumulated in L1Withdrawer (no withdrawal triggered)
         uint256 l1WithdrawerBalanceAfter = _l1Withdrawer.balance;
+        uint256 expectedFirstShare = (firstVaultFunding * 3 * 15) / 100;
         assertEq(
             l1WithdrawerBalanceAfter - l1WithdrawerBalanceBefore,
-            sharePerDisburse,
-            "L1Withdrawer should have half of threshold"
+            expectedFirstShare,
+            "L1Withdrawer should have received expected share"
         );
 
         // ==================== PART 2: At threshold - withdrawal triggers ====================
 
-        // Fund vaults again for second disburse
-        _fundVaults(vaultFunding, _l2ForkId);
+        // Calculate how much more we need to reach the threshold
+        uint256 remainingToThreshold = _expectedMinWithdrawalAmount - l1WithdrawerBalanceAfter;
+        // Fund vaults to get at least the remaining amount as share
+        // share = vaultFunding * 45 / 100, so vaultFunding = share * 100 / 45
+        // Round up to ensure we exceed threshold: (a + b - 1) / b
+        uint256 secondVaultFunding = ((remainingToThreshold * 100) + 44) / 45;
+        _fundVaults(secondVaultFunding, _l2ForkId);
 
         // Warp time again
         vm.warp(block.timestamp + IFeeSplitter(FEE_SPLITTER).feeDisbursementInterval() + 1);
 
-        // Now the total in L1Withdrawer will be: previous balance + new share = minWithdrawalAmount
-        uint256 expectedWithdrawalAmount = sharePerDisburse * 2;
-        assertEq(expectedWithdrawalAmount, _expectedMinWithdrawalAmount, "Total should equal threshold");
+        // Calculate expected withdrawal amount (current balance + new share)
+        uint256 secondShare = (secondVaultFunding * 45) / 100;
+        uint256 expectedWithdrawalAmount = l1WithdrawerBalanceAfter + secondShare;
 
         _executeDisburseAndAssertWithdrawal(
             _mainnetForkId,
