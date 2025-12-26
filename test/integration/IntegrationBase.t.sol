@@ -45,9 +45,6 @@ abstract contract IntegrationBase is Test {
     // OP Mainnet fees recipient (OPM multisig) - target for FeesDepositor deposits
     address internal constant OP_MAINNET_FEES_RECIPIENT = 0x16A27462B4D61BDD72CbBabd3E43e11791F7A28c;
 
-    // Aliased address for L1→L2 message relay
-    address internal immutable OP_ALIASED_L1_MESSENGER = AddressAliasHelper.applyL1ToL2Alias(OP_MAINNET_L1_MESSENGER);
-
     // Simulation flag for task execution
     bool internal constant IS_SIMULATE = true;
 
@@ -335,6 +332,7 @@ abstract contract IntegrationBase is Test {
     /// @param _portal The OptimismPortal address for this L2 chain
     /// @param _l1Messenger The L1CrossDomainMessenger address for this L2 chain
     /// @param _withdrawalGasLimit The gas limit used for L1 withdrawals
+    /// @param _opL1Messenger The OP L1CrossDomainMessenger address (mainnet or sepolia)
     function _executeDisburseAndAssertWithdrawal(
         uint256 _l1ForkId,
         uint256 _forkId,
@@ -344,7 +342,8 @@ abstract contract IntegrationBase is Test {
         uint256 _expectedWithdrawalAmount,
         address _portal,
         address _l1Messenger,
-        uint32 _withdrawalGasLimit
+        uint32 _withdrawalGasLimit,
+        address _opL1Messenger
     ) internal {
         vm.selectFork(_forkId);
         vm.warp(block.timestamp + IFeeSplitter(FEE_SPLITTER).feeDisbursementInterval() + 1);
@@ -362,7 +361,7 @@ abstract contract IntegrationBase is Test {
             // The 'from' address in TransactionDeposited is the aliased L1CrossDomainMessenger (not the FeesDepositor)
             vm.expectEmit(true, true, true, false, OP_MAINNET_PORTAL);
             emit TransactionDeposited(
-                OP_ALIASED_L1_MESSENGER, // aliased L1CrossDomainMessenger (caller of depositTransaction)
+                AddressAliasHelper.applyL1ToL2Alias(_opL1Messenger), // aliased L1CrossDomainMessenger
                 L2_CROSS_DOMAIN_MESSENGER, // L2 CrossDomainMessenger
                 0,
                 ""
@@ -384,8 +383,9 @@ abstract contract IntegrationBase is Test {
             uint256 recipientBalanceBefore = OP_MAINNET_FEES_RECIPIENT.balance;
 
             // Relay the L1→L2 message (simple ETH transfer to OPM multisig)
+            address aliasedOpL1Messenger = AddressAliasHelper.applyL1ToL2Alias(_opL1Messenger);
             _relayL1ToL2Message(
-                OP_ALIASED_L1_MESSENGER,
+                aliasedOpL1Messenger,
                 _l1WithdrawalRecipient, // sender (FeesDepositor)
                 OP_MAINNET_FEES_RECIPIENT, // target (OPM multisig)
                 _expectedWithdrawalAmount,

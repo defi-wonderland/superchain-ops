@@ -17,6 +17,7 @@ import {ISuperchainRevSharesCalculator} from "src/interfaces/ISuperchainRevShare
 ///      - OP_RPC_URL: OP L2 RPC URL for L1→L2 relay tests (defaults to RPC_URL)
 ///      - OPTIMISM_PORTAL: Portal address for the chain
 ///      - L1_MESSENGER: L1CrossDomainMessenger address for the chain
+///      - OP_L1_MESSENGER: OP L1CrossDomainMessenger address (defaults to mainnet)
 ///      - MIN_WITHDRAWAL_AMOUNT: Expected min withdrawal amount for L1Withdrawer (wei)
 ///      - L1_WITHDRAWAL_RECIPIENT: Expected L1 withdrawal recipient address
 ///      - WITHDRAWAL_GAS_LIMIT: Expected gas limit for withdrawals
@@ -28,6 +29,7 @@ import {ISuperchainRevSharesCalculator} from "src/interfaces/ISuperchainRevShare
 /// OP_RPC_URL="https://sepolia.optimism.io" \
 /// OPTIMISM_PORTAL="0x5b03d83e3355cdb33fa89bafc598128c2992e0ac" \
 /// L1_MESSENGER="0x5bb384968c190f6452b8db4f6ba8a282005947b3" \
+/// OP_L1_MESSENGER="0x58Cc85b8D04EA49cC6DBd3CbFFd00B4B8D6cb3ef" \
 /// MIN_WITHDRAWAL_AMOUNT="10000000000000000000" \
 /// L1_WITHDRAWAL_RECIPIENT="0x81c01427DFA9A2512b4EBf1462868856BA4aA91a" \
 /// WITHDRAWAL_GAS_LIMIT="1000000" \
@@ -41,6 +43,7 @@ contract RevSharePostTaskAssertionsTest is IntegrationBase {
     // Chain configuration from env vars
     address internal _portal;
     address internal _l1Messenger;
+    address internal _opL1Messenger;
 
     // Expected values from env vars
     uint256 internal _expectedMinWithdrawalAmount;
@@ -70,6 +73,7 @@ contract RevSharePostTaskAssertionsTest is IntegrationBase {
         string memory opRpcUrl = vm.envOr("OP_RPC_URL", rpcUrl); // Defaults to RPC_URL
         _portal = vm.envOr("OPTIMISM_PORTAL", address(0));
         _l1Messenger = vm.envOr("L1_MESSENGER", address(0));
+        _opL1Messenger = vm.envOr("OP_L1_MESSENGER", OP_MAINNET_L1_MESSENGER); // Defaults to mainnet
 
         // Expected values to verify against on-chain state
         _expectedMinWithdrawalAmount = vm.envOr("MIN_WITHDRAWAL_AMOUNT", uint256(0));
@@ -118,17 +122,50 @@ contract RevSharePostTaskAssertionsTest is IntegrationBase {
         );
     }
 
-    /// @notice Test the withdrawal flow on the L2 chain
+    /// @notice Test the withdrawal flow on the L2 chain - tests both below and above threshold paths
+    // Fund vaults with half the minWithdrawalAmount so that:
+    // - First disburse: share = minWithdrawalAmount / 2 (below threshold, no withdrawal)
+    // - Second disburse: total = minWithdrawalAmount (at threshold, triggers withdrawal)
     function test_withdrawalFlow() public onlyIfEnabled {
-        // Fund vaults
-        _fundVaults(1 ether, _l2ForkId);
+        // L1Withdrawer share = netRevenue * 15% = vaultFunding * 3 * 15 / 100 = vaultFunding * 45 / 100
+        // To get share = minWithdrawalAmount / 2, we need vaultFunding = minWithdrawalAmount / 2 * 100 / 45
+        uint256 sharePerDisburse = _expectedMinWithdrawalAmount / 2;
+        uint256 vaultFunding = (sharePerDisburse * 100) / 45;
 
-        // Disburse fees and assert withdrawal
-        // Expected L1Withdrawer share = 3 ether * 15% = 0.45 ether
-        // It is 3 ether instead of 4 because net revenue doesn't count L1FeeVault's balance
-        // For details on the rev share calculation, check the SuperchainRevSharesCalculator contract.
-        // https://github.com/ethereum-optimism/optimism/blob/f392d4b7e8bc5d1c8d38fcf19c8848764f8bee3b/packages/contracts-bedrock/src/L2/SuperchainRevSharesCalculator.sol#L67-L101
-        uint256 expectedWithdrawalAmount = 0.45 ether;
+        // ==================== PART 1: Below threshold - no withdrawal ====================
+        vm.selectFork(_l2ForkId);
+
+        // Fund vaults for first disburse
+        _fundVaults(vaultFunding, _l2ForkId);
+
+        // Warp time to allow disbursement
+        vm.warp(block.timestamp + IFeeSplitter(FEE_SPLITTER).feeDisbursementInterval() + 1);
+
+        // Record L1Withdrawer balance before
+        uint256 l1WithdrawerBalanceBefore = _l1Withdrawer.balance;
+
+        // Disburse fees - should NOT trigger withdrawal (below threshold)
+        IFeeSplitter(FEE_SPLITTER).disburseFees();
+
+        // Verify funds accumulated in L1Withdrawer (no withdrawal triggered)
+        uint256 l1WithdrawerBalanceAfter = _l1Withdrawer.balance;
+        assertEq(
+            l1WithdrawerBalanceAfter - l1WithdrawerBalanceBefore,
+            sharePerDisburse,
+            "L1Withdrawer should have half of threshold"
+        );
+
+        // ==================== PART 2: At threshold - withdrawal triggers ====================
+
+        // Fund vaults again for second disburse
+        _fundVaults(vaultFunding, _l2ForkId);
+
+        // Warp time again
+        vm.warp(block.timestamp + IFeeSplitter(FEE_SPLITTER).feeDisbursementInterval() + 1);
+
+        // Now the total in L1Withdrawer will be: previous balance + new share = minWithdrawalAmount
+        uint256 expectedWithdrawalAmount = sharePerDisburse * 2;
+        assertEq(expectedWithdrawalAmount, _expectedMinWithdrawalAmount, "Total should equal threshold");
 
         _executeDisburseAndAssertWithdrawal(
             _mainnetForkId,
@@ -139,7 +176,8 @@ contract RevSharePostTaskAssertionsTest is IntegrationBase {
             expectedWithdrawalAmount,
             _portal,
             _l1Messenger,
-            _expectedWithdrawalGasLimit
+            _expectedWithdrawalGasLimit,
+            _opL1Messenger
         );
     }
 }
