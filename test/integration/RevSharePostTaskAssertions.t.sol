@@ -14,10 +14,12 @@ import {ISuperchainRevSharesCalculator} from "src/interfaces/ISuperchainRevShare
 /// @dev Required environment variables:
 ///      - RPC_URL: L2 RPC URL to create fork
 ///      - L1_RPC_URL: L1 RPC URL to create fork (for withdrawal relay tests)
-///      - OP_RPC_URL: OP L2 RPC URL for L1→L2 relay tests (defaults to RPC_URL)
+///      - OP_RPC_URL: OP L2 RPC URL for L1→L2 relay tests
 ///      - OPTIMISM_PORTAL: Portal address for the chain
 ///      - L1_MESSENGER: L1CrossDomainMessenger address for the chain
-///      - OP_L1_MESSENGER: OP L1CrossDomainMessenger address (defaults to mainnet)
+///      - OP_L1_MESSENGER: OP L1CrossDomainMessenger address
+///      - OP_PORTAL: OP Portal address where FeesDepositor deposits to
+///      - FEES_DEPOSITOR_TARGET: Target address that FeesDepositor sends funds to on OP L2
 ///      - MIN_WITHDRAWAL_AMOUNT: Expected min withdrawal amount for L1Withdrawer (wei)
 ///      - L1_WITHDRAWAL_RECIPIENT: Expected L1 withdrawal recipient address
 ///      - WITHDRAWAL_GAS_LIMIT: Expected gas limit for withdrawals
@@ -27,14 +29,16 @@ import {ISuperchainRevSharesCalculator} from "src/interfaces/ISuperchainRevShare
 /// RPC_URL="https://revshare-alpha-0.optimism.io" \
 /// L1_RPC_URL="https://ethereum-sepolia-rpc.publicnode.com" \
 /// OP_RPC_URL="https://sepolia.optimism.io" \
-/// OPTIMISM_PORTAL="0x5b03d83e3355cdb33fa89bafc598128c2992e0ac" \
-/// L1_MESSENGER="0x5bb384968c190f6452b8db4f6ba8a282005947b3" \
+/// OPTIMISM_PORTAL="0x176e57217e8824e26cd0f78cd6de2a0655feb675" \
+/// L1_MESSENGER="0xb24a72a720e0ddec249379dc04bcb1a9c780c7c6" \
 /// OP_L1_MESSENGER="0x58Cc85b8D04EA49cC6DBd3CbFFd00B4B8D6cb3ef" \
+/// OP_PORTAL="0x16Fc5058F25648194471939df75CF27A2fdC48BC" \
+/// FEES_DEPOSITOR_TARGET="0x7ca800c55ad9C745AC84FdeEfaf4522F4Df07577" \
 /// MIN_WITHDRAWAL_AMOUNT="10000000000000000000" \
 /// L1_WITHDRAWAL_RECIPIENT="0x81c01427DFA9A2512b4EBf1462868856BA4aA91a" \
 /// WITHDRAWAL_GAS_LIMIT="1000000" \
 /// CHAIN_FEES_RECIPIENT="0x455A1115C97cb0E2b24B064C00a9E13872cC37ca" \
-/// forge test --match-contract RevSharePostTaskAssertionsTest
+/// forge test --match-contract RevSharePostTaskAssertionsTest -vvv
 /// ```
 contract RevSharePostTaskAssertionsTest is IntegrationBase {
     // Fork ID
@@ -45,7 +49,7 @@ contract RevSharePostTaskAssertionsTest is IntegrationBase {
     address internal _l1Messenger;
     address internal _opL1Messenger;
     address internal _opPortal;
-    address internal _opFeesRecipient;
+    address internal _feesDepositorTarget;
 
     // Expected values from env vars
     uint256 internal _expectedMinWithdrawalAmount;
@@ -72,12 +76,12 @@ contract RevSharePostTaskAssertionsTest is IntegrationBase {
         // Read env vars with defaults to detect if they're set
         string memory rpcUrl = vm.envOr("RPC_URL", string(""));
         string memory l1RpcUrl = vm.envOr("L1_RPC_URL", string(""));
-        string memory opRpcUrl = vm.envOr("OP_RPC_URL", rpcUrl); // Defaults to RPC_URL
+        string memory opRpcUrl = vm.envOr("OP_RPC_URL", string(""));
         _portal = vm.envOr("OPTIMISM_PORTAL", address(0));
         _l1Messenger = vm.envOr("L1_MESSENGER", address(0));
-        _opL1Messenger = vm.envOr("OP_L1_MESSENGER", OP_MAINNET_L1_MESSENGER); // Defaults to mainnet
-        _opPortal = vm.envOr("OP_PORTAL", OP_MAINNET_PORTAL); // Defaults to mainnet
-        _opFeesRecipient = vm.envOr("OP_FEES_RECIPIENT", OP_MAINNET_FEES_RECIPIENT); // Defaults to mainnet
+        _opL1Messenger = vm.envOr("OP_L1_MESSENGER", address(0));
+        _opPortal = vm.envOr("OP_PORTAL", address(0));
+        _feesDepositorTarget = vm.envOr("FEES_DEPOSITOR_TARGET", address(0));
 
         // Expected values to verify against on-chain state
         _expectedMinWithdrawalAmount = vm.envOr("MIN_WITHDRAWAL_AMOUNT", uint256(0));
@@ -88,13 +92,18 @@ contract RevSharePostTaskAssertionsTest is IntegrationBase {
         // Check if all required env vars are set
         bool hasRpcUrl = bytes(rpcUrl).length > 0;
         bool hasL1RpcUrl = bytes(l1RpcUrl).length > 0;
+        bool hasOpRpcUrl = bytes(opRpcUrl).length > 0;
         bool hasPortal = _portal != address(0);
         bool hasL1Messenger = _l1Messenger != address(0);
+        bool hasOpL1Messenger = _opL1Messenger != address(0);
+        bool hasOpPortal = _opPortal != address(0);
+        bool hasFeesDepositorTarget = _feesDepositorTarget != address(0);
         bool hasExpectedL1WithdrawalRecipient = _expectedL1WithdrawalRecipient != address(0);
         bool hasExpectedWithdrawalGasLimit = _expectedWithdrawalGasLimit != 0;
         bool hasExpectedChainFeesRecipient = _expectedChainFeesRecipient != address(0);
 
-        _isEnabled = hasRpcUrl && hasL1RpcUrl && hasPortal && hasL1Messenger && hasExpectedL1WithdrawalRecipient
+        _isEnabled = hasRpcUrl && hasL1RpcUrl && hasOpRpcUrl && hasPortal && hasL1Messenger && hasOpL1Messenger
+            && hasOpPortal && hasFeesDepositorTarget && hasExpectedL1WithdrawalRecipient
             && hasExpectedWithdrawalGasLimit && hasExpectedChainFeesRecipient;
 
         if (_isEnabled) {
@@ -175,18 +184,22 @@ contract RevSharePostTaskAssertionsTest is IntegrationBase {
         uint256 expectedWithdrawalAmount = l1WithdrawerBalanceAfter + secondShare;
 
         _executeDisburseAndAssertWithdrawal(
-            _mainnetForkId,
-            _l2ForkId,
-            _opMainnetForkId,
-            _l1Withdrawer,
-            _expectedL1WithdrawalRecipient,
-            expectedWithdrawalAmount,
-            _portal,
-            _l1Messenger,
-            _expectedWithdrawalGasLimit,
-            _opL1Messenger,
-            _opPortal,
-            _opFeesRecipient
+            ChainConfig({
+                l1ForkId: _mainnetForkId,
+                l2ForkId: _l2ForkId,
+                l1Withdrawer: _l1Withdrawer,
+                l1WithdrawalRecipient: _expectedL1WithdrawalRecipient,
+                expectedWithdrawalAmount: expectedWithdrawalAmount,
+                portal: _portal,
+                l1Messenger: _l1Messenger,
+                withdrawalGasLimit: _expectedWithdrawalGasLimit
+            }),
+            OPConfig({
+                opL2ForkId: _opMainnetForkId,
+                opL1Messenger: _opL1Messenger,
+                opPortal: _opPortal,
+                feesDepositorTarget: _feesDepositorTarget
+            })
         );
     }
 }
