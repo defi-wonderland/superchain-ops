@@ -62,10 +62,21 @@ abstract contract IntegrationBase is Test {
     // Extra gas buffer added to the minimum gas limit for the relayMessage function
     uint64 internal constant RELAY_GAS_OVERHEAD = 700_000;
 
+    // Gas limit for simple ETH transfers via L1→L2 relay (FeesDepositor → OP L2)
+    uint256 internal constant L1_TO_L2_ETH_TRANSFER_GAS_LIMIT = 200_000;
+
     // Counter for unique L1→L2 message nonces (to avoid collisions on forks)
     uint240 internal _l1ToL2NonceCounter;
 
-    // L2 chain configuration struct
+    /// @notice L2 chain configuration for multi-chain integration tests
+    /// @param forkId Fork ID for this L2 chain
+    /// @param portal OptimismPortal address on L1 for this chain
+    /// @param l1Messenger L1CrossDomainMessenger address for this chain
+    /// @param minWithdrawalAmount Minimum withdrawal amount for L1Withdrawer (wei)
+    /// @param l1WithdrawalRecipient Target address on L1 that receives withdrawals
+    /// @param withdrawalGasLimit Gas limit for L2->L1 withdrawal messages
+    /// @param chainFeesRecipient Chain fees recipient address (85% share)
+    /// @param name Human-readable chain name for logging
     struct L2ChainConfig {
         uint256 forkId;
         address portal;
@@ -402,7 +413,7 @@ abstract contract IntegrationBase is Test {
                 _chainConfig.l1WithdrawalRecipient, // sender (FeesDepositor)
                 _opConfig.feesDepositorTarget, // target (OP fees recipient)
                 _chainConfig.expectedWithdrawalAmount,
-                200_000, // gas limit for simple ETH transfer
+                L1_TO_L2_ETH_TRANSFER_GAS_LIMIT,
                 "" // empty data for ETH transfer
             );
 
@@ -437,9 +448,11 @@ abstract contract IntegrationBase is Test {
 
     /// @notice Relay a message from L2 to L1 via the CrossDomainMessenger
     /// @dev This simulates the L2->L1 message relay by:
-    ///      1. Setting the portal's l2Sender to the L2CrossDomainMessenger
-    ///      2. Calling relayMessage on the L1CrossDomainMessenger from the portal
-    ///      3. Resetting the l2Sender back to the default value
+    ///      1. Getting the message nonce from the L1 messenger
+    ///      2. Setting the portal's l2Sender to the L2CrossDomainMessenger
+    ///      3. Dealing ETH to the portal so it can send value with the message
+    ///      4. Calling relayMessage on the L1CrossDomainMessenger from the portal
+    ///      5. Resetting the l2Sender back to the default value
     /// @param _portal The OptimismPortal address
     /// @param _l1Messenger The L1CrossDomainMessenger address
     /// @param _sender The sender address on L2

@@ -89,22 +89,12 @@ contract RevSharePostTaskAssertionsTest is IntegrationBase {
         _expectedWithdrawalGasLimit = uint32(vm.envOr("WITHDRAWAL_GAS_LIMIT", uint256(0)));
         _expectedChainFeesRecipient = vm.envOr("CHAIN_FEES_RECIPIENT", address(0));
 
-        // Check if all required env vars are set
-        bool hasRpcUrl = bytes(rpcUrl).length > 0;
-        bool hasL1RpcUrl = bytes(l1RpcUrl).length > 0;
-        bool hasOpRpcUrl = bytes(opRpcUrl).length > 0;
-        bool hasPortal = _portal != address(0);
-        bool hasL1Messenger = _l1Messenger != address(0);
-        bool hasOpL1Messenger = _opL1Messenger != address(0);
-        bool hasOpPortal = _opPortal != address(0);
-        bool hasFeesDepositorTarget = _feesDepositorTarget != address(0);
-        bool hasExpectedL1WithdrawalRecipient = _expectedL1WithdrawalRecipient != address(0);
-        bool hasExpectedWithdrawalGasLimit = _expectedWithdrawalGasLimit != 0;
-        bool hasExpectedChainFeesRecipient = _expectedChainFeesRecipient != address(0);
-
-        _isEnabled = hasRpcUrl && hasL1RpcUrl && hasOpRpcUrl && hasPortal && hasL1Messenger && hasOpL1Messenger
-            && hasOpPortal && hasFeesDepositorTarget && hasExpectedL1WithdrawalRecipient
-            && hasExpectedWithdrawalGasLimit && hasExpectedChainFeesRecipient;
+        // Check if all required env vars are set (combined to avoid stack too deep)
+        _isEnabled = bytes(rpcUrl).length > 0 && bytes(l1RpcUrl).length > 0 && bytes(opRpcUrl).length > 0
+            && _portal != address(0) && _l1Messenger != address(0) && _opL1Messenger != address(0)
+            && _opPortal != address(0) && _feesDepositorTarget != address(0) && _expectedMinWithdrawalAmount != 0
+            && _expectedL1WithdrawalRecipient != address(0) && _expectedWithdrawalGasLimit != 0
+            && _expectedChainFeesRecipient != address(0);
 
         if (_isEnabled) {
             _mainnetForkId = vm.createFork(l1RpcUrl);
@@ -180,7 +170,8 @@ contract RevSharePostTaskAssertionsTest is IntegrationBase {
         vm.warp(block.timestamp + IFeeSplitter(FEE_SPLITTER).feeDisbursementInterval() + 1);
 
         // Calculate expected withdrawal amount (current balance + new share)
-        uint256 secondShare = (secondVaultFunding * 45) / 100;
+        // share = netRevenue * 15% = vaultFunding * 3 * 15 / 100
+        uint256 secondShare = (secondVaultFunding * 3 * 15) / 100;
         uint256 expectedWithdrawalAmount = l1WithdrawerBalanceAfter + secondShare;
 
         _executeDisburseAndAssertWithdrawal(
