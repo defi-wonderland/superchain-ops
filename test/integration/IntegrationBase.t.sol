@@ -325,7 +325,7 @@ abstract contract IntegrationBase is Test {
     /// @notice Execute disburseFees and assert that it triggers a withdrawal with the expected amount
     /// @param _l1ForkId The L1 fork ID
     /// @param _forkId The fork ID of the L2 chain to test
-    /// @param _opL2ForkId The OP Mainnet L2 fork ID (for relaying L1→L2 deposits)
+    /// @param _opL2ForkId The OP L2 fork ID (for relaying L1→L2 deposits from FeesDepositor)
     /// @param _l1Withdrawer The L1Withdrawer address that emits the WithdrawalInitiated event
     /// @param _l1WithdrawalRecipient The expected recipient of the withdrawal
     /// @param _expectedWithdrawalAmount The expected withdrawal amount
@@ -333,6 +333,8 @@ abstract contract IntegrationBase is Test {
     /// @param _l1Messenger The L1CrossDomainMessenger address for this L2 chain
     /// @param _withdrawalGasLimit The gas limit used for L1 withdrawals
     /// @param _opL1Messenger The OP L1CrossDomainMessenger address (mainnet or sepolia)
+    /// @param _opPortal The OP Portal address (mainnet or sepolia) - where FeesDepositor deposits
+    /// @param _opFeesRecipient The OP fees recipient address (mainnet or sepolia)
     function _executeDisburseAndAssertWithdrawal(
         uint256 _l1ForkId,
         uint256 _forkId,
@@ -343,7 +345,9 @@ abstract contract IntegrationBase is Test {
         address _portal,
         address _l1Messenger,
         uint32 _withdrawalGasLimit,
-        address _opL1Messenger
+        address _opL1Messenger,
+        address _opPortal,
+        address _opFeesRecipient
     ) internal {
         vm.selectFork(_forkId);
         vm.warp(block.timestamp + IFeeSplitter(FEE_SPLITTER).feeDisbursementInterval() + 1);
@@ -356,10 +360,10 @@ abstract contract IntegrationBase is Test {
         vm.selectFork(_l1ForkId);
 
         if (_expectedWithdrawalAmount >= FEES_DEPOSITOR_THRESHOLD) {
-            // Expect TransactionDeposited event from OP Mainnet Portal
+            // Expect TransactionDeposited event from OP Portal
             // Note: FeesDepositor calls L1CrossDomainMessenger.sendMessage(), which calls OptimismPortal.depositTransaction()
             // The 'from' address in TransactionDeposited is the aliased L1CrossDomainMessenger (not the FeesDepositor)
-            vm.expectEmit(true, true, true, false, OP_MAINNET_PORTAL);
+            vm.expectEmit(true, true, true, false, _opPortal);
             emit TransactionDeposited(
                 AddressAliasHelper.applyL1ToL2Alias(_opL1Messenger), // aliased L1CrossDomainMessenger
                 L2_CROSS_DOMAIN_MESSENGER, // L2 CrossDomainMessenger
@@ -377,27 +381,27 @@ abstract contract IntegrationBase is Test {
                 "" // data (empty for ETH transfer)
             );
 
-            // Now relay the deposit from L1 to OP Mainnet L2
+            // Now relay the deposit from L1 to OP L2
             vm.selectFork(_opL2ForkId);
 
-            uint256 recipientBalanceBefore = OP_MAINNET_FEES_RECIPIENT.balance;
+            uint256 recipientBalanceBefore = _opFeesRecipient.balance;
 
-            // Relay the L1→L2 message (simple ETH transfer to OPM multisig)
+            // Relay the L1→L2 message (simple ETH transfer to fees recipient)
             address aliasedOpL1Messenger = AddressAliasHelper.applyL1ToL2Alias(_opL1Messenger);
             _relayL1ToL2Message(
                 aliasedOpL1Messenger,
                 _l1WithdrawalRecipient, // sender (FeesDepositor)
-                OP_MAINNET_FEES_RECIPIENT, // target (OPM multisig)
+                _opFeesRecipient, // target (fees recipient)
                 _expectedWithdrawalAmount,
                 200_000, // gas limit for simple ETH transfer
                 "" // empty data for ETH transfer
             );
 
-            uint256 recipientBalanceAfter = OP_MAINNET_FEES_RECIPIENT.balance;
+            uint256 recipientBalanceAfter = _opFeesRecipient.balance;
             assertEq(
                 recipientBalanceAfter - recipientBalanceBefore,
                 _expectedWithdrawalAmount,
-                "OP Mainnet fees recipient should receive the withdrawal amount"
+                "OP fees recipient should receive the withdrawal amount"
             );
         } else {
             // FeesDepositor holds the ETH (below threshold)

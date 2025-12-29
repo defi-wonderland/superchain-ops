@@ -229,7 +229,9 @@ contract RevShareSetupIntegrationTest is IntegrationBase {
                 chain.portal,
                 chain.l1Messenger,
                 chain.withdrawalGasLimit,
-                OP_MAINNET_L1_MESSENGER
+                OP_MAINNET_L1_MESSENGER,
+                OP_MAINNET_PORTAL,
+                OP_MAINNET_FEES_RECIPIENT
             );
         }
     }

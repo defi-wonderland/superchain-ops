@@ -44,6 +44,8 @@ contract RevSharePostTaskAssertionsTest is IntegrationBase {
     address internal _portal;
     address internal _l1Messenger;
     address internal _opL1Messenger;
+    address internal _opPortal;
+    address internal _opFeesRecipient;
 
     // Expected values from env vars
     uint256 internal _expectedMinWithdrawalAmount;
@@ -74,6 +76,8 @@ contract RevSharePostTaskAssertionsTest is IntegrationBase {
         _portal = vm.envOr("OPTIMISM_PORTAL", address(0));
         _l1Messenger = vm.envOr("L1_MESSENGER", address(0));
         _opL1Messenger = vm.envOr("OP_L1_MESSENGER", OP_MAINNET_L1_MESSENGER); // Defaults to mainnet
+        _opPortal = vm.envOr("OP_PORTAL", OP_MAINNET_PORTAL); // Defaults to mainnet
+        _opFeesRecipient = vm.envOr("OP_FEES_RECIPIENT", OP_MAINNET_FEES_RECIPIENT); // Defaults to mainnet
 
         // Expected values to verify against on-chain state
         _expectedMinWithdrawalAmount = vm.envOr("MIN_WITHDRAWAL_AMOUNT", uint256(0));
@@ -180,7 +184,9 @@ contract RevSharePostTaskAssertionsTest is IntegrationBase {
             _portal,
             _l1Messenger,
             _expectedWithdrawalGasLimit,
-            _opL1Messenger
+            _opL1Messenger,
+            _opPortal,
+            _opFeesRecipient
         );
     }
 }
