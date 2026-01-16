@@ -809,7 +809,7 @@ abstract contract MultisigTask is Test, Script, StateOverrideManager, TaskManage
         }
         MultisigTaskPrinter.printTaskCalldata(rootSafe.callData);
 
-        bytes memory simulatedDataToSign;
+        bytes memory simulatedDataToSign; // dataToSign for the current safe in the loop, used for printing.
         // Only print safe and execution data if the task is being simulated.
         if (isSimulate) {
             for (uint256 i = payload.safes.length - 1; i >= 0; i--) {
