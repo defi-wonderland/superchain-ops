@@ -1,0 +1,24 @@
+# Base FeeDisburser Update Configuration
+# Updates Base's FeeDisburser to point OPTIMISM_WALLET to L1Withdrawer
+
+templateName = "BaseFeeDisburserUpdate"
+
+# L2 chain to target
+l2chains = [{name = "Base", chainId = 8453}]
+
+safeAddress = "ProxyAdminOwner"
+
+# FeeDisburser proxy on Base L2
+feeDisburserProxy = "0x09c7bad99688a55a2e83644bfaed09e62bdcccba"
+
+# L1Withdrawer already deployed on Base L2 (new OPTIMISM_WALLET)
+l1Withdrawer = "0x5f077b4c3509C2c192e50B6654d924Fcb8126A60"
+
+# Current L1_WALLET to preserve (read from deployed FeeDisburser)
+l1Wallet = "0x23B597f33f6f2621F77DA117523Dffd634cDf4ea"
+
+# Current FEE_DISBURSEMENT_INTERVAL to preserve (24 hours in seconds)
+feeDisbursementInterval = 86400
+
+[addresses]
+ProxyAdminOwner = "0x7bB41C3008B3f03FE483B28b8DB90e19Cf07595c"
