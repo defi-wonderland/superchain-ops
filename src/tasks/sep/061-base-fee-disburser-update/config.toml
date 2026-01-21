@@ -1,0 +1,24 @@
+# Base Sepolia FeeDisburser Update Configuration
+# Updates Base Sepolia's FeeDisburser to point OPTIMISM_WALLET to L1Withdrawer
+
+templateName = "BaseFeeDisburserUpdate"
+
+# L2 chain to target
+l2chains = [{name = "Base Sepolia", chainId = 84532}]
+
+safeAddress = "ProxyAdminOwner"
+
+# FeeDisburser proxy on Base Sepolia L2
+feeDisburserProxy = "0x76355a67fcbcde6f9a69409a8ead5eaa9d8d875d"
+
+# L1Withdrawer already deployed on Base Sepolia L2 (new OPTIMISM_WALLET)
+l1Withdrawer = "0x7E077dB4e625bbc516c99FD2B0Dbf971D95E5Dff"
+
+# Current L1_WALLET to preserve (read from deployed FeeDisburser)
+l1Wallet = "0x8D1b5e5614300F5c7ADA01fFA4ccF8F1752D9A57"
+
+# Current FEE_DISBURSEMENT_INTERVAL to preserve (7 days in seconds)
+feeDisbursementInterval = 604800
+
+[addresses]
+ProxyAdminOwner = "0x0fe884546476dDd290eC46318785046ef68a0BA9"
