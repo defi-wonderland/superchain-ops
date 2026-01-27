@@ -58,14 +58,6 @@ contract BetanetRevShareIntegrationTest is IntegrationBase {
 
     /// @notice Test the integration of setupRevShare for betanet
     function test_setupRevShare_betanet_integration() public {
-        // Step 0: Fix L2 ProxyAdmin ownership on betanet
-        // The betanet was configured with a different L2 PAO than the aliased L1 PAO.
-        // Transfer ownership to the aliased L1 PAO so deposit transactions from L1 can upgrade proxies.
-        vm.selectFork(_betanetForkId);
-        address currentOwner = Ownable(L2_PROXY_ADMIN).owner();
-        vm.prank(currentOwner);
-        Ownable(L2_PROXY_ADMIN).transferOwnership(ALIASED_L1_PAO);
-
         // Switch back to L1 for task execution
         vm.selectFork(_mainnetForkId);
 
