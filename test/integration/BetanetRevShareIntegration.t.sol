@@ -65,7 +65,7 @@ contract BetanetRevShareIntegrationTest is IntegrationBase {
         vm.recordLogs();
 
         // Step 2: Execute task simulation
-        revShareTask.simulate("src/tasks/sep/060-betanet-rev-share/config.toml");
+        revShareTask.simulate("src/tasks/sep/061-betanet-rev-share/config.toml");
 
         // Step 3: Relay deposit transactions from L1 to betanet L2
         uint256[] memory forkIds = new uint256[](1);
