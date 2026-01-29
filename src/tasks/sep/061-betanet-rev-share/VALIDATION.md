@@ -1,26 +1,17 @@
-# Validation
-
-This document can be used to validate the inputs and result of the execution of the upgrade transaction which you are
-signing.
-
 ## Expected Domain and Message Hashes
 
-Validate the domain and message hashes. These values should match both the values on your ledger and
+First, we need to validate the domain and message hashes. These values should match both the values on your ledger and
 the values printed to the terminal when you run the task.
 
 > [!CAUTION]
 >
 > Before signing, ensure the below hashes match what is on your ledger.
 >
-> ### Nested Safe 1 (Foundation): `0xDEe57160aAfCF04c34C887B5962D0a69676d3C8B`
+> ### Betanet 1/1 Safe (`0xe934Dc97E347C6aCef74364B50125bb8689c40ff`)
 >
-> - Domain Hash: `0x37e1f5dd3b92a004a23589b741196c8a214629d4ea3a690ec8e41ae45c689cbb`
-> - Message Hash: `0x377bd6172b8c79fc5e2536a74ab5d5fa555b3524c04c6f21aa35d16274dcf294`
->
-> ### Nested Safe 2 (Security Council): `0xf64bc17485f0B4Ea5F06A96514182FC4cB561977`
->
-> - Domain Hash: `0xbe081970e9fc104bd1ea27e375cd21ec7bb1eec56bfe43347c3e36c5d27b8533`
-> - Message Hash: `0x489e12f3fe9efdc68cb892257af2c199b9d14c8c32f55a402ee95e85614661d4`
+> - Domain Hash: `0x07e03428d7125835eca12b6dd1a02903029b456da3a091ecd66fda859fbce61e`
+> - Message Hash: `0x770e4773754340aac8dccde4f74b378ca2216e6f67a0a66790a6ef3ef782e2f4`
+
 ## Task Calldata
 
 ```
